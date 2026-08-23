@@ -1,23 +1,33 @@
 <script lang="ts">
+	import ProfilePopover from "$lib/components/ProfilePopover.svelte";
 	import type { Member } from "$lib/data/mock";
 
 	let { members }: { members: Member[] } = $props();
 
+	let openMember = $state<{ id: string; anchor: HTMLElement } | null>(null);
+
 	const online = $derived(members.filter((m) => m.status === "online" || m.status === "idle"));
 	const offline = $derived(members.filter((m) => m.status === "offline"));
+
+	function toggle(id: string, event: MouseEvent) {
+		const target = event.currentTarget as HTMLElement;
+		openMember = openMember?.id === id ? null : { id, anchor: target };
+	}
 </script>
 
 <aside class="members">
 	{#if online.length > 0}
 		<p class="label">Online — {online.length}</p>
 		{#each online as member (member.id)}
-			<div class="member">
-				<div class="ring" class:idle={member.status === "idle"}>
-					<div class="avatar" style:background={member.color}>
-						{member.name.slice(0, 2).toUpperCase()}
+			<div class="anchor">
+				<button class="member" onclick={(e) => toggle(member.id, e)}>
+					<div class="ring" class:idle={member.status === "idle"}>
+						<div class="avatar" style:background={member.color}>
+							{member.name.slice(0, 2).toUpperCase()}
+						</div>
 					</div>
-				</div>
-				<span class="name">{member.name}</span>
+					<span class="name">{member.name}</span>
+				</button>
 			</div>
 		{/each}
 	{/if}
@@ -25,17 +35,24 @@
 	{#if offline.length > 0}
 		<p class="label">Offline — {offline.length}</p>
 		{#each offline as member (member.id)}
-			<div class="member offline">
-				<div class="ring offline">
-					<div class="avatar" style:background={member.color}>
-						{member.name.slice(0, 2).toUpperCase()}
+			<div class="anchor">
+				<button class="member offline" onclick={(e) => toggle(member.id, e)}>
+					<div class="ring offline">
+						<div class="avatar" style:background={member.color}>
+							{member.name.slice(0, 2).toUpperCase()}
+						</div>
 					</div>
-				</div>
-				<span class="name">{member.name}</span>
+					<span class="name">{member.name}</span>
+				</button>
 			</div>
 		{/each}
 	{/if}
 </aside>
+
+{#if openMember}
+	{@const member = members.find((m) => m.id === openMember!.id)!}
+	<ProfilePopover {member} anchor={openMember.anchor} onClose={() => (openMember = null)} />
+{/if}
 
 <style>
 	.members {
@@ -44,6 +61,10 @@
 		background: var(--sidebar);
 		padding: 16px 8px;
 		overflow-y: auto;
+	}
+
+	.anchor {
+		position: relative;
 	}
 
 	.label {
@@ -57,6 +78,7 @@
 	}
 
 	.member {
+		width: 100%;
 		transition: background-color 0.15s ease;
 		display: flex;
 		align-items: center;

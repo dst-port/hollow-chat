@@ -2,11 +2,12 @@
 	import Plus from "@lucide/svelte/icons/plus";
 	import type { ServerEntry } from "$lib/data/mock";
 
-	let { servers, activeId, onSelect, onSelectHome }: {
+	let { servers, activeId, onSelect, onSelectHome, onAddServer }: {
 		servers: ServerEntry[];
 		activeId: string | null;
 		onSelect: (id: string) => void;
 		onSelectHome: () => void;
+		onAddServer: () => void;
 	} = $props();
 </script>
 
@@ -42,7 +43,7 @@
 
 	<div class="spacer"></div>
 
-	<button class="add" title="Add a server">
+	<button class="add" title="Add a server" onclick={onAddServer}>
 		<Plus size={20} strokeWidth={2.25} />
 	</button>
 </nav>

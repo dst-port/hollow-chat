@@ -5,12 +5,18 @@
 	import Volume2 from "@lucide/svelte/icons/volume-2";
 	import Search from "@lucide/svelte/icons/search";
 	import UserBar from "$lib/components/UserBar.svelte";
-	import type { ServerEntry } from "$lib/data/mock";
+	import ServerMenu from "$lib/components/ServerMenu.svelte";
+	import InviteModal from "$lib/components/InviteModal.svelte";
+	import CreateChannelModal from "$lib/components/CreateChannelModal.svelte";
+	import { toast } from "$lib/stores/toast.svelte";
+	import type { ChannelType, ServerEntry } from "$lib/data/mock";
 
-	let { server, activeChannelId, onSelectChannel, username, onLogout }: {
+	let { server, activeChannelId, onSelectChannel, onCreateChannel, onLeaveServer, username, onLogout }: {
 		server: ServerEntry;
 		activeChannelId: string;
 		onSelectChannel: (id: string) => void;
+		onCreateChannel: (name: string, type: ChannelType) => void;
+		onLeaveServer: () => void;
 		username: string;
 		onLogout: () => void;
 	} = $props();
@@ -18,6 +24,9 @@
 	let search = $state("");
 	let textCollapsed = $state(false);
 	let voiceCollapsed = $state(false);
+	let menuOpen = $state(false);
+	let inviteOpen = $state(false);
+	let createChannelOpen = $state(false);
 
 	const textChannels = $derived(
 		server.channels.filter(
@@ -29,13 +38,46 @@
 			(c) => c.type === "voice" && c.name.toLowerCase().includes(search.toLowerCase())
 		)
 	);
+
+	function selectChannel(id: string) {
+		onSelectChannel(id);
+	}
+
+	function handleCreateChannel(name: string, type: ChannelType) {
+		onCreateChannel(name, type);
+		createChannelOpen = false;
+		toast.push(`#${name} created`);
+	}
 </script>
 
 <aside class="sidebar">
-	<button class="header">
-		<span>{server.name}</span>
-		<ChevronDown size={16} strokeWidth={2.5} />
-	</button>
+	<div class="header-wrap">
+		<button class="header" onclick={() => (menuOpen = !menuOpen)}>
+			<span>{server.name}</span>
+			<ChevronDown class={menuOpen ? "flipped" : ""} size={16} strokeWidth={2.5} />
+		</button>
+		{#if menuOpen}
+			<ServerMenu
+				onClose={() => (menuOpen = false)}
+				onInvite={() => {
+					menuOpen = false;
+					inviteOpen = true;
+				}}
+				onCreateChannel={() => {
+					menuOpen = false;
+					createChannelOpen = true;
+				}}
+				onSettings={() => {
+					menuOpen = false;
+					toast.push("Server settings aren't wired up yet");
+				}}
+				onLeave={() => {
+					menuOpen = false;
+					onLeaveServer();
+				}}
+			/>
+		{/if}
+	</div>
 
 	<div class="search-bar">
 		<Search size={13} strokeWidth={2.5} />
@@ -54,10 +96,11 @@
 						<button
 							class="channel"
 							class:active={channel.id === activeChannelId}
-							onclick={() => onSelectChannel(channel.id)}
+							onclick={() => selectChannel(channel.id)}
 						>
 							<Hash size={16} strokeWidth={2} class="channel-icon" />
-							<span class="name">{channel.name}</span>
+							<span class="name" class:unread={channel.unread}>{channel.name}</span>
+							{#if channel.unread}<span class="unread-dot"></span>{/if}
 						</button>
 					{/each}
 				</div>
@@ -75,7 +118,7 @@
 						<button
 							class="channel"
 							class:active={channel.id === activeChannelId}
-							onclick={() => onSelectChannel(channel.id)}
+							onclick={() => selectChannel(channel.id)}
 						>
 							<Volume2 size={16} strokeWidth={2} class="channel-icon" />
 							<span class="name">{channel.name}</span>
@@ -89,6 +132,14 @@
 	<UserBar {username} {onLogout} />
 </aside>
 
+{#if inviteOpen}
+	<InviteModal serverName={server.name} inviteCode={server.id.slice(0, 8)} onClose={() => (inviteOpen = false)} />
+{/if}
+
+{#if createChannelOpen}
+	<CreateChannelModal onClose={() => (createChannelOpen = false)} onCreate={handleCreateChannel} />
+{/if}
+
 <style>
 	.sidebar {
 		width: 240px;
@@ -99,9 +150,14 @@
 		height: 100%;
 	}
 
-	.header {
-		height: 48px;
+	.header-wrap {
+		position: relative;
 		flex-shrink: 0;
+	}
+
+	.header {
+		width: 100%;
+		height: 48px;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -118,6 +174,14 @@
 	.header:hover {
 		background: var(--hover);
 		color: var(--ink);
+	}
+
+	.header :global(svg) {
+		transition: transform 0.15s ease;
+	}
+
+	.header :global(svg.flipped) {
+		transform: rotate(180deg);
 	}
 
 	.search-bar {
@@ -215,5 +279,18 @@
 	.channel.active :global(.channel-icon),
 	.channel:hover :global(.channel-icon) {
 		color: var(--ink);
+	}
+
+	.name.unread {
+		color: var(--ink);
+		font-weight: 700;
+	}
+
+	.unread-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--ink);
+		margin-left: auto;
 	}
 </style>

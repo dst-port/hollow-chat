@@ -10,24 +10,83 @@
 	import Reply from "@lucide/svelte/icons/reply";
 	import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
 	import SendHorizontal from "@lucide/svelte/icons/send-horizontal";
+	import Paperclip from "@lucide/svelte/icons/paperclip";
+	import Smile from "@lucide/svelte/icons/smile";
+	import X from "@lucide/svelte/icons/x";
+	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
+	import InfoPopover from "$lib/components/InfoPopover.svelte";
+	import MessageMenu from "$lib/components/MessageMenu.svelte";
+	import EmojiPicker from "$lib/components/EmojiPicker.svelte";
+	import { toast } from "$lib/stores/toast.svelte";
 	import type { Channel, Message } from "$lib/data/mock";
 
-	let { channel, messages, onToggleMembers }: {
+	let { channel, messages = $bindable(), onToggleMembers }: {
 		channel: Channel;
 		messages: Message[];
 		onToggleMembers: () => void;
 	} = $props();
 
 	let draft = $state("");
+	let replyingTo = $state<Message | null>(null);
+	let openMenuId = $state<string | null>(null);
+	let composerEmojiOpen = $state(false);
+	let pinnedOpen = $state(false);
+	let notificationsOpen = $state(false);
+	let inboxOpen = $state(false);
+	let muted = $state(false);
+
+	const pinnedMessages = $derived(messages.filter((m) => m.pinned));
 
 	function send(event: SubmitEvent) {
 		event.preventDefault();
+		if (!draft.trim()) return;
+		messages.push({
+			id: crypto.randomUUID(),
+			author: "you",
+			color: "#9a9ba1",
+			content: draft.trim(),
+			time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+		});
 		draft = "";
+		replyingTo = null;
 	}
 
 	function isGrouped(index: number) {
 		if (index === 0) return false;
 		return messages[index - 1].author === messages[index].author;
+	}
+
+	function copyText(message: Message) {
+		navigator.clipboard.writeText(message.content);
+		toast.push("Copied");
+	}
+
+	function togglePin(message: Message) {
+		message.pinned = !message.pinned;
+		toast.push(message.pinned ? "Message pinned" : "Message unpinned");
+	}
+
+	function deleteMessage(message: Message) {
+		messages = messages.filter((m) => m.id !== message.id);
+		toast.push("Message deleted");
+	}
+
+	function toggleReaction(message: Message, emoji: string) {
+		if (!message.reactions) message.reactions = [];
+		const existing = message.reactions.find((r) => r.emoji === emoji);
+		if (existing) {
+			existing.reacted = !existing.reacted;
+			existing.count += existing.reacted ? 1 : -1;
+			if (existing.count <= 0) {
+				message.reactions = message.reactions.filter((r) => r.emoji !== emoji);
+			}
+		} else {
+			message.reactions.push({ emoji, count: 1, reacted: true });
+		}
+	}
+
+	function insertEmoji(emoji: string) {
+		draft += emoji;
 	}
 </script>
 
@@ -39,8 +98,32 @@
 		{/key}
 		<div class="spacer"></div>
 		<div class="header-icons">
-			<button class="icon-button" title="Pinned messages"><Pin size={17} strokeWidth={2} /></button>
-			<button class="icon-button" title="Notifications"><Bell size={17} strokeWidth={2} /></button>
+			<div class="anchor">
+				<button class="icon-button" title="Pinned messages" onclick={() => (pinnedOpen = !pinnedOpen)}>
+					<Pin size={17} strokeWidth={2} />
+				</button>
+				{#if pinnedOpen}
+					<PinnedPopover pinned={pinnedMessages} onClose={() => (pinnedOpen = false)} />
+				{/if}
+			</div>
+			<div class="anchor">
+				<button
+					class="icon-button"
+					class:active={muted}
+					title="Notification settings"
+					onclick={() => (notificationsOpen = !notificationsOpen)}
+				>
+					<Bell size={17} strokeWidth={2} />
+				</button>
+				{#if notificationsOpen}
+					<InfoPopover title="Notifications" onClose={() => (notificationsOpen = false)}>
+						<label class="toggle-row">
+							<span>Mute channel</span>
+							<input type="checkbox" bind:checked={muted} />
+						</label>
+					</InfoPopover>
+				{/if}
+			</div>
 			<button class="icon-button" title="Members" onclick={onToggleMembers}>
 				<Users size={17} strokeWidth={2} />
 			</button>
@@ -48,50 +131,122 @@
 				<Search size={13} strokeWidth={2.5} />
 				<input type="text" placeholder="Search" />
 			</div>
-			<button class="icon-button" title="Inbox"><Inbox size={17} strokeWidth={2} /></button>
+			<div class="anchor">
+				<button class="icon-button" title="Inbox" onclick={() => (inboxOpen = !inboxOpen)}>
+					<Inbox size={17} strokeWidth={2} />
+				</button>
+				{#if inboxOpen}
+					<InfoPopover title="Inbox" onClose={() => (inboxOpen = false)}>
+						<p class="inbox-empty">You're all caught up.</p>
+					</InfoPopover>
+				{/if}
+			</div>
 		</div>
 	</header>
 
 	<div class="messages">
-		{#key channel.id}
-		{#each messages as message, index (message.id)}
-			<div class="message" class:grouped={isGrouped(index)} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
-				{#if !isGrouped(index)}
-					<div class="avatar" style:background={message.color}>
-						{message.author.slice(0, 2).toUpperCase()}
-					</div>
-				{:else}
-					<div class="avatar-spacer">
-						<span class="hover-time">{message.time}</span>
-					</div>
-				{/if}
-
-				<div class="body">
-					{#if !isGrouped(index)}
-						<p class="meta">
-							<span class="author" style:color={message.color}>{message.author}</span>
-							<span class="time">{message.time}</span>
-						</p>
-					{/if}
-					<p class="content">{message.content}</p>
-				</div>
-
-				<div class="hover-actions">
-					<button class="icon-button small" title="Add reaction"><SmilePlus size={15} strokeWidth={2} /></button>
-					<button class="icon-button small" title="Reply"><Reply size={15} strokeWidth={2} /></button>
-					<button class="icon-button small" title="More"><MoreHorizontal size={15} strokeWidth={2} /></button>
-				</div>
+		{#if messages.length === 0}
+			<div class="welcome">
+				<div class="welcome-icon"><Hash size={28} strokeWidth={2} /></div>
+				<h2>Welcome to #{channel.name}</h2>
+				<p>This is the start of the channel.</p>
 			</div>
-		{/each}
+		{/if}
+		{#key channel.id}
+			{#each messages as message, index (message.id)}
+				<div class="message" class:grouped={isGrouped(index)} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
+					{#if !isGrouped(index)}
+						<div class="avatar" style:background={message.color}>
+							{message.author.slice(0, 2).toUpperCase()}
+						</div>
+					{:else}
+						<div class="avatar-spacer">
+							<span class="hover-time">{message.time}</span>
+						</div>
+					{/if}
+
+					<div class="body">
+						{#if !isGrouped(index)}
+							<p class="meta">
+								<span class="author" style:color={message.color}>{message.author}</span>
+								<span class="time">{message.time}</span>
+								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
+							</p>
+						{/if}
+						<p class="content">{message.content}</p>
+						{#if message.reactions && message.reactions.length > 0}
+							<div class="reactions">
+								{#each message.reactions as reaction (reaction.emoji)}
+									<button
+										class="reaction"
+										class:reacted={reaction.reacted}
+										onclick={() => toggleReaction(message, reaction.emoji)}
+									>
+										{reaction.emoji} {reaction.count}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<div class="hover-actions">
+						<button class="icon-button small" title="Add reaction" onclick={() => toggleReaction(message, "👍")}>
+							<SmilePlus size={15} strokeWidth={2} />
+						</button>
+						<button class="icon-button small" title="Reply" onclick={() => (replyingTo = message)}>
+							<Reply size={15} strokeWidth={2} />
+						</button>
+						<div class="anchor">
+							<button
+								class="icon-button small"
+								title="More"
+								onclick={() => (openMenuId = openMenuId === message.id ? null : message.id)}
+							>
+								<MoreHorizontal size={15} strokeWidth={2} />
+							</button>
+							{#if openMenuId === message.id}
+								<MessageMenu
+									pinned={!!message.pinned}
+									onClose={() => (openMenuId = null)}
+									onCopy={() => copyText(message)}
+									onTogglePin={() => togglePin(message)}
+									onDelete={() => deleteMessage(message)}
+								/>
+							{/if}
+						</div>
+					</div>
+				</div>
+			{/each}
 		{/key}
 	</div>
 
+	{#if replyingTo}
+		<div class="reply-banner" transition:fly={{ y: 8, duration: 140 }}>
+			<Reply size={14} strokeWidth={2} />
+			<span>Replying to <strong>{replyingTo.author}</strong></span>
+			<button class="cancel-reply" onclick={() => (replyingTo = null)}>
+				<X size={14} strokeWidth={2} />
+			</button>
+		</div>
+	{/if}
+
 	<form class="composer" onsubmit={send}>
+		<button type="button" class="attach" title="Upload a file" onclick={() => toast.push("File uploads aren't wired up yet")}>
+			<Paperclip size={18} strokeWidth={2} />
+		</button>
 		<input
 			type="text"
 			placeholder={`Message #${channel.name}`}
 			bind:value={draft}
 		/>
+		<div class="anchor">
+			<button type="button" class="emoji-toggle" title="Emoji" onclick={() => (composerEmojiOpen = !composerEmojiOpen)}>
+				<Smile size={18} strokeWidth={2} />
+			</button>
+			{#if composerEmojiOpen}
+				<EmojiPicker onClose={() => (composerEmojiOpen = false)} onPick={insertEmoji} />
+			{/if}
+		</div>
 		<button type="submit" disabled={draft.trim().length === 0}>
 			<SendHorizontal size={16} strokeWidth={2.25} />
 		</button>
@@ -119,6 +274,7 @@
 		font-family: var(--font-mono);
 		font-weight: 600;
 		font-size: 14px;
+		position: relative;
 	}
 
 	.header :global(.hash) {
@@ -127,6 +283,10 @@
 
 	.spacer {
 		flex: 1;
+	}
+
+	.anchor {
+		position: relative;
 	}
 
 	.header-icons {
@@ -169,13 +329,28 @@
 		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
-	.icon-button:hover {
+	.icon-button:hover,
+	.icon-button.active {
 		background: var(--hover);
 		color: var(--ink);
 	}
 
 	.icon-button.small {
 		padding: 4px;
+	}
+
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		font-size: 13px;
+		color: var(--ink);
+	}
+
+	.inbox-empty {
+		margin: 0;
+		font-size: 13px;
+		color: var(--ink-dim);
 	}
 
 	.messages {
@@ -186,13 +361,41 @@
 		flex-direction: column;
 	}
 
+	.welcome {
+		padding: 24px 8px 16px;
+	}
+
+	.welcome-icon {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
+		background: var(--active);
+		color: var(--ink-dim);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-bottom: 12px;
+	}
+
+	.welcome h2 {
+		margin: 0 0 4px;
+		font-family: var(--font-display);
+		font-size: 22px;
+	}
+
+	.welcome p {
+		margin: 0;
+		color: var(--ink-dim);
+		font-size: 14px;
+	}
+
 	.message {
-		transition: background-color 0.1s ease;
 		position: relative;
 		display: flex;
 		gap: 12px;
 		padding: 2px 8px;
 		border-radius: 6px;
+		transition: background-color 0.1s ease;
 	}
 
 	.message:hover {
@@ -238,6 +441,7 @@
 
 	.body {
 		min-width: 0;
+		flex: 1;
 	}
 
 	.meta {
@@ -245,6 +449,10 @@
 		display: flex;
 		align-items: baseline;
 		gap: 8px;
+	}
+
+	.meta :global(.pinned-flag) {
+		color: var(--ink-faint);
 	}
 
 	.author {
@@ -268,6 +476,32 @@
 		word-break: break-word;
 	}
 
+	.reactions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 6px;
+	}
+
+	.reaction {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 8px;
+		border-radius: 999px;
+		background: var(--active);
+		border: 1px solid transparent;
+		font-size: 12px;
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.reaction.reacted {
+		background: var(--accent-soft);
+		border-color: var(--ink-dim);
+		color: var(--ink);
+	}
+
 	.hover-actions {
 		position: absolute;
 		top: -14px;
@@ -283,11 +517,57 @@
 		display: flex;
 	}
 
+	.reply-banner {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 0 16px;
+		padding: 8px 12px;
+		background: var(--active);
+		border-radius: 8px 8px 0 0;
+		font-size: 12px;
+		color: var(--ink-dim);
+	}
+
+	.reply-banner strong {
+		color: var(--ink);
+	}
+
+	.cancel-reply {
+		margin-left: auto;
+		display: flex;
+		color: var(--ink-faint);
+		padding: 2px;
+		border-radius: 4px;
+	}
+
+	.cancel-reply:hover {
+		color: var(--ink);
+	}
+
 	.composer {
 		flex-shrink: 0;
 		display: flex;
+		align-items: center;
 		gap: 8px;
 		padding: 0 16px 16px;
+	}
+
+	.attach,
+	.emoji-toggle {
+		flex-shrink: 0;
+		display: flex;
+		padding: 8px;
+		border-radius: 8px;
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.attach:hover,
+	.emoji-toggle:hover {
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.composer input {
@@ -305,18 +585,19 @@
 		color: var(--ink-faint);
 	}
 
-	.composer button {
-		transition: background-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
+	.composer button[type="submit"] {
+		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		width: 40px;
+		height: 38px;
 		border-radius: 8px;
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
 	}
 
-	.composer button:disabled {
+	.composer button[type="submit"]:disabled {
 		background: var(--active);
 		color: var(--ink-faint);
 		cursor: default;
