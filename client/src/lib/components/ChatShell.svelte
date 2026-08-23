@@ -26,7 +26,7 @@
 	}
 </script>
 
-<div class="app">
+<div class="window-frame app">
 	<ServerRail servers={servers} activeId={activeServerId} onSelect={selectServer} />
 	<ChannelSidebar
 		server={activeServer}
@@ -48,8 +48,5 @@
 <style>
 	.app {
 		display: flex;
-		height: 100vh;
-		width: 100vw;
-		overflow: hidden;
 	}
 </style>

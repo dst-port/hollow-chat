@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "client",
+  "productName": "HollowChat",
   "version": "0.1.0",
   "identifier": "app.hollowchat.desktop",
   "build": {
@@ -10,11 +10,15 @@
     "frontendDist": "../build"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "client",
-        "width": 800,
-        "height": 600
+        "title": "HollowChat",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 880,
+        "minHeight": 560,
+        "transparent": true
       }
     ],
     "security": {

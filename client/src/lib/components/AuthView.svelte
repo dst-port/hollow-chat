@@ -77,7 +77,7 @@
 	}
 </script>
 
-<div class="screen">
+<div class="window-frame screen">
 	<div class="card">
 		<div class="brand">
 			<span class="mark">HC</span>
@@ -188,13 +188,9 @@
 
 <style>
 	.screen {
-		height: 100vh;
-		width: 100vw;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--void);
-		background-image: radial-gradient(circle at 50% 30%, rgba(156, 147, 194, 0.06), transparent 60%);
 	}
 
 	.card {

@@ -12,9 +12,10 @@
 		<p class="label">Online — {online.length}</p>
 		{#each online as member (member.id)}
 			<div class="member">
-				<div class="avatar" style:background={member.color}>
-					{member.name.slice(0, 2).toUpperCase()}
-					<span class="dot" class:idle={member.status === "idle"}></span>
+				<div class="ring" class:idle={member.status === "idle"}>
+					<div class="avatar" style:background={member.color}>
+						{member.name.slice(0, 2).toUpperCase()}
+					</div>
 				</div>
 				<span class="name">{member.name}</span>
 			</div>
@@ -25,8 +26,10 @@
 		<p class="label">Offline — {offline.length}</p>
 		{#each offline as member (member.id)}
 			<div class="member offline">
-				<div class="avatar" style:background={member.color}>
-					{member.name.slice(0, 2).toUpperCase()}
+				<div class="ring offline">
+					<div class="avatar" style:background={member.color}>
+						{member.name.slice(0, 2).toUpperCase()}
+					</div>
 				</div>
 				<span class="name">{member.name}</span>
 			</div>
@@ -70,10 +73,42 @@
 		opacity: 0.5;
 	}
 
+	.ring {
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		padding: 2px;
+		background: conic-gradient(var(--online) 0deg, var(--online) 360deg);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		animation: ring-pulse 2.4s ease-in-out infinite;
+	}
+
+	.ring.idle {
+		background: conic-gradient(var(--idle) 0deg, var(--idle) 360deg);
+		animation: none;
+	}
+
+	.ring.offline {
+		background: var(--ink-faint);
+		animation: none;
+	}
+
+	@keyframes ring-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.5;
+		}
+	}
+
 	.avatar {
-		position: relative;
-		width: 28px;
-		height: 28px;
+		width: 100%;
+		height: 100%;
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
@@ -82,36 +117,7 @@
 		font-size: 10px;
 		font-weight: 600;
 		color: var(--void);
-		flex-shrink: 0;
-	}
-
-	.dot {
-		position: absolute;
-		bottom: -2px;
-		right: -2px;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		background: var(--online);
 		border: 2px solid var(--sidebar);
-		box-shadow: 0 0 4px 1px var(--online);
-		animation: pulse 2.4s ease-in-out infinite;
-	}
-
-	.dot.idle {
-		background: var(--idle);
-		box-shadow: 0 0 4px 1px var(--idle);
-		animation: none;
-	}
-
-	@keyframes pulse {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.55;
-		}
 	}
 
 	.name {

@@ -34,11 +34,24 @@ html,
 body {
 	margin: 0;
 	height: 100%;
-	background: var(--panel);
+	background: transparent;
 	color: var(--ink);
 	font-family: var(--font-body);
 	font-size: 14px;
 	-webkit-font-smoothing: antialiased;
+}
+
+.window-frame {
+	height: calc(100vh - 24px);
+	width: calc(100vw - 24px);
+	margin: 12px;
+	border-radius: 14px;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--panel) 92%, transparent);
+	backdrop-filter: blur(24px);
+	-webkit-backdrop-filter: blur(24px);
+	border: 1px solid var(--hairline);
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
 
 button {

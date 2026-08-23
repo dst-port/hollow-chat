@@ -7,7 +7,8 @@
 	import MicOff from "@lucide/svelte/icons/mic-off";
 	import Headphones from "@lucide/svelte/icons/headphones";
 	import HeadphoneOff from "@lucide/svelte/icons/headphone-off";
-	import LogOut from "@lucide/svelte/icons/log-out";
+	import Settings from "@lucide/svelte/icons/settings";
+	import SettingsModal from "$lib/components/SettingsModal.svelte";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { server, activeChannelId, onSelectChannel, username, onLogout }: {
@@ -23,6 +24,7 @@
 	let voiceCollapsed = $state(false);
 	let muted = $state(false);
 	let deafened = $state(false);
+	let settingsOpen = $state(false);
 
 	const textChannels = $derived(
 		server.channels.filter(
@@ -88,7 +90,9 @@
 	</div>
 
 	<div class="user-panel">
-		<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
+		<div class="ring">
+			<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
+		</div>
 		<div class="identity">
 			<p class="username">{username}</p>
 			<p class="status">online</p>
@@ -100,7 +104,7 @@
 				title={muted ? "Unmute" : "Mute"}
 				onclick={() => (muted = !muted)}
 			>
-				{#if muted}<MicOff size={16} strokeWidth={2} />{:else}<Mic size={16} strokeWidth={2} />{/if}
+				{#if muted}<MicOff size={15} strokeWidth={2} />{:else}<Mic size={15} strokeWidth={2} />{/if}
 			</button>
 			<button
 				class="icon-button"
@@ -108,14 +112,18 @@
 				title={deafened ? "Undeafen" : "Deafen"}
 				onclick={() => (deafened = !deafened)}
 			>
-				{#if deafened}<HeadphoneOff size={16} strokeWidth={2} />{:else}<Headphones size={16} strokeWidth={2} />{/if}
+				{#if deafened}<HeadphoneOff size={15} strokeWidth={2} />{:else}<Headphones size={15} strokeWidth={2} />{/if}
 			</button>
-			<button class="icon-button" title="Log out" onclick={onLogout}>
-				<LogOut size={16} strokeWidth={2} />
+			<button class="icon-button" title="User settings" onclick={() => (settingsOpen = true)}>
+				<Settings size={15} strokeWidth={2} />
 			</button>
 		</div>
 	</div>
 </aside>
+
+{#if settingsOpen}
+	<SettingsModal {username} onClose={() => (settingsOpen = false)} onLogout={onLogout} />
+{/if}
 
 <style>
 	.sidebar {
@@ -258,9 +266,18 @@
 		background: var(--void);
 	}
 
+	.ring {
+		flex-shrink: 0;
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		padding: 2px;
+		background: var(--online);
+	}
+
 	.avatar {
-		width: 32px;
-		height: 32px;
+		width: 100%;
+		height: 100%;
 		border-radius: 50%;
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
@@ -270,7 +287,7 @@
 		font-family: var(--font-display);
 		font-weight: 700;
 		font-size: 12px;
-		flex-shrink: 0;
+		border: 2px solid var(--void);
 	}
 
 	.identity {
@@ -297,12 +314,16 @@
 
 	.controls {
 		display: flex;
+		align-items: center;
 		gap: 2px;
+		padding: 4px;
+		border-radius: 999px;
+		background: var(--panel);
 	}
 
 	.icon-button {
-		padding: 6px;
-		border-radius: 6px;
+		padding: 7px;
+		border-radius: 999px;
 		color: var(--ink-dim);
 		display: flex;
 		transition: background-color 0.15s ease, color 0.15s ease;
