@@ -1,0 +1,18 @@
+[package]
+name = "hollowchat-server"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+common = { path = "../common", package = "hollowchat-common" }
+tokio.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+argon2.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

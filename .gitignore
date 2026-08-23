@@ -1,0 +1,7 @@
+/target
+node_modules/
+.env
+*.log
+client/src-tauri/target
+client/.svelte-kit
+client/build
