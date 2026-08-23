@@ -1,19 +1,17 @@
 # HollowChat
 
-Приватный E2E-зашифрованный мессенджер для геймеров. Альтернатива Discord с упором на анонимность: минимум данных на сервере, Signal Protocol для сообщений, опциональный Tor-режим.
+A private, end-to-end encrypted messenger for gamers. A Discord alternative built around anonymity: minimal server-side data, the Signal Protocol for messages, and an optional Tor mode.
 
-Полный план проекта — [docs/plan.md](docs/plan.md).
-
-## Структура репозитория
+## Repository layout
 
 ```
 crates/server   — backend (Rust + Axum)
-crates/common   — общие типы между сервером и (в будущем) клиентом
-client/         — desktop-клиент (Tauri 2 + Svelte 5)
-migrations/     — SQL-миграции PostgreSQL
+crates/common   — shared types between server and (eventually) client
+client/         — desktop client (Tauri 2 + Svelte 5)
+migrations/     — PostgreSQL SQL migrations
 ```
 
-## Разработка
+## Development
 
 Backend:
 
@@ -22,7 +20,7 @@ cp .env.example .env
 cargo run -p hollowchat-server
 ```
 
-Клиент:
+Client:
 
 ```
 cd client
@@ -30,6 +28,6 @@ pnpm install
 pnpm tauri dev
 ```
 
-## Лицензия
+## License
 
-AGPLv3 — см. [LICENSE](LICENSE). Форк с сетевым доступом обязан открыть исходники.
+AGPLv3 — see [LICENSE](LICENSE). A fork offering network access must release its source.
