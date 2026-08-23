@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { fly } from "svelte/transition";
+	import { cubicOut } from "svelte/easing";
+	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+	import Check from "@lucide/svelte/icons/check";
+	import Copy from "@lucide/svelte/icons/copy";
 	import { register, login, ApiError } from "$lib/api/client";
 	import { session } from "$lib/stores/session.svelte";
 
@@ -12,6 +17,13 @@
 	let revealedPassword = $state("");
 	let revealedUsername = $state("");
 	let confirmed = $state(false);
+	let copied = $state(false);
+
+	async function copyPassword() {
+		await navigator.clipboard.writeText(revealedPassword);
+		copied = true;
+		setTimeout(() => (copied = false), 1500);
+	}
 
 	async function submitLogin(event: SubmitEvent) {
 		event.preventDefault();
@@ -72,74 +84,105 @@
 			<span class="name">HollowChat</span>
 		</div>
 
-		{#if mode === "login"}
-			<h1>Welcome back</h1>
-			<p class="subtitle">Log in with your username and password.</p>
+		{#key mode}
+			<div class="pane" in:fly={{ y: 8, duration: 260, easing: cubicOut }}>
+				{#if mode === "login"}
+					<h1>Welcome back</h1>
+					<p class="subtitle">Log in with your username and password.</p>
 
-			<form onsubmit={submitLogin}>
-				<label>
-					Username
-					<input type="text" bind:value={username} autocomplete="username" required />
-				</label>
-				<label>
-					Password
-					<input type="password" bind:value={password} autocomplete="current-password" required />
-				</label>
+					<form onsubmit={submitLogin}>
+						<label>
+							Username
+							<input type="text" bind:value={username} autocomplete="username" required />
+						</label>
+						<label>
+							Password
+							<input
+								type="password"
+								bind:value={password}
+								autocomplete="current-password"
+								required
+							/>
+						</label>
 
-				{#if error}<p class="error">{error}</p>{/if}
+						{#if error}<p class="error">{error}</p>{/if}
 
-				<button type="submit" disabled={loading}>
-					{loading ? "Logging in…" : "Log in"}
-				</button>
-			</form>
+						<button type="submit" disabled={loading}>
+							{loading ? "Logging in…" : "Log in"}
+						</button>
+					</form>
 
-			<p class="switch">
-				Don't have an account?
-				<button type="button" class="link" onclick={() => switchMode("register")}>Register</button>
-			</p>
-		{:else if mode === "register"}
-			<h1>Create an account</h1>
-			<p class="subtitle">Just a username — no email, no phone.</p>
+					<p class="switch">
+						Don't have an account?
+						<button type="button" class="link" onclick={() => switchMode("register")}>
+							Register
+						</button>
+					</p>
+				{:else if mode === "register"}
+					<h1>Create an account</h1>
+					<p class="subtitle">Just a username — no email, no phone.</p>
 
-			<form onsubmit={submitRegister}>
-				<label>
-					Username
-					<input type="text" bind:value={username} autocomplete="off" required minlength="3" maxlength="32" />
-				</label>
+					<form onsubmit={submitRegister}>
+						<label>
+							Username
+							<input
+								type="text"
+								bind:value={username}
+								autocomplete="off"
+								required
+								minlength="3"
+								maxlength="32"
+							/>
+						</label>
 
-				{#if error}<p class="error">{error}</p>{/if}
+						{#if error}<p class="error">{error}</p>{/if}
 
-				<button type="submit" disabled={loading}>
-					{loading ? "Creating…" : "Create account"}
-				</button>
-			</form>
+						<button type="submit" disabled={loading}>
+							{loading ? "Creating…" : "Create account"}
+						</button>
+					</form>
 
-			<p class="switch">
-				Already have an account?
-				<button type="button" class="link" onclick={() => switchMode("login")}>Log in</button>
-			</p>
-		{:else}
-			<h1>Save your password now</h1>
-			<p class="subtitle warning">
-				This is the only time we'll show it. There is no email or phone number to recover it —
-				if you lose it, the account is gone for good.
-			</p>
+					<p class="switch">
+						Already have an account?
+						<button type="button" class="link" onclick={() => switchMode("login")}>
+							Log in
+						</button>
+					</p>
+				{:else}
+					<h1>Save your password now</h1>
+					<p class="subtitle warning">
+						<TriangleAlert size={14} strokeWidth={2.5} />
+						This is the only time we'll show it. There is no email or phone number to recover
+						it — if you lose it, the account is gone for good.
+					</p>
 
-			<div class="password-box">
-				<code>{revealedPassword}</code>
+					<div class="password-box">
+						<code>{revealedPassword}</code>
+						<button type="button" class="copy" onclick={copyPassword} title="Copy password">
+							{#if copied}
+								<Check size={15} strokeWidth={2.5} />
+							{:else}
+								<Copy size={15} strokeWidth={2} />
+							{/if}
+						</button>
+					</div>
+
+					<label class="confirm">
+						<input type="checkbox" bind:checked={confirmed} />
+						<span class="checkbox">
+							{#if confirmed}<Check size={12} strokeWidth={3} />{/if}
+						</span>
+						I saved my password
+					</label>
+
+					{#if error}<p class="error">{error}</p>{/if}
+
+					<button type="button" disabled={!confirmed || loading} onclick={continueAfterReveal}>
+						{loading ? "Continuing…" : "Continue"}
+					</button>
+				{/if}
 			</div>
-
-			<label class="confirm">
-				<input type="checkbox" bind:checked={confirmed} />
-				I saved my password
-			</label>
-
-			{#if error}<p class="error">{error}</p>{/if}
-
-			<button type="button" disabled={!confirmed || loading} onclick={continueAfterReveal}>
-				{loading ? "Continuing…" : "Continue"}
-			</button>
-		{/if}
+		{/key}
 	</div>
 </div>
 
@@ -150,14 +193,20 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--bg-rail);
+		background: var(--void);
+		background-image: radial-gradient(circle at 50% 30%, rgba(156, 147, 194, 0.06), transparent 60%);
 	}
 
 	.card {
 		width: 380px;
-		background: var(--bg-sidebar);
+		background: var(--sidebar);
+		border: 1px solid var(--hairline);
 		border-radius: 12px;
 		padding: 32px;
+		overflow: hidden;
+	}
+
+	.pane {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
@@ -167,41 +216,54 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		margin-bottom: 20px;
+		margin-bottom: 24px;
 	}
 
 	.mark {
 		width: 32px;
 		height: 32px;
 		border-radius: 10px;
-		background: var(--accent-soft);
-		color: var(--accent);
+		background: var(--wraith-soft);
+		color: var(--wraith);
+		font-family: var(--font-display);
 		font-weight: 700;
-		font-size: 13px;
+		font-size: 12px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
 
 	.brand .name {
+		font-family: var(--font-display);
 		font-weight: 700;
-		font-size: 16px;
+		font-size: 15px;
+		letter-spacing: 0.01em;
 	}
 
 	h1 {
 		margin: 0 0 4px;
-		font-size: 20px;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 19px;
 	}
 
 	.subtitle {
 		margin: 0 0 20px;
-		color: var(--text-muted);
+		color: var(--ink-dim);
 		font-size: 13px;
 		line-height: 1.5;
 	}
 
 	.subtitle.warning {
-		color: #fbbf24;
+		display: flex;
+		gap: 8px;
+		align-items: flex-start;
+		color: var(--idle);
+	}
+
+	.subtitle.warning :global(svg) {
+		flex-shrink: 0;
+		margin-top: 2px;
 	}
 
 	form {
@@ -214,54 +276,75 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		font-size: 12px;
-		font-weight: 700;
+		font-family: var(--font-mono);
+		font-size: 11px;
+		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.02em;
-		color: var(--text-muted);
+		letter-spacing: 0.03em;
+		color: var(--ink-dim);
 	}
 
 	input[type="text"],
 	input[type="password"] {
-		background: var(--bg-main);
-		border: 1px solid var(--border);
+		background: var(--panel);
+		border: 1px solid var(--hairline);
 		border-radius: 6px;
 		padding: 10px 12px;
-		color: var(--text-primary);
+		color: var(--ink);
+		font-family: var(--font-body);
 		font-size: 14px;
+		transition: border-color 0.15s ease, box-shadow 0.15s ease;
 	}
 
 	input[type="text"]:focus,
 	input[type="password"]:focus {
 		outline: none;
-		border-color: var(--accent);
+		border-color: var(--wraith);
+		box-shadow: 0 0 0 3px var(--wraith-soft);
+	}
+
+	button {
+		transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease,
+			transform 0.05s ease;
+	}
+
+	button:active:not(:disabled) {
+		transform: scale(0.98);
 	}
 
 	button[type="submit"] {
 		margin-top: 4px;
 		padding: 10px;
 		border-radius: 6px;
-		background: var(--accent);
-		color: white;
-		font-weight: 600;
+		background: var(--ember);
+		color: var(--void);
+		font-weight: 700;
 		font-size: 14px;
 	}
 
+	button[type="submit"]:hover:not(:disabled) {
+		box-shadow: 0 0 0 3px var(--ember-soft);
+	}
+
 	button[type="submit"]:disabled {
-		background: var(--bg-active);
-		color: var(--text-faint);
+		background: var(--active);
+		color: var(--ink-faint);
 	}
 
 	.switch {
 		margin: 20px 0 0;
 		font-size: 13px;
-		color: var(--text-muted);
+		color: var(--ink-dim);
 		text-align: center;
 	}
 
 	.link {
-		color: var(--accent);
+		color: var(--wraith);
 		font-weight: 600;
+	}
+
+	.link:hover {
+		color: var(--ink);
 	}
 
 	.error {
@@ -271,43 +354,98 @@
 	}
 
 	.password-box {
-		background: var(--bg-main);
-		border: 1px solid var(--border);
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		background: var(--panel);
+		border: 1px solid var(--hairline);
 		border-radius: 6px;
-		padding: 16px;
+		padding: 14px 12px 14px 16px;
 		margin-bottom: 16px;
-		text-align: center;
 	}
 
 	.password-box code {
-		font-size: 16px;
-		font-weight: 600;
-		letter-spacing: 0.03em;
+		flex: 1;
+		font-family: var(--font-mono);
+		font-size: 15px;
+		font-weight: 500;
+		letter-spacing: 0.02em;
 		word-break: break-all;
+		color: var(--ember);
+	}
+
+	.password-box .copy {
+		flex-shrink: 0;
+		display: flex;
+		padding: 8px;
+		border-radius: 6px;
+		color: var(--ink-dim);
+	}
+
+	.password-box .copy:hover {
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.confirm {
 		display: flex;
 		flex-direction: row;
 		align-items: center;
-		gap: 8px;
+		gap: 10px;
 		text-transform: none;
+		font-family: var(--font-body);
 		font-weight: 500;
-		color: var(--text-primary);
+		font-size: 13px;
+		color: var(--ink);
 		margin-bottom: 16px;
+		cursor: pointer;
 	}
 
-	button[type="button"]:not(.link) {
+	.confirm input[type="checkbox"] {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+	}
+
+	.checkbox {
+		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
+		border-radius: 5px;
+		border: 1px solid var(--ink-faint);
+		background: var(--panel);
+		color: var(--void);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background-color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.confirm input[type="checkbox"]:checked + .checkbox {
+		background: var(--ember);
+		border-color: var(--ember);
+	}
+
+	.confirm input[type="checkbox"]:focus-visible + .checkbox {
+		box-shadow: 0 0 0 3px var(--wraith-soft);
+	}
+
+	button[type="button"]:not(.link):not(.copy) {
 		padding: 10px;
 		border-radius: 6px;
-		background: var(--accent);
-		color: white;
-		font-weight: 600;
+		background: var(--ember);
+		color: var(--void);
+		font-weight: 700;
 		font-size: 14px;
 	}
 
-	button[type="button"]:not(.link):disabled {
-		background: var(--bg-active);
-		color: var(--text-faint);
+	button[type="button"]:not(.link):not(.copy):hover:not(:disabled) {
+		box-shadow: 0 0 0 3px var(--ember-soft);
+	}
+
+	button[type="button"]:not(.link):not(.copy):disabled {
+		background: var(--active);
+		color: var(--ink-faint);
 	}
 </style>

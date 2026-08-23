@@ -1,4 +1,13 @@
 <script lang="ts">
+	import ChevronDown from "@lucide/svelte/icons/chevron-down";
+	import Hash from "@lucide/svelte/icons/hash";
+	import Volume2 from "@lucide/svelte/icons/volume-2";
+	import Search from "@lucide/svelte/icons/search";
+	import Mic from "@lucide/svelte/icons/mic";
+	import MicOff from "@lucide/svelte/icons/mic-off";
+	import Headphones from "@lucide/svelte/icons/headphones";
+	import HeadphoneOff from "@lucide/svelte/icons/headphone-off";
+	import LogOut from "@lucide/svelte/icons/log-out";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { server, activeChannelId, onSelectChannel, username, onLogout }: {
@@ -30,17 +39,18 @@
 <aside class="sidebar">
 	<button class="header">
 		<span>{server.name}</span>
-		<span class="chevron">⌄</span>
+		<ChevronDown size={16} strokeWidth={2.5} />
 	</button>
 
 	<div class="search-bar">
+		<Search size={13} strokeWidth={2.5} />
 		<input type="text" placeholder="Search channels" bind:value={search} />
 	</div>
 
 	<div class="channels">
 		<div class="section">
 			<button class="label" onclick={() => (textCollapsed = !textCollapsed)}>
-				<span class="caret" class:collapsed={textCollapsed}>⌄</span>
+				<ChevronDown class={`caret ${textCollapsed ? "collapsed" : ""}`} size={12} strokeWidth={3} />
 				Text Channels
 			</button>
 			{#if !textCollapsed}
@@ -50,7 +60,7 @@
 						class:active={channel.id === activeChannelId}
 						onclick={() => onSelectChannel(channel.id)}
 					>
-						<span class="hash">#</span>
+						<Hash size={16} strokeWidth={2} class="channel-icon" />
 						<span class="name">{channel.name}</span>
 					</button>
 				{/each}
@@ -59,7 +69,7 @@
 
 		<div class="section">
 			<button class="label" onclick={() => (voiceCollapsed = !voiceCollapsed)}>
-				<span class="caret" class:collapsed={voiceCollapsed}>⌄</span>
+				<ChevronDown class={`caret ${voiceCollapsed ? "collapsed" : ""}`} size={12} strokeWidth={3} />
 				Voice Channels
 			</button>
 			{#if !voiceCollapsed}
@@ -69,7 +79,7 @@
 						class:active={channel.id === activeChannelId}
 						onclick={() => onSelectChannel(channel.id)}
 					>
-						<span class="mic">))</span>
+						<Volume2 size={16} strokeWidth={2} class="channel-icon" />
 						<span class="name">{channel.name}</span>
 					</button>
 				{/each}
@@ -90,7 +100,7 @@
 				title={muted ? "Unmute" : "Mute"}
 				onclick={() => (muted = !muted)}
 			>
-				{muted ? "🔇" : "🎙"}
+				{#if muted}<MicOff size={16} strokeWidth={2} />{:else}<Mic size={16} strokeWidth={2} />{/if}
 			</button>
 			<button
 				class="icon-button"
@@ -98,9 +108,11 @@
 				title={deafened ? "Undeafen" : "Deafen"}
 				onclick={() => (deafened = !deafened)}
 			>
-				{deafened ? "🔕" : "🔊"}
+				{#if deafened}<HeadphoneOff size={16} strokeWidth={2} />{:else}<Headphones size={16} strokeWidth={2} />{/if}
 			</button>
-			<button class="icon-button" title="Log out" onclick={onLogout}>⏻</button>
+			<button class="icon-button" title="Log out" onclick={onLogout}>
+				<LogOut size={16} strokeWidth={2} />
+			</button>
 		</div>
 	</div>
 </aside>
@@ -109,7 +121,7 @@
 	.sidebar {
 		width: 240px;
 		flex-shrink: 0;
-		background: var(--bg-sidebar);
+		background: var(--sidebar);
 		display: flex;
 		flex-direction: column;
 		height: 100%;
@@ -122,35 +134,46 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0 16px;
-		font-weight: 600;
-		border-bottom: 1px solid var(--border);
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 13px;
+		letter-spacing: 0.01em;
+		border-bottom: 1px solid var(--hairline);
+		color: var(--ink-dim);
 	}
 
 	.header:hover {
-		background: var(--bg-hover);
+		background: var(--hover);
+		color: var(--ink);
 	}
 
-	.chevron {
-		color: var(--text-muted);
+	.header {
+		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
 	.search-bar {
-		padding: 8px;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: 8px;
+		padding: 0 8px;
+		background: var(--panel);
+		border-radius: 6px;
+		color: var(--ink-faint);
 		flex-shrink: 0;
 	}
 
 	.search-bar input {
-		width: 100%;
-		background: var(--bg-main);
+		flex: 1;
+		background: none;
 		border: none;
-		border-radius: 6px;
-		padding: 6px 8px;
+		padding: 6px 0;
 		font-size: 12px;
-		color: var(--text-primary);
+		color: var(--ink);
 	}
 
 	.search-bar input::placeholder {
-		color: var(--text-faint);
+		color: var(--ink-faint);
 	}
 
 	.channels {
@@ -171,55 +194,58 @@
 		margin: 0 0 4px;
 		padding: 4px 8px;
 		border-radius: 4px;
+		font-family: var(--font-mono);
 		font-size: 11px;
-		font-weight: 700;
+		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		color: var(--text-faint);
+		letter-spacing: 0.04em;
+		color: var(--ink-faint);
 	}
 
 	.label:hover {
-		color: var(--text-muted);
+		color: var(--ink-dim);
 	}
 
-	.caret {
-		display: inline-block;
-		font-size: 10px;
+	.label :global(.caret) {
 		transition: transform 0.15s ease;
 	}
 
-	.caret.collapsed {
+	.label :global(.caret.collapsed) {
 		transform: rotate(-90deg);
 	}
 
 	.channel {
+		transition: background-color 0.15s ease, color 0.15s ease;
 		width: 100%;
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		padding: 6px 8px;
 		border-radius: 6px;
-		color: var(--text-muted);
-		font-size: 14px;
+		color: var(--ink-dim);
+		font-family: var(--font-mono);
+		font-size: 13px;
 		font-weight: 500;
 	}
 
 	.channel:hover {
-		background: var(--bg-hover);
-		color: var(--text-primary);
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.channel.active {
-		background: var(--bg-active);
-		color: var(--text-primary);
+		background: var(--active);
+		color: var(--ink);
 	}
 
-	.hash,
-	.mic {
-		color: var(--text-faint);
-		font-weight: 700;
-		width: 16px;
-		text-align: center;
+	.channel :global(.channel-icon) {
+		color: var(--ink-faint);
+		flex-shrink: 0;
+	}
+
+	.channel.active :global(.channel-icon),
+	.channel:hover :global(.channel-icon) {
+		color: var(--wraith);
 	}
 
 	.user-panel {
@@ -229,19 +255,21 @@
 		align-items: center;
 		gap: 8px;
 		padding: 0 8px;
-		background: #101015;
+		background: var(--void);
 	}
 
 	.avatar {
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
-		background: var(--accent);
+		background: var(--wraith);
+		color: var(--void);
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		font-family: var(--font-display);
 		font-weight: 700;
-		font-size: 13px;
+		font-size: 12px;
 		flex-shrink: 0;
 	}
 
@@ -252,17 +280,19 @@
 
 	.username {
 		margin: 0;
+		font-family: var(--font-mono);
 		font-size: 13px;
 		font-weight: 600;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		color: var(--ink);
 	}
 
 	.status {
 		margin: 0;
 		font-size: 11px;
-		color: var(--online);
+		color: var(--ember);
 	}
 
 	.controls {
@@ -271,15 +301,16 @@
 	}
 
 	.icon-button {
-		font-size: 14px;
 		padding: 6px;
 		border-radius: 6px;
-		color: var(--text-muted);
+		color: var(--ink-dim);
+		display: flex;
+		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
 	.icon-button:hover {
-		background: var(--bg-hover);
-		color: var(--text-primary);
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.icon-button.muted-active {

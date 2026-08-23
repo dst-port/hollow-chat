@@ -38,21 +38,23 @@
 	.members {
 		width: 240px;
 		flex-shrink: 0;
-		background: var(--bg-sidebar);
+		background: var(--sidebar);
 		padding: 16px 8px;
 		overflow-y: auto;
 	}
 
 	.label {
 		margin: 8px 8px 4px;
+		font-family: var(--font-mono);
 		font-size: 11px;
-		font-weight: 700;
+		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		color: var(--text-faint);
+		letter-spacing: 0.04em;
+		color: var(--ink-faint);
 	}
 
 	.member {
+		transition: background-color 0.15s ease;
 		display: flex;
 		align-items: center;
 		gap: 10px;
@@ -61,7 +63,7 @@
 	}
 
 	.member:hover {
-		background: var(--bg-hover);
+		background: var(--hover);
 	}
 
 	.member.offline {
@@ -76,9 +78,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		font-family: var(--font-mono);
 		font-size: 10px;
-		font-weight: 700;
-		color: white;
+		font-weight: 600;
+		color: var(--void);
 		flex-shrink: 0;
 	}
 
@@ -89,18 +92,32 @@
 		width: 10px;
 		height: 10px;
 		border-radius: 50%;
-		background: var(--online);
-		border: 2px solid var(--bg-sidebar);
+		background: var(--ember);
+		border: 2px solid var(--sidebar);
+		box-shadow: 0 0 4px 1px var(--ember);
+		animation: pulse 2.4s ease-in-out infinite;
 	}
 
 	.dot.idle {
 		background: var(--idle);
+		box-shadow: 0 0 4px 1px var(--idle);
+		animation: none;
+	}
+
+	@keyframes pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.55;
+		}
 	}
 
 	.name {
 		font-size: 13px;
 		font-weight: 500;
-		color: var(--text-muted);
+		color: var(--ink-dim);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;

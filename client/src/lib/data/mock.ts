@@ -63,28 +63,28 @@ export const messages: Message[] = [
 	{
 		id: "1",
 		author: "ghostpixel",
-		color: "#8b5cf6",
+		color: "#9c93c2",
 		content: "anyone up for a raid tonight?",
 		time: "20:14"
 	},
 	{
 		id: "2",
 		author: "nullbyte",
-		color: "#22c55e",
+		color: "#6fb98f",
 		content: "yeah, give me 10 min to finish loading in",
 		time: "20:15"
 	},
 	{
 		id: "3",
 		author: "ghostpixel",
-		color: "#8b5cf6",
+		color: "#9c93c2",
 		content: "bet. voice channel is open",
 		time: "20:15"
 	},
 	{
 		id: "4",
 		author: "vex",
-		color: "#f97316",
+		color: "#e2793f",
 		content: "count me in too",
 		time: "20:17"
 	}
@@ -98,8 +98,8 @@ export type Member = {
 };
 
 export const members: Member[] = [
-	{ id: "1", name: "ghostpixel", color: "#8b5cf6", status: "online" },
-	{ id: "2", name: "nullbyte", color: "#22c55e", status: "online" },
-	{ id: "3", name: "vex", color: "#f97316", status: "idle" },
-	{ id: "4", name: "shade", color: "#64748b", status: "offline" }
+	{ id: "1", name: "ghostpixel", color: "#9c93c2", status: "online" },
+	{ id: "2", name: "nullbyte", color: "#6fb98f", status: "online" },
+	{ id: "3", name: "vex", color: "#e2793f", status: "idle" },
+	{ id: "4", name: "shade", color: "#5c5566", status: "offline" }
 ];

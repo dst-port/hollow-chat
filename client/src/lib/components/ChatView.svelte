@@ -1,4 +1,14 @@
 <script lang="ts">
+	import Hash from "@lucide/svelte/icons/hash";
+	import Pin from "@lucide/svelte/icons/pin";
+	import Bell from "@lucide/svelte/icons/bell";
+	import Users from "@lucide/svelte/icons/users";
+	import Inbox from "@lucide/svelte/icons/inbox";
+	import Search from "@lucide/svelte/icons/search";
+	import SmilePlus from "@lucide/svelte/icons/smile-plus";
+	import Reply from "@lucide/svelte/icons/reply";
+	import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
+	import SendHorizontal from "@lucide/svelte/icons/send-horizontal";
 	import type { Channel, Message } from "$lib/data/mock";
 
 	let { channel, messages, onToggleMembers }: {
@@ -22,17 +32,20 @@
 
 <section class="chat">
 	<header class="header">
-		<span class="hash">#</span>
+		<Hash size={18} strokeWidth={2.5} class="hash" />
 		<span class="name">{channel.name}</span>
 		<div class="spacer"></div>
 		<div class="header-icons">
-			<button class="icon-button" title="Pinned messages">📌</button>
-			<button class="icon-button" title="Notifications">🔔</button>
-			<button class="icon-button" title="Members" onclick={onToggleMembers}>◈</button>
+			<button class="icon-button" title="Pinned messages"><Pin size={17} strokeWidth={2} /></button>
+			<button class="icon-button" title="Notifications"><Bell size={17} strokeWidth={2} /></button>
+			<button class="icon-button" title="Members" onclick={onToggleMembers}>
+				<Users size={17} strokeWidth={2} />
+			</button>
 			<div class="header-search">
+				<Search size={13} strokeWidth={2.5} />
 				<input type="text" placeholder="Search" />
 			</div>
-			<button class="icon-button" title="Inbox">📥</button>
+			<button class="icon-button" title="Inbox"><Inbox size={17} strokeWidth={2} /></button>
 		</div>
 	</header>
 
@@ -60,9 +73,9 @@
 				</div>
 
 				<div class="hover-actions">
-					<button class="icon-button small" title="Add reaction">☺</button>
-					<button class="icon-button small" title="Reply">↩</button>
-					<button class="icon-button small" title="More">⋯</button>
+					<button class="icon-button small" title="Add reaction"><SmilePlus size={15} strokeWidth={2} /></button>
+					<button class="icon-button small" title="Reply"><Reply size={15} strokeWidth={2} /></button>
+					<button class="icon-button small" title="More"><MoreHorizontal size={15} strokeWidth={2} /></button>
 				</div>
 			</div>
 		{/each}
@@ -74,7 +87,9 @@
 			placeholder={`Message #${channel.name}`}
 			bind:value={draft}
 		/>
-		<button type="submit" disabled={draft.trim().length === 0}>Send</button>
+		<button type="submit" disabled={draft.trim().length === 0}>
+			<SendHorizontal size={16} strokeWidth={2.25} />
+		</button>
 	</form>
 </section>
 
@@ -85,7 +100,7 @@
 		flex-direction: column;
 		height: 100%;
 		min-width: 0;
-		background: var(--bg-main);
+		background: var(--panel);
 	}
 
 	.header {
@@ -95,13 +110,14 @@
 		align-items: center;
 		gap: 8px;
 		padding: 0 16px;
-		border-bottom: 1px solid var(--border);
+		border-bottom: 1px solid var(--hairline);
+		font-family: var(--font-mono);
 		font-weight: 600;
+		font-size: 14px;
 	}
 
-	.header .hash {
-		color: var(--text-faint);
-		font-weight: 700;
+	.header :global(.hash) {
+		color: var(--ink-faint);
 	}
 
 	.spacer {
@@ -111,41 +127,49 @@
 	.header-icons {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 2px;
 	}
 
 	.header-search {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 		margin: 0 4px;
+		padding: 0 8px;
+		background: var(--void);
+		border-radius: 6px;
+		color: var(--ink-faint);
 	}
 
 	.header-search input {
-		width: 120px;
-		background: var(--bg-rail);
+		width: 110px;
+		background: none;
 		border: none;
-		border-radius: 6px;
-		padding: 5px 8px;
+		padding: 6px 0;
+		font-family: var(--font-body);
 		font-size: 12px;
-		color: var(--text-primary);
+		font-weight: 400;
+		color: var(--ink);
 	}
 
 	.header-search input::placeholder {
-		color: var(--text-faint);
+		color: var(--ink-faint);
 	}
 
 	.icon-button {
-		font-size: 15px;
-		color: var(--text-muted);
+		display: flex;
+		color: var(--ink-dim);
 		padding: 6px;
 		border-radius: 6px;
+		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
 	.icon-button:hover {
-		background: var(--bg-hover);
-		color: var(--text-primary);
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.icon-button.small {
-		font-size: 13px;
 		padding: 4px;
 	}
 
@@ -158,6 +182,7 @@
 	}
 
 	.message {
+		transition: background-color 0.1s ease;
 		position: relative;
 		display: flex;
 		gap: 12px;
@@ -181,9 +206,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		font-family: var(--font-mono);
 		font-size: 12px;
-		font-weight: 700;
-		color: white;
+		font-weight: 600;
+		color: var(--void);
 	}
 
 	.avatar-spacer {
@@ -196,8 +222,9 @@
 
 	.hover-time {
 		display: none;
+		font-family: var(--font-mono);
 		font-size: 10px;
-		color: var(--text-faint);
+		color: var(--ink-faint);
 	}
 
 	.message:hover .hover-time {
@@ -216,20 +243,23 @@
 	}
 
 	.author {
+		font-family: var(--font-mono);
 		font-weight: 600;
-		font-size: 14px;
+		font-size: 13px;
 	}
 
 	.time {
+		font-family: var(--font-mono);
 		font-size: 11px;
-		color: var(--text-faint);
+		color: var(--ink-faint);
 	}
 
 	.content {
 		margin: 0;
+		font-family: var(--font-body);
 		font-size: 14px;
 		line-height: 1.4;
-		color: var(--text-primary);
+		color: var(--ink);
 		word-break: break-word;
 	}
 
@@ -238,7 +268,7 @@
 		top: -14px;
 		right: 8px;
 		display: none;
-		background: var(--bg-active);
+		background: var(--active);
 		border-radius: 6px;
 		padding: 2px;
 		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -257,30 +287,33 @@
 
 	.composer input {
 		flex: 1;
-		background: var(--bg-active);
+		background: var(--active);
 		border-radius: 8px;
 		padding: 10px 12px;
-		color: var(--text-primary);
+		color: var(--ink);
 		border: none;
+		font-family: var(--font-body);
 		font-size: 14px;
 	}
 
 	.composer input::placeholder {
-		color: var(--text-faint);
+		color: var(--ink-faint);
 	}
 
 	.composer button {
-		padding: 0 16px;
+		transition: background-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
 		border-radius: 8px;
-		background: var(--accent);
-		color: white;
-		font-weight: 600;
-		font-size: 13px;
+		background: var(--ember);
+		color: var(--void);
 	}
 
 	.composer button:disabled {
-		background: var(--bg-active);
-		color: var(--text-faint);
+		background: var(--active);
+		color: var(--ink-faint);
 		cursor: default;
 	}
 </style>

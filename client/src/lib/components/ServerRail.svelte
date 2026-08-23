@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Plus from "@lucide/svelte/icons/plus";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { servers, activeId, onSelect }: {
@@ -37,14 +38,16 @@
 
 	<div class="spacer"></div>
 
-	<button class="add" title="Add a server">+</button>
+	<button class="add" title="Add a server">
+		<Plus size={20} strokeWidth={2.25} />
+	</button>
 </nav>
 
 <style>
 	.rail {
 		width: 72px;
 		flex-shrink: 0;
-		background: var(--bg-rail);
+		background: var(--rail);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -57,10 +60,11 @@
 		width: 48px;
 		height: 48px;
 		border-radius: 16px;
-		background: var(--accent-soft);
-		color: var(--accent);
+		background: var(--wraith-soft);
+		color: var(--wraith);
+		font-family: var(--font-display);
 		font-weight: 700;
-		font-size: 13px;
+		font-size: 12px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -69,7 +73,7 @@
 	.divider {
 		width: 32px;
 		height: 2px;
-		background: var(--border);
+		background: var(--hairline);
 		border-radius: 1px;
 		margin: 4px 0;
 	}
@@ -91,9 +95,10 @@
 		width: 48px;
 		height: 48px;
 		border-radius: 24px;
-		background: var(--bg-sidebar);
-		color: var(--text-muted);
-		font-size: 12px;
+		background: var(--sidebar);
+		color: var(--ink-dim);
+		font-family: var(--font-mono);
+		font-size: 11px;
 		font-weight: 600;
 		display: flex;
 		align-items: center;
@@ -103,14 +108,14 @@
 
 	.server:hover {
 		border-radius: 16px;
-		background: var(--accent);
-		color: white;
+		background: var(--wraith);
+		color: var(--void);
 	}
 
 	.server.active {
 		border-radius: 16px;
-		background: var(--accent);
-		color: white;
+		background: var(--wraith);
+		color: var(--void);
 	}
 
 	.pill {
@@ -119,7 +124,8 @@
 		width: 4px;
 		height: 8px;
 		border-radius: 0 4px 4px 0;
-		background: var(--text-primary);
+		background: var(--ink);
+		box-shadow: 0 0 8px 1px var(--ink);
 		transition: height 0.15s ease;
 	}
 
@@ -129,11 +135,14 @@
 
 	.pill.active {
 		height: 36px;
+		background: var(--wraith);
+		box-shadow: 0 0 10px 2px var(--wraith);
 	}
 
 	.pill.unread {
 		height: 10px;
-		background: var(--text-primary);
+		background: var(--ember);
+		box-shadow: 0 0 6px 1px var(--ember);
 	}
 
 	.badge {
@@ -146,12 +155,13 @@
 		border-radius: 9px;
 		background: var(--danger);
 		color: white;
+		font-family: var(--font-mono);
 		font-size: 10px;
-		font-weight: 700;
+		font-weight: 600;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border: 3px solid var(--bg-rail);
+		border: 3px solid var(--rail);
 	}
 
 	.spacer {
@@ -162,18 +172,17 @@
 		width: 48px;
 		height: 48px;
 		border-radius: 24px;
-		background: var(--bg-sidebar);
-		color: var(--online);
-		font-size: 22px;
+		background: var(--sidebar);
+		color: var(--ember);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: border-radius 0.15s ease, background 0.15s ease;
+		transition: border-radius 0.15s ease, background 0.15s ease, color 0.15s ease;
 	}
 
 	.add:hover {
 		border-radius: 16px;
-		background: var(--online);
-		color: var(--bg-rail);
+		background: var(--ember);
+		color: var(--void);
 	}
 </style>

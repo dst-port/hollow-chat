@@ -19,6 +19,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: var(--text-muted);
+		color: var(--ink-dim);
+		background: var(--void);
 	}
 </style>
