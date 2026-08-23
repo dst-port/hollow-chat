@@ -1,24 +1,25 @@
 @import "./fonts.css";
 
 :root {
-	--void: #0b0a0d;
-	--rail: #121016;
-	--sidebar: #17141b;
-	--panel: #1d1a22;
-	--hover: #262230;
-	--active: #2f2a3a;
-	--hairline: rgba(255, 255, 255, 0.07);
+	--void: #0c0c0e;
+	--rail: #131316;
+	--sidebar: #18181b;
+	--panel: #1e1e21;
+	--hover: #232327;
+	--active: #2c2c31;
+	--hairline: rgba(255, 255, 255, 0.06);
 
-	--ink: #ece7f0;
-	--ink-dim: #a79fb3;
-	--ink-faint: #5c5566;
+	--ink: #eef0f2;
+	--ink-dim: #9a9ba1;
+	--ink-faint: #58585e;
 
-	--wraith: #9c93c2;
-	--wraith-soft: rgba(156, 147, 194, 0.16);
-	--ember: #e2793f;
-	--ember-soft: rgba(226, 121, 63, 0.16);
-	--danger: #c1443f;
-	--idle: #c99a3e;
+	--accent-fill: #e4e4e7;
+	--accent-fill-ink: #17171a;
+	--accent-soft: rgba(255, 255, 255, 0.08);
+
+	--online: #3ba55d;
+	--idle: #c9a227;
+	--danger: #d83c3e;
 
 	--font-display: "Unbounded", sans-serif;
 	--font-mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -66,7 +67,7 @@ input {
 }
 
 :focus-visible {
-	outline: 2px solid var(--wraith);
+	outline: 2px solid var(--ink-dim);
 	outline-offset: 2px;
 	border-radius: 4px;
 }

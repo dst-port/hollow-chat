@@ -92,9 +92,9 @@
 		width: 10px;
 		height: 10px;
 		border-radius: 50%;
-		background: var(--ember);
+		background: var(--online);
 		border: 2px solid var(--sidebar);
-		box-shadow: 0 0 4px 1px var(--ember);
+		box-shadow: 0 0 4px 1px var(--online);
 		animation: pulse 2.4s ease-in-out infinite;
 	}
 

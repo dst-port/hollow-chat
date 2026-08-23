@@ -307,8 +307,8 @@
 		justify-content: center;
 		width: 40px;
 		border-radius: 8px;
-		background: var(--ember);
-		color: var(--void);
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 	}
 
 	.composer button:disabled {

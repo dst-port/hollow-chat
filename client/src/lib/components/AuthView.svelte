@@ -223,8 +223,8 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 10px;
-		background: var(--wraith-soft);
-		color: var(--wraith);
+		background: var(--accent-soft);
+		color: var(--ink);
 		font-family: var(--font-display);
 		font-weight: 700;
 		font-size: 12px;
@@ -299,8 +299,8 @@
 	input[type="text"]:focus,
 	input[type="password"]:focus {
 		outline: none;
-		border-color: var(--wraith);
-		box-shadow: 0 0 0 3px var(--wraith-soft);
+		border-color: var(--ink-dim);
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	button {
@@ -316,14 +316,14 @@
 		margin-top: 4px;
 		padding: 10px;
 		border-radius: 6px;
-		background: var(--ember);
-		color: var(--void);
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 		font-weight: 700;
 		font-size: 14px;
 	}
 
 	button[type="submit"]:hover:not(:disabled) {
-		box-shadow: 0 0 0 3px var(--ember-soft);
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	button[type="submit"]:disabled {
@@ -339,7 +339,7 @@
 	}
 
 	.link {
-		color: var(--wraith);
+		color: var(--ink);
 		font-weight: 600;
 	}
 
@@ -371,7 +371,7 @@
 		font-weight: 500;
 		letter-spacing: 0.02em;
 		word-break: break-all;
-		color: var(--ember);
+		color: var(--ink);
 	}
 
 	.password-box .copy {
@@ -423,25 +423,25 @@
 	}
 
 	.confirm input[type="checkbox"]:checked + .checkbox {
-		background: var(--ember);
-		border-color: var(--ember);
+		background: var(--accent-fill);
+		border-color: var(--accent-fill);
 	}
 
 	.confirm input[type="checkbox"]:focus-visible + .checkbox {
-		box-shadow: 0 0 0 3px var(--wraith-soft);
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	button[type="button"]:not(.link):not(.copy) {
 		padding: 10px;
 		border-radius: 6px;
-		background: var(--ember);
-		color: var(--void);
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 		font-weight: 700;
 		font-size: 14px;
 	}
 
 	button[type="button"]:not(.link):not(.copy):hover:not(:disabled) {
-		box-shadow: 0 0 0 3px var(--ember-soft);
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	button[type="button"]:not(.link):not(.copy):disabled {

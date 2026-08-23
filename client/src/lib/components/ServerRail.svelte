@@ -60,8 +60,8 @@
 		width: 48px;
 		height: 48px;
 		border-radius: 16px;
-		background: var(--wraith-soft);
-		color: var(--wraith);
+		background: var(--accent-soft);
+		color: var(--ink);
 		font-family: var(--font-display);
 		font-weight: 700;
 		font-size: 12px;
@@ -108,14 +108,14 @@
 
 	.server:hover {
 		border-radius: 16px;
-		background: var(--wraith);
-		color: var(--void);
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 	}
 
 	.server.active {
 		border-radius: 16px;
-		background: var(--wraith);
-		color: var(--void);
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 	}
 
 	.pill {
@@ -135,14 +135,14 @@
 
 	.pill.active {
 		height: 36px;
-		background: var(--wraith);
-		box-shadow: 0 0 10px 2px var(--wraith);
+		background: var(--ink);
+		box-shadow: 0 0 8px 1px var(--ink);
 	}
 
 	.pill.unread {
 		height: 10px;
-		background: var(--ember);
-		box-shadow: 0 0 6px 1px var(--ember);
+		background: var(--ink);
+		box-shadow: 0 0 6px 1px var(--ink);
 	}
 
 	.badge {
@@ -173,7 +173,7 @@
 		height: 48px;
 		border-radius: 24px;
 		background: var(--sidebar);
-		color: var(--ember);
+		color: var(--online);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -182,7 +182,7 @@
 
 	.add:hover {
 		border-radius: 16px;
-		background: var(--ember);
+		background: var(--online);
 		color: var(--void);
 	}
 </style>

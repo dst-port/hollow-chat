@@ -245,7 +245,7 @@
 
 	.channel.active :global(.channel-icon),
 	.channel:hover :global(.channel-icon) {
-		color: var(--wraith);
+		color: var(--ink);
 	}
 
 	.user-panel {
@@ -262,8 +262,8 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
-		background: var(--wraith);
-		color: var(--void);
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -292,7 +292,7 @@
 	.status {
 		margin: 0;
 		font-size: 11px;
-		color: var(--ember);
+		color: var(--online);
 	}
 
 	.controls {
