@@ -21,8 +21,15 @@
 					title={server.name}
 					onclick={() => onSelect(server.id)}
 				>
-					<span class="pill" class:active={server.id === activeId}></span>
+					<span
+						class="pill"
+						class:active={server.id === activeId}
+						class:unread={!!server.unread && server.id !== activeId}
+					></span>
 					<span class="icon">{server.initials}</span>
+					{#if server.unread}
+						<span class="badge">{server.unread > 9 ? "9+" : server.unread}</span>
+					{/if}
 				</button>
 			</li>
 		{/each}
@@ -122,6 +129,29 @@
 
 	.pill.active {
 		height: 36px;
+	}
+
+	.pill.unread {
+		height: 10px;
+		background: var(--text-primary);
+	}
+
+	.badge {
+		position: absolute;
+		bottom: -4px;
+		right: -4px;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 4px;
+		border-radius: 9px;
+		background: var(--danger);
+		color: white;
+		font-size: 10px;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 3px solid var(--bg-rail);
 	}
 
 	.spacer {

@@ -25,7 +25,15 @@
 		<span class="hash">#</span>
 		<span class="name">{channel.name}</span>
 		<div class="spacer"></div>
-		<button class="members-toggle" title="Members" onclick={onToggleMembers}>◈</button>
+		<div class="header-icons">
+			<button class="icon-button" title="Pinned messages">📌</button>
+			<button class="icon-button" title="Notifications">🔔</button>
+			<button class="icon-button" title="Members" onclick={onToggleMembers}>◈</button>
+			<div class="header-search">
+				<input type="text" placeholder="Search" />
+			</div>
+			<button class="icon-button" title="Inbox">📥</button>
+		</div>
 	</header>
 
 	<div class="messages">
@@ -36,7 +44,9 @@
 						{message.author.slice(0, 2).toUpperCase()}
 					</div>
 				{:else}
-					<div class="avatar-spacer"></div>
+					<div class="avatar-spacer">
+						<span class="hover-time">{message.time}</span>
+					</div>
 				{/if}
 
 				<div class="body">
@@ -47,6 +57,12 @@
 						</p>
 					{/if}
 					<p class="content">{message.content}</p>
+				</div>
+
+				<div class="hover-actions">
+					<button class="icon-button small" title="Add reaction">☺</button>
+					<button class="icon-button small" title="Reply">↩</button>
+					<button class="icon-button small" title="More">⋯</button>
 				</div>
 			</div>
 		{/each}
@@ -92,16 +108,45 @@
 		flex: 1;
 	}
 
-	.members-toggle {
-		font-size: 16px;
+	.header-icons {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.header-search {
+		margin: 0 4px;
+	}
+
+	.header-search input {
+		width: 120px;
+		background: var(--bg-rail);
+		border: none;
+		border-radius: 6px;
+		padding: 5px 8px;
+		font-size: 12px;
+		color: var(--text-primary);
+	}
+
+	.header-search input::placeholder {
+		color: var(--text-faint);
+	}
+
+	.icon-button {
+		font-size: 15px;
 		color: var(--text-muted);
 		padding: 6px;
 		border-radius: 6px;
 	}
 
-	.members-toggle:hover {
+	.icon-button:hover {
 		background: var(--bg-hover);
 		color: var(--text-primary);
+	}
+
+	.icon-button.small {
+		font-size: 13px;
+		padding: 4px;
 	}
 
 	.messages {
@@ -113,6 +158,7 @@
 	}
 
 	.message {
+		position: relative;
 		display: flex;
 		gap: 12px;
 		padding: 2px 8px;
@@ -120,7 +166,7 @@
 	}
 
 	.message:hover {
-		background: rgba(255, 255, 255, 0.02);
+		background: rgba(255, 255, 255, 0.03);
 	}
 
 	.message:not(.grouped) {
@@ -143,6 +189,19 @@
 	.avatar-spacer {
 		width: 36px;
 		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.hover-time {
+		display: none;
+		font-size: 10px;
+		color: var(--text-faint);
+	}
+
+	.message:hover .hover-time {
+		display: block;
 	}
 
 	.body {
@@ -172,6 +231,21 @@
 		line-height: 1.4;
 		color: var(--text-primary);
 		word-break: break-word;
+	}
+
+	.hover-actions {
+		position: absolute;
+		top: -14px;
+		right: 8px;
+		display: none;
+		background: var(--bg-active);
+		border-radius: 6px;
+		padding: 2px;
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+	}
+
+	.message:hover .hover-actions {
+		display: flex;
 	}
 
 	.composer {

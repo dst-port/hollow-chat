@@ -11,6 +11,7 @@ use axum::routing::get;
 use axum::Router;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tower_http::cors::CorsLayer;
 
 use config::Config;
 use state::AppState;
@@ -43,7 +44,8 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(health))
         .nest("/auth", auth::router(state.clone()))
-        .with_state(state);
+        .with_state(state)
+        .layer(CorsLayer::permissive());
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
         .await

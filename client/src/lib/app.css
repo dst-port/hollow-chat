@@ -1,10 +1,10 @@
 :root {
-	--bg-rail: #101014;
-	--bg-sidebar: #17171d;
-	--bg-main: #1b1b22;
-	--bg-hover: #24242e;
-	--bg-active: #2a2a38;
-	--border: #26262f;
+	--bg-rail: #0b0b0f;
+	--bg-sidebar: #16161c;
+	--bg-main: #1e1e26;
+	--bg-hover: #272732;
+	--bg-active: #2e2e3b;
+	--border: #29293380;
 
 	--accent: #8b5cf6;
 	--accent-soft: rgba(139, 92, 246, 0.16);

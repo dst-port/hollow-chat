@@ -11,6 +11,7 @@ export type ServerEntry = {
 	name: string;
 	initials: string;
 	channels: Channel[];
+	unread?: number;
 };
 
 export type Message = {
@@ -38,6 +39,7 @@ export const servers: ServerEntry[] = [
 		id: "night-owls",
 		name: "Night Owls",
 		initials: "NO",
+		unread: 3,
 		channels: [
 			{ id: "general", name: "general", type: "text" },
 			{ id: "memes", name: "memes", type: "text" },
@@ -48,6 +50,7 @@ export const servers: ServerEntry[] = [
 		id: "speedrun-hub",
 		name: "Speedrun Hub",
 		initials: "SH",
+		unread: 12,
 		channels: [
 			{ id: "general", name: "general", type: "text" },
 			{ id: "pbs", name: "personal-bests", type: "text" },

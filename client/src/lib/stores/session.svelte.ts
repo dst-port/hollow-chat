@@ -1,0 +1,55 @@
+import { me } from "$lib/api/client";
+
+const STORAGE_KEY = "hollowchat_session";
+
+type StoredSession = {
+	token: string;
+	username: string;
+};
+
+class SessionStore {
+	token = $state<string | null>(null);
+	username = $state<string | null>(null);
+	ready = $state(false);
+
+	constructor() {
+		this.restore();
+	}
+
+	async restore() {
+		const raw = localStorage.getItem(STORAGE_KEY);
+		if (!raw) {
+			this.ready = true;
+			return;
+		}
+
+		try {
+			const stored: StoredSession = JSON.parse(raw);
+			await me(stored.token);
+			this.token = stored.token;
+			this.username = stored.username;
+		} catch {
+			localStorage.removeItem(STORAGE_KEY);
+		}
+
+		this.ready = true;
+	}
+
+	set(token: string, username: string) {
+		this.token = token;
+		this.username = username;
+		localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, username }));
+	}
+
+	clear() {
+		this.token = null;
+		this.username = null;
+		localStorage.removeItem(STORAGE_KEY);
+	}
+
+	get isAuthenticated() {
+		return this.token !== null;
+	}
+}
+
+export const session = new SessionStore();
