@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { fade, scale } from "svelte/transition";
+	import { cubicOut } from "svelte/easing";
 	import X from "@lucide/svelte/icons/x";
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import ShieldCheck from "@lucide/svelte/icons/shield-check";
@@ -20,7 +22,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="overlay" role="presentation" onclick={onClose}>
+<div class="overlay" role="presentation" onclick={onClose} transition:fade={{ duration: 150 }}>
 	<div
 		class="modal"
 		role="dialog"
@@ -29,6 +31,7 @@
 		tabindex="-1"
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.stopPropagation()}
+		transition:scale={{ duration: 180, start: 0.97, easing: cubicOut }}
 	>
 		<nav class="nav">
 			<p class="nav-label">User Settings</p>

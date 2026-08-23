@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fade, fly } from "svelte/transition";
 	import Hash from "@lucide/svelte/icons/hash";
 	import Pin from "@lucide/svelte/icons/pin";
 	import Bell from "@lucide/svelte/icons/bell";
@@ -33,7 +34,9 @@
 <section class="chat">
 	<header class="header">
 		<Hash size={18} strokeWidth={2.5} class="hash" />
-		<span class="name">{channel.name}</span>
+		{#key channel.id}
+			<span class="name" in:fade={{ duration: 150 }}>{channel.name}</span>
+		{/key}
 		<div class="spacer"></div>
 		<div class="header-icons">
 			<button class="icon-button" title="Pinned messages"><Pin size={17} strokeWidth={2} /></button>
@@ -50,8 +53,9 @@
 	</header>
 
 	<div class="messages">
+		{#key channel.id}
 		{#each messages as message, index (message.id)}
-			<div class="message" class:grouped={isGrouped(index)}>
+			<div class="message" class:grouped={isGrouped(index)} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
 				{#if !isGrouped(index)}
 					<div class="avatar" style:background={message.color}>
 						{message.author.slice(0, 2).toUpperCase()}
@@ -79,6 +83,7 @@
 				</div>
 			</div>
 		{/each}
+		{/key}
 	</div>
 
 	<form class="composer" onsubmit={send}>

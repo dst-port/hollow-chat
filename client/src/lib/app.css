@@ -60,6 +60,11 @@ button {
 	background: none;
 	color: inherit;
 	cursor: pointer;
+	transition: transform 0.05s ease;
+}
+
+button:active:not(:disabled) {
+	transform: scale(0.94);
 }
 
 input {

@@ -2,15 +2,19 @@
 	import Plus from "@lucide/svelte/icons/plus";
 	import type { ServerEntry } from "$lib/data/mock";
 
-	let { servers, activeId, onSelect }: {
+	let { servers, activeId, onSelect, onSelectHome }: {
 		servers: ServerEntry[];
-		activeId: string;
+		activeId: string | null;
 		onSelect: (id: string) => void;
+		onSelectHome: () => void;
 	} = $props();
 </script>
 
 <nav class="rail">
-	<button class="home" title="Direct Messages">HC</button>
+	<button class="home" class:active={activeId === null} title="Direct Messages" onclick={onSelectHome}>
+		<span class="pill" class:active={activeId === null}></span>
+		HC
+	</button>
 	<div class="divider"></div>
 
 	<ul>
@@ -57,6 +61,7 @@
 	}
 
 	.home {
+		position: relative;
 		width: 48px;
 		height: 48px;
 		border-radius: 16px;
@@ -68,6 +73,13 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.home:hover,
+	.home.active {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 	}
 
 	.divider {

@@ -1,14 +1,10 @@
 <script lang="ts">
+	import { slide } from "svelte/transition";
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import Hash from "@lucide/svelte/icons/hash";
 	import Volume2 from "@lucide/svelte/icons/volume-2";
 	import Search from "@lucide/svelte/icons/search";
-	import Mic from "@lucide/svelte/icons/mic";
-	import MicOff from "@lucide/svelte/icons/mic-off";
-	import Headphones from "@lucide/svelte/icons/headphones";
-	import HeadphoneOff from "@lucide/svelte/icons/headphone-off";
-	import Settings from "@lucide/svelte/icons/settings";
-	import SettingsModal from "$lib/components/SettingsModal.svelte";
+	import UserBar from "$lib/components/UserBar.svelte";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { server, activeChannelId, onSelectChannel, username, onLogout }: {
@@ -22,9 +18,6 @@
 	let search = $state("");
 	let textCollapsed = $state(false);
 	let voiceCollapsed = $state(false);
-	let muted = $state(false);
-	let deafened = $state(false);
-	let settingsOpen = $state(false);
 
 	const textChannels = $derived(
 		server.channels.filter(
@@ -56,16 +49,18 @@
 				Text Channels
 			</button>
 			{#if !textCollapsed}
-				{#each textChannels as channel (channel.id)}
-					<button
-						class="channel"
-						class:active={channel.id === activeChannelId}
-						onclick={() => onSelectChannel(channel.id)}
-					>
-						<Hash size={16} strokeWidth={2} class="channel-icon" />
-						<span class="name">{channel.name}</span>
-					</button>
-				{/each}
+				<div transition:slide={{ duration: 160 }}>
+					{#each textChannels as channel (channel.id)}
+						<button
+							class="channel"
+							class:active={channel.id === activeChannelId}
+							onclick={() => onSelectChannel(channel.id)}
+						>
+							<Hash size={16} strokeWidth={2} class="channel-icon" />
+							<span class="name">{channel.name}</span>
+						</button>
+					{/each}
+				</div>
 			{/if}
 		</div>
 
@@ -75,55 +70,24 @@
 				Voice Channels
 			</button>
 			{#if !voiceCollapsed}
-				{#each voiceChannels as channel (channel.id)}
-					<button
-						class="channel"
-						class:active={channel.id === activeChannelId}
-						onclick={() => onSelectChannel(channel.id)}
-					>
-						<Volume2 size={16} strokeWidth={2} class="channel-icon" />
-						<span class="name">{channel.name}</span>
-					</button>
-				{/each}
+				<div transition:slide={{ duration: 160 }}>
+					{#each voiceChannels as channel (channel.id)}
+						<button
+							class="channel"
+							class:active={channel.id === activeChannelId}
+							onclick={() => onSelectChannel(channel.id)}
+						>
+							<Volume2 size={16} strokeWidth={2} class="channel-icon" />
+							<span class="name">{channel.name}</span>
+						</button>
+					{/each}
+				</div>
 			{/if}
 		</div>
 	</div>
 
-	<div class="user-panel">
-		<div class="ring">
-			<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
-		</div>
-		<div class="identity">
-			<p class="username">{username}</p>
-			<p class="status">online</p>
-		</div>
-		<div class="controls">
-			<button
-				class="icon-button"
-				class:muted-active={muted}
-				title={muted ? "Unmute" : "Mute"}
-				onclick={() => (muted = !muted)}
-			>
-				{#if muted}<MicOff size={15} strokeWidth={2} />{:else}<Mic size={15} strokeWidth={2} />{/if}
-			</button>
-			<button
-				class="icon-button"
-				class:muted-active={deafened}
-				title={deafened ? "Undeafen" : "Deafen"}
-				onclick={() => (deafened = !deafened)}
-			>
-				{#if deafened}<HeadphoneOff size={15} strokeWidth={2} />{:else}<Headphones size={15} strokeWidth={2} />{/if}
-			</button>
-			<button class="icon-button" title="User settings" onclick={() => (settingsOpen = true)}>
-				<Settings size={15} strokeWidth={2} />
-			</button>
-		</div>
-	</div>
+	<UserBar {username} {onLogout} />
 </aside>
-
-{#if settingsOpen}
-	<SettingsModal {username} onClose={() => (settingsOpen = false)} onLogout={onLogout} />
-{/if}
 
 <style>
 	.sidebar {
@@ -148,15 +112,12 @@
 		letter-spacing: 0.01em;
 		border-bottom: 1px solid var(--hairline);
 		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
 	.header:hover {
 		background: var(--hover);
 		color: var(--ink);
-	}
-
-	.header {
-		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
 	.search-bar {
@@ -254,87 +215,5 @@
 	.channel.active :global(.channel-icon),
 	.channel:hover :global(.channel-icon) {
 		color: var(--ink);
-	}
-
-	.user-panel {
-		height: 56px;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 0 8px;
-		background: var(--void);
-	}
-
-	.ring {
-		flex-shrink: 0;
-		width: 36px;
-		height: 36px;
-		border-radius: 50%;
-		padding: 2px;
-		background: var(--online);
-	}
-
-	.avatar {
-		width: 100%;
-		height: 100%;
-		border-radius: 50%;
-		background: var(--accent-fill);
-		color: var(--accent-fill-ink);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-family: var(--font-display);
-		font-weight: 700;
-		font-size: 12px;
-		border: 2px solid var(--void);
-	}
-
-	.identity {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.username {
-		margin: 0;
-		font-family: var(--font-mono);
-		font-size: 13px;
-		font-weight: 600;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		color: var(--ink);
-	}
-
-	.status {
-		margin: 0;
-		font-size: 11px;
-		color: var(--online);
-	}
-
-	.controls {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		padding: 4px;
-		border-radius: 999px;
-		background: var(--panel);
-	}
-
-	.icon-button {
-		padding: 7px;
-		border-radius: 999px;
-		color: var(--ink-dim);
-		display: flex;
-		transition: background-color 0.15s ease, color 0.15s ease;
-	}
-
-	.icon-button:hover {
-		background: var(--hover);
-		color: var(--ink);
-	}
-
-	.icon-button.muted-active {
-		color: var(--danger);
 	}
 </style>
