@@ -26,19 +26,31 @@
 	};
 
 	const FALLBACK_COLOR = "#8f97a8";
+
+	const ICON_ART: Record<string, string> = {
+		supporter: "/badges/supporter.png",
+		staff: "/badges/staff.png",
+		founder: "/badges/founder.png"
+	};
 </script>
 
 {#if badges.length > 0}
 	<div class="badges">
 		{#each badges as badge (badge)}
 			{@const Icon = ICONS[badge] ?? Award}
+			{@const art = ICON_ART[badge]}
 			{@const meta = badgeStore.catalog[badge]}
 			<span
 				class="badge"
+				class:art={!!art}
 				style:color={COLORS[badge] ?? FALLBACK_COLOR}
 				title={meta ? `${meta.label} — ${meta.description}` : badge}
 			>
-				<Icon size={13} strokeWidth={2.25} />
+				{#if art}
+					<img src={art} alt={meta?.label ?? badge} />
+				{:else}
+					<Icon size={13} strokeWidth={2.25} />
+				{/if}
 			</span>
 		{/each}
 	</div>
@@ -59,5 +71,16 @@
 		height: 20px;
 		border-radius: 50%;
 		background: var(--sidebar);
+		overflow: hidden;
+	}
+
+	.badge.art {
+		background: none;
+	}
+
+	.badge img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 	}
 </style>
