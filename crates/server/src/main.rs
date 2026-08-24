@@ -2,6 +2,7 @@ mod attachments;
 mod auth;
 mod billing;
 mod blocks;
+mod calls;
 mod config;
 mod db;
 mod dms;
@@ -27,9 +28,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::cors::CorsLayer;
 
+use dashmap::DashMap;
+
 use config::Config;
 use rate_limit::UserRateLimiter;
-use state::{AppState, BillingConfig};
+use state::{AppState, BillingConfig, IceConfig};
 
 const MESSAGE_LIMIT_PER_WINDOW: u32 = 15;
 const MESSAGE_LIMIT_WINDOW: Duration = Duration::from_secs(10);
@@ -72,6 +75,13 @@ async fn main() {
             lava_currency: config.lava_currency.map(|s| Arc::from(s.into_boxed_str())),
             app_base_url: Arc::from(config.app_base_url.into_boxed_str()),
         },
+        ice: IceConfig {
+            stun_urls: Arc::from(config.ice_stun_urls.into_boxed_slice()),
+            turn_url: config.ice_turn_url.map(|s| Arc::from(s.into_boxed_str())),
+            turn_username: config.ice_turn_username.map(|s| Arc::from(s.into_boxed_str())),
+            turn_credential: config.ice_turn_credential.map(|s| Arc::from(s.into_boxed_str())),
+        },
+        call_rooms: Arc::new(DashMap::new()),
     };
 
     let app = Router::new()
@@ -88,6 +98,7 @@ async fn main() {
         .nest("/files", attachments::router(state.clone()))
         .nest("/billing", billing::router(state.clone()))
         .nest("/blocks", blocks::router(state.clone()))
+        .nest("/calls", calls::router(state.clone()))
         .with_state(state)
         .layer(CorsLayer::permissive());
 

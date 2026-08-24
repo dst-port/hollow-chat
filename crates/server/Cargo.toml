@@ -26,3 +26,4 @@ tower-http.workspace = true
 dashmap.workspace = true
 reqwest.workspace = true
 tokio-util.workspace = true
+futures-util.workspace = true

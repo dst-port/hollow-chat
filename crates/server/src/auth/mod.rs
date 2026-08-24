@@ -1,7 +1,7 @@
 mod extractor;
 mod handlers;
 
-pub use extractor::AuthSession;
+pub use extractor::{resolve_token, AuthSession};
 
 use axum::middleware;
 use axum::routing::{delete, get, patch, post};

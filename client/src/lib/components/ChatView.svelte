@@ -15,6 +15,7 @@
 	import FileIcon from "@lucide/svelte/icons/file";
 	import Download from "@lucide/svelte/icons/download";
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
+	import Phone from "@lucide/svelte/icons/phone";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
@@ -61,6 +62,7 @@
 		packageDistribution
 	} from "$lib/crypto/group";
 	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
+	import { call } from "$lib/webrtc/call.svelte";
 	import { loadAttachmentBlobUrl, triggerDownload } from "$lib/utils/attachment";
 	import { renderMarkdown } from "$lib/utils/markdown";
 	import type { Channel, Message, MessageAttachment } from "$lib/data/mock";
@@ -488,6 +490,16 @@
 		}
 	}
 
+	async function startDmCall() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await call.join(token, channel.id, channel.name);
+		} catch {
+			toast.push("Couldn't start the call — check microphone permissions");
+		}
+	}
+
 	let threadsOpen = $state(false);
 	let openThreadId = $state<string | undefined>(undefined);
 
@@ -539,6 +551,11 @@
 		{/key}
 		<div class="spacer"></div>
 		<div class="header-icons">
+			{#if isDm}
+				<button class="icon-button" title="Voice call" onclick={startDmCall}>
+					<Phone size={17} strokeWidth={2} />
+				</button>
+			{/if}
 			<div class="anchor">
 				<button class="icon-button" title="Pinned messages" onclick={openPinned}>
 					<Pin size={17} strokeWidth={2} />

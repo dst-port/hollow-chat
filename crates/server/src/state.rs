@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
+use dashmap::DashMap;
 use sqlx::PgPool;
+use uuid::Uuid;
 
+use crate::calls::PeerHandle;
 use crate::rate_limit::UserRateLimiter;
 
 #[derive(Clone)]
@@ -14,6 +17,14 @@ pub struct BillingConfig {
 }
 
 #[derive(Clone)]
+pub struct IceConfig {
+    pub stun_urls: Arc<[String]>,
+    pub turn_url: Option<Arc<str>>,
+    pub turn_username: Option<Arc<str>>,
+    pub turn_credential: Option<Arc<str>>,
+}
+
+#[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub pepper: Arc<[u8]>,
@@ -21,4 +32,6 @@ pub struct AppState {
     pub attachments_dir: Arc<str>,
     pub http_client: reqwest::Client,
     pub billing: BillingConfig,
+    pub ice: IceConfig,
+    pub call_rooms: Arc<DashMap<Uuid, Vec<PeerHandle>>>,
 }

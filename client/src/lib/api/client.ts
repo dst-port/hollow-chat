@@ -1,4 +1,5 @@
 const BASE_URL = "http://127.0.0.1:8080";
+export const WS_BASE_URL = BASE_URL.replace(/^http/, "ws");
 
 export class ApiError extends Error {
 	status: number;
@@ -731,6 +732,18 @@ export function banMember(token: string, serverId: string, userId: string, reaso
 export function unbanMember(token: string, serverId: string, userId: string) {
 	return request<void>(`/servers/${serverId}/bans/${userId}`, {
 		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type ApiIceServer = {
+	urls: string[];
+	username: string | null;
+	credential: string | null;
+};
+
+export function fetchIceServers(token: string) {
+	return request<ApiIceServer[]>("/calls/ice-servers", {
 		headers: { authorization: `Bearer ${token}` }
 	});
 }

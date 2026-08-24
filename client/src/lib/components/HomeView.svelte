@@ -9,6 +9,7 @@
 	import Check from "@lucide/svelte/icons/check";
 	import X from "@lucide/svelte/icons/x";
 	import UserBar from "$lib/components/UserBar.svelte";
+	import CallBar from "$lib/components/CallBar.svelte";
 	import ChatView from "$lib/components/ChatView.svelte";
 	import type { Member, Channel } from "$lib/data/mock";
 	import { toast } from "$lib/stores/toast.svelte";
@@ -215,6 +216,7 @@
 			{/each}
 		{/if}
 		<div class="spacer"></div>
+		<CallBar />
 		<UserBar {username} {onLogout} />
 	</aside>
 

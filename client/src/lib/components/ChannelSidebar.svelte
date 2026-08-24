@@ -5,12 +5,15 @@
 	import Volume2 from "@lucide/svelte/icons/volume-2";
 	import Search from "@lucide/svelte/icons/search";
 	import UserBar from "$lib/components/UserBar.svelte";
+	import CallBar from "$lib/components/CallBar.svelte";
 	import ServerMenu from "$lib/components/ServerMenu.svelte";
 	import InviteModal from "$lib/components/InviteModal.svelte";
 	import CreateChannelModal from "$lib/components/CreateChannelModal.svelte";
 	import ServerSettingsModal from "$lib/components/ServerSettingsModal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
-	import type { ChannelType, ServerEntry } from "$lib/data/mock";
+	import { session } from "$lib/stores/session.svelte";
+	import { call } from "$lib/webrtc/call.svelte";
+	import type { Channel, ChannelType, ServerEntry } from "$lib/data/mock";
 
 	let { server, activeChannelId, onSelectChannel, onCreateChannel, onLeaveServer, username, onLogout }: {
 		server: ServerEntry;
@@ -42,6 +45,16 @@
 
 	function selectChannel(id: string) {
 		onSelectChannel(id);
+	}
+
+	async function joinVoice(channel: Channel) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await call.join(token, channel.id, `${server.name} / ${channel.name}`);
+		} catch {
+			toast.push("Couldn't join voice — check microphone permissions");
+		}
 	}
 
 	function handleCreateChannel(name: string, type: ChannelType) {
@@ -105,8 +118,8 @@
 						{#each category.channels as channel (channel.id)}
 							<button
 								class="channel"
-								class:active={channel.id === activeChannelId}
-								onclick={() => selectChannel(channel.id)}
+								class:active={channel.type === "text" ? channel.id === activeChannelId : call.roomId === channel.id}
+								onclick={() => (channel.type === "text" ? selectChannel(channel.id) : joinVoice(channel))}
 							>
 								{#if channel.type === "text"}
 									<Hash size={16} strokeWidth={2} class="channel-icon" />
@@ -123,6 +136,7 @@
 		{/each}
 	</div>
 
+	<CallBar />
 	<UserBar {username} {onLogout} />
 </aside>
 
