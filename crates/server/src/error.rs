@@ -45,6 +45,10 @@ pub enum AppError {
     InviteGenerationFailed,
     #[error("invalid credentials")]
     InvalidCredentials,
+    #[error("invalid or expired verification code")]
+    InvalidTotpCode,
+    #[error("two-factor authentication is not set up yet")]
+    TotpNotConfigured,
     #[error("unauthorized")]
     Unauthorized,
     #[error("not found")]
@@ -78,6 +82,8 @@ impl IntoResponse for AppError {
             AppError::BillingProvider => StatusCode::BAD_GATEWAY,
             AppError::InviteGenerationFailed => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
+            AppError::InvalidTotpCode => StatusCode::BAD_REQUEST,
+            AppError::TotpNotConfigured => StatusCode::BAD_REQUEST,
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,

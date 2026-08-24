@@ -4,10 +4,10 @@
 	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import Check from "@lucide/svelte/icons/check";
 	import Copy from "@lucide/svelte/icons/copy";
-	import { register, login, ApiError } from "$lib/api/client";
+	import { register, login, completeTotpLogin, ApiError } from "$lib/api/client";
 	import { session } from "$lib/stores/session.svelte";
 
-	type Mode = "login" | "register" | "reveal";
+	type Mode = "login" | "register" | "reveal" | "totp";
 
 	let mode = $state<Mode>("login");
 	let username = $state("");
@@ -18,6 +18,9 @@
 	let revealedUsername = $state("");
 	let confirmed = $state(false);
 	let copied = $state(false);
+	let challengeId = $state("");
+	let totpCode = $state("");
+	let pendingUsername = $state("");
 
 	async function copyPassword() {
 		await navigator.clipboard.writeText(revealedPassword);
@@ -31,9 +34,30 @@
 		loading = true;
 		try {
 			const result = await login(username, password);
-			session.set(result.token, username);
+			if (result.requires_totp && result.challenge_id) {
+				challengeId = result.challenge_id;
+				pendingUsername = username;
+				totpCode = "";
+				mode = "totp";
+			} else if (result.token) {
+				session.set(result.token, username);
+			}
 		} catch (err) {
 			error = err instanceof ApiError ? err.message : "something went wrong";
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function submitTotp(event: SubmitEvent) {
+		event.preventDefault();
+		error = "";
+		loading = true;
+		try {
+			const result = await completeTotpLogin(challengeId, totpCode.trim());
+			if (result.token) session.set(result.token, pendingUsername);
+		} catch (err) {
+			error = err instanceof ApiError ? err.message : "invalid code";
 		} finally {
 			loading = false;
 		}
@@ -61,7 +85,14 @@
 		loading = true;
 		try {
 			const result = await login(revealedUsername, revealedPassword);
-			session.set(result.token, revealedUsername);
+			if (result.requires_totp && result.challenge_id) {
+				challengeId = result.challenge_id;
+				pendingUsername = revealedUsername;
+				totpCode = "";
+				mode = "totp";
+			} else if (result.token) {
+				session.set(result.token, revealedUsername);
+			}
 		} catch (err) {
 			error = err instanceof ApiError ? err.message : "something went wrong";
 		} finally {
@@ -146,6 +177,34 @@
 						Already have an account?
 						<button type="button" class="link" onclick={() => switchMode("login")}>
 							Log in
+						</button>
+					</p>
+				{:else if mode === "totp"}
+					<h1>Two-factor authentication</h1>
+					<p class="subtitle">Enter the 6-digit code from your authenticator app, or a backup code.</p>
+
+					<form onsubmit={submitTotp}>
+						<label>
+							Code
+							<input
+								type="text"
+								bind:value={totpCode}
+								autocomplete="one-time-code"
+								placeholder="123456"
+								required
+							/>
+						</label>
+
+						{#if error}<p class="error">{error}</p>{/if}
+
+						<button type="submit" disabled={loading || !totpCode.trim()}>
+							{loading ? "Verifying…" : "Verify"}
+						</button>
+					</form>
+
+					<p class="switch">
+						<button type="button" class="link" onclick={() => switchMode("login")}>
+							Back to login
 						</button>
 					</p>
 				{:else}

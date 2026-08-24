@@ -81,8 +81,10 @@ export type RegisterResponse = {
 };
 
 export type LoginResponse = {
-	token: string;
-	expires_at: string;
+	requires_totp: boolean;
+	challenge_id: string | null;
+	token: string | null;
+	expires_at: string | null;
 };
 
 export type MeResponse = {
@@ -101,6 +103,56 @@ export function login(username: string, password: string) {
 	return request<LoginResponse>("/auth/login", {
 		method: "POST",
 		body: JSON.stringify({ username, password })
+	});
+}
+
+export function completeTotpLogin(challengeId: string, code: string) {
+	return request<LoginResponse>("/auth/login/totp", {
+		method: "POST",
+		body: JSON.stringify({ challenge_id: challengeId, code })
+	});
+}
+
+export type TotpStatus = { enabled: boolean };
+
+export function fetchTotpStatus(token: string) {
+	return request<TotpStatus>("/auth/2fa/status", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type TotpSetup = { secret: string; otpauth_url: string };
+
+export function setupTotp(token: string) {
+	return request<TotpSetup>("/auth/2fa/setup", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type TotpVerifyResult = { backup_codes: string[] };
+
+export function verifyTotp(token: string, code: string) {
+	return request<TotpVerifyResult>("/auth/2fa/verify", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ code })
+	});
+}
+
+export function disableTotp(token: string, code: string) {
+	return request<void>("/auth/2fa/disable", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ code })
+	});
+}
+
+export function regenerateBackupCodes(token: string, code: string) {
+	return request<TotpVerifyResult>("/auth/2fa/backup-codes", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ code })
 	});
 }
 

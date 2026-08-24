@@ -20,6 +20,7 @@ mod servers;
 mod session;
 mod social;
 mod state;
+mod totp;
 
 use axum::routing::get;
 use axum::Router;

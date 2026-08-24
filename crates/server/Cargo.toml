@@ -27,3 +27,5 @@ dashmap.workspace = true
 reqwest.workspace = true
 tokio-util.workspace = true
 futures-util.workspace = true
+hmac.workspace = true
+sha1.workspace = true

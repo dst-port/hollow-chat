@@ -3,6 +3,7 @@ use axum::http::header::USER_AGENT;
 use axum::http::HeaderMap;
 use axum::Json;
 use chrono::{DateTime, Duration, Utc};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use uuid::Uuid;
@@ -11,8 +12,47 @@ use crate::error::AppError;
 use crate::password::{generate_password, hash_password, verify_password};
 use crate::session::{generate_token, SESSION_TTL_HOURS};
 use crate::state::AppState;
+use crate::totp;
 
 use super::extractor::AuthSession;
+
+fn client_meta(addr: SocketAddr, headers: &HeaderMap) -> (String, String) {
+    let user_agent = headers
+        .get(USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+    (user_agent, addr.ip().to_string())
+}
+
+async fn create_session(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    user_agent: &str,
+    ip_address: &str,
+) -> Result<LoginResponse, AppError> {
+    let (token, token_hash) = generate_token();
+    let expires_at = Utc::now() + Duration::hours(SESSION_TTL_HOURS);
+
+    sqlx::query(
+        "INSERT INTO sessions (user_id, token_hash, expires_at, user_agent, ip_address) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(user_id)
+    .bind(&token_hash)
+    .bind(expires_at)
+    .bind(user_agent)
+    .bind(ip_address)
+    .execute(pool)
+    .await?;
+
+    Ok(LoginResponse {
+        requires_totp: false,
+        challenge_id: None,
+        token: Some(token),
+        expires_at: Some(expires_at),
+    })
+}
 
 fn validate_username(username: &str) -> Result<(), AppError> {
     let len_ok = (3..=32).contains(&username.len());
@@ -73,14 +113,17 @@ pub struct LoginRequest {
 
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
-    pub token: String,
-    pub expires_at: DateTime<Utc>,
+    pub requires_totp: bool,
+    pub challenge_id: Option<Uuid>,
+    pub token: Option<String>,
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(sqlx::FromRow)]
 struct UserAuthRow {
     id: Uuid,
     password_hash: String,
+    totp_enabled: bool,
 }
 
 pub async fn login(
@@ -89,11 +132,12 @@ pub async fn login(
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, AppError> {
-    let user: Option<UserAuthRow> =
-        sqlx::query_as("SELECT id, password_hash FROM users WHERE username = $1")
-            .bind(&payload.username)
-            .fetch_optional(&state.pool)
-            .await?;
+    let user: Option<UserAuthRow> = sqlx::query_as(
+        "SELECT id, password_hash, totp_enabled FROM users WHERE username = $1",
+    )
+    .bind(&payload.username)
+    .fetch_optional(&state.pool)
+    .await?;
 
     let user = user.ok_or(AppError::InvalidCredentials)?;
 
@@ -102,27 +146,67 @@ pub async fn login(
         return Err(AppError::InvalidCredentials);
     }
 
-    let (token, token_hash) = generate_token();
-    let expires_at = Utc::now() + Duration::hours(SESSION_TTL_HOURS);
-    let user_agent = headers
-        .get(USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown");
-    let ip_address = addr.ip().to_string();
+    let (user_agent, ip_address) = client_meta(addr, &headers);
 
-    sqlx::query(
-        "INSERT INTO sessions (user_id, token_hash, expires_at, user_agent, ip_address) \
-         VALUES ($1, $2, $3, $4, $5)",
+    if user.totp_enabled {
+        let challenge_id: (Uuid,) = sqlx::query_as(
+            "INSERT INTO login_challenges (user_id, expires_at) VALUES ($1, $2) RETURNING id",
+        )
+        .bind(user.id)
+        .bind(Utc::now() + Duration::minutes(5))
+        .fetch_one(&state.pool)
+        .await?;
+
+        return Ok(Json(LoginResponse {
+            requires_totp: true,
+            challenge_id: Some(challenge_id.0),
+            token: None,
+            expires_at: None,
+        }));
+    }
+
+    let response = create_session(&state.pool, user.id, &user_agent, &ip_address).await?;
+    Ok(Json(response))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CompleteTotpLoginRequest {
+    pub challenge_id: Uuid,
+    pub code: String,
+}
+
+pub async fn complete_totp_login(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(payload): Json<CompleteTotpLoginRequest>,
+) -> Result<Json<LoginResponse>, AppError> {
+    let challenge: Option<(Uuid, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT user_id, expires_at FROM login_challenges WHERE id = $1",
     )
-    .bind(user.id)
-    .bind(&token_hash)
-    .bind(expires_at)
-    .bind(user_agent)
-    .bind(&ip_address)
-    .execute(&state.pool)
+    .bind(payload.challenge_id)
+    .fetch_optional(&state.pool)
     .await?;
 
-    Ok(Json(LoginResponse { token, expires_at }))
+    let (user_id, expires_at) = challenge.ok_or(AppError::InvalidCredentials)?;
+    if expires_at < Utc::now() {
+        sqlx::query("DELETE FROM login_challenges WHERE id = $1")
+            .bind(payload.challenge_id)
+            .execute(&state.pool)
+            .await?;
+        return Err(AppError::InvalidCredentials);
+    }
+
+    verify_totp_or_backup(&state, user_id, &payload.code).await?;
+
+    sqlx::query("DELETE FROM login_challenges WHERE id = $1")
+        .bind(payload.challenge_id)
+        .execute(&state.pool)
+        .await?;
+
+    let (user_agent, ip_address) = client_meta(addr, &headers);
+    let response = create_session(&state.pool, user_id, &user_agent, &ip_address).await?;
+    Ok(Json(response))
 }
 
 #[derive(Debug, Serialize)]
@@ -229,6 +313,181 @@ pub async fn list_sessions(
         .collect();
 
     Ok(Json(sessions))
+}
+
+fn generate_backup_code() -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::thread_rng();
+    let part = |rng: &mut rand::rngs::ThreadRng| -> String {
+        (0..4)
+            .map(|_| ALPHABET[rng.gen_range(0..ALPHABET.len())] as char)
+            .collect()
+    };
+    format!("{}-{}", part(&mut rng), part(&mut rng))
+}
+
+async fn verify_totp_or_backup(state: &AppState, user_id: Uuid, code: &str) -> Result<(), AppError> {
+    let secret: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT totp_secret FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&state.pool)
+            .await?;
+
+    let Some((Some(secret),)) = secret else {
+        return Err(AppError::TotpNotConfigured);
+    };
+
+    if totp::verify_code(&secret, code) {
+        return Ok(());
+    }
+
+    let backup_codes: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, code_hash FROM totp_backup_codes WHERE user_id = $1 AND used_at IS NULL",
+    )
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    for (id, hash) in backup_codes {
+        if verify_password(code, &hash, &state.pepper)? {
+            sqlx::query("UPDATE totp_backup_codes SET used_at = now() WHERE id = $1")
+                .bind(id)
+                .execute(&state.pool)
+                .await?;
+            return Ok(());
+        }
+    }
+
+    Err(AppError::InvalidTotpCode)
+}
+
+async fn generate_and_store_backup_codes(
+    state: &AppState,
+    user_id: Uuid,
+) -> Result<Vec<String>, AppError> {
+    sqlx::query("DELETE FROM totp_backup_codes WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&state.pool)
+        .await?;
+
+    let mut codes = Vec::with_capacity(8);
+    for _ in 0..8 {
+        let code = generate_backup_code();
+        let hash = hash_password(&code, &state.pepper)?;
+        sqlx::query("INSERT INTO totp_backup_codes (user_id, code_hash) VALUES ($1, $2)")
+            .bind(user_id)
+            .bind(&hash)
+            .execute(&state.pool)
+            .await?;
+        codes.push(code);
+    }
+
+    Ok(codes)
+}
+
+#[derive(Debug, Serialize)]
+pub struct TotpStatusResponse {
+    pub enabled: bool,
+}
+
+pub async fn totp_status(
+    State(state): State<AppState>,
+    session: AuthSession,
+) -> Result<Json<TotpStatusResponse>, AppError> {
+    let row: (bool,) = sqlx::query_as("SELECT totp_enabled FROM users WHERE id = $1")
+        .bind(session.user_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+    Ok(Json(TotpStatusResponse { enabled: row.0 }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct TotpSetupResponse {
+    pub secret: String,
+    pub otpauth_url: String,
+}
+
+pub async fn totp_setup(
+    State(state): State<AppState>,
+    session: AuthSession,
+) -> Result<Json<TotpSetupResponse>, AppError> {
+    let secret = totp::generate_secret();
+
+    sqlx::query("UPDATE users SET totp_secret = $1, totp_enabled = false WHERE id = $2")
+        .bind(&secret)
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+
+    let otpauth_url = totp::otpauth_url(&secret, &session.username, "HollowChat");
+
+    Ok(Json(TotpSetupResponse { secret, otpauth_url }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TotpCodeRequest {
+    pub code: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TotpVerifyResponse {
+    pub backup_codes: Vec<String>,
+}
+
+pub async fn totp_verify(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<TotpCodeRequest>,
+) -> Result<Json<TotpVerifyResponse>, AppError> {
+    let secret: (Option<String>,) = sqlx::query_as("SELECT totp_secret FROM users WHERE id = $1")
+        .bind(session.user_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+    let secret = secret.0.ok_or(AppError::TotpNotConfigured)?;
+
+    if !totp::verify_code(&secret, &payload.code) {
+        return Err(AppError::InvalidTotpCode);
+    }
+
+    sqlx::query("UPDATE users SET totp_enabled = true WHERE id = $1")
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+
+    let backup_codes = generate_and_store_backup_codes(&state, session.user_id).await?;
+
+    Ok(Json(TotpVerifyResponse { backup_codes }))
+}
+
+pub async fn totp_disable(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<TotpCodeRequest>,
+) -> Result<(), AppError> {
+    verify_totp_or_backup(&state, session.user_id, &payload.code).await?;
+
+    sqlx::query("UPDATE users SET totp_secret = NULL, totp_enabled = false WHERE id = $1")
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+    sqlx::query("DELETE FROM totp_backup_codes WHERE user_id = $1")
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn totp_regenerate_backup_codes(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<TotpCodeRequest>,
+) -> Result<Json<TotpVerifyResponse>, AppError> {
+    verify_totp_or_backup(&state, session.user_id, &payload.code).await?;
+    let backup_codes = generate_and_store_backup_codes(&state, session.user_id).await?;
+    Ok(Json(TotpVerifyResponse { backup_codes }))
 }
 
 pub async fn revoke_session(

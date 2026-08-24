@@ -12,7 +12,9 @@
 	import Sparkles from "@lucide/svelte/icons/sparkles";
 	import Check from "@lucide/svelte/icons/check";
 	import Copy from "@lucide/svelte/icons/copy";
+	import ShieldPlus from "@lucide/svelte/icons/shield-plus";
 	import { openUrl } from "@tauri-apps/plugin-opener";
+	import QRCode from "qrcode";
 	import { renameLocalIdentity } from "$lib/crypto/identity";
 	import { renameAllSessions } from "$lib/crypto/session-store";
 	import { renameAllGroupKeys } from "$lib/crypto/group-key-store";
@@ -75,6 +77,101 @@
 	let reducedMotion = $state(false);
 	let compactMode = $state(false);
 
+	type TotpStage = "idle" | "enabled" | "setting-up" | "backup-codes" | "disabling" | "regenerating";
+	let totpStage = $state<TotpStage>("idle");
+	let totpSecret = $state("");
+	let totpQrDataUrl = $state("");
+	let totpCodeInput = $state("");
+	let totpBackupCodes = $state<string[]>([]);
+	let totpBusy = $state(false);
+	let totpError = $state("");
+
+	function loadTotpStatus() {
+		const token = session.token;
+		if (!token) return;
+		api
+			.fetchTotpStatus(token)
+			.then((res) => {
+				totpStage = res.enabled ? "enabled" : "idle";
+			})
+			.catch(() => {});
+	}
+
+	async function beginTotpSetup() {
+		const token = session.token;
+		if (!token) return;
+		totpBusy = true;
+		totpError = "";
+		try {
+			const setup = await api.setupTotp(token);
+			totpSecret = setup.secret;
+			totpQrDataUrl = await QRCode.toDataURL(setup.otpauth_url, { margin: 1, width: 200 });
+			totpCodeInput = "";
+			totpStage = "setting-up";
+		} catch {
+			toast.push("Couldn't start 2FA setup");
+		} finally {
+			totpBusy = false;
+		}
+	}
+
+	async function confirmTotpSetup() {
+		const token = session.token;
+		if (!token) return;
+		totpBusy = true;
+		totpError = "";
+		try {
+			const result = await api.verifyTotp(token, totpCodeInput.trim());
+			totpBackupCodes = result.backup_codes;
+			totpCodeInput = "";
+			totpStage = "backup-codes";
+			toast.push("Two-factor authentication enabled");
+		} catch {
+			totpError = "That code didn't work — try again";
+		} finally {
+			totpBusy = false;
+		}
+	}
+
+	function finishBackupCodesReview() {
+		totpBackupCodes = [];
+		totpStage = "enabled";
+	}
+
+	async function confirmTotpDisable() {
+		const token = session.token;
+		if (!token) return;
+		totpBusy = true;
+		totpError = "";
+		try {
+			await api.disableTotp(token, totpCodeInput.trim());
+			totpCodeInput = "";
+			totpStage = "idle";
+			toast.push("Two-factor authentication disabled");
+		} catch {
+			totpError = "That code didn't work — try again";
+		} finally {
+			totpBusy = false;
+		}
+	}
+
+	async function confirmRegenerateBackupCodes() {
+		const token = session.token;
+		if (!token) return;
+		totpBusy = true;
+		totpError = "";
+		try {
+			const result = await api.regenerateBackupCodes(token, totpCodeInput.trim());
+			totpBackupCodes = result.backup_codes;
+			totpCodeInput = "";
+			totpStage = "backup-codes";
+		} catch {
+			totpError = "That code didn't work — try again";
+		} finally {
+			totpBusy = false;
+		}
+	}
+
 	let sessions = $state<api.ApiSession[]>([]);
 
 	function loadSessions() {
@@ -112,6 +209,7 @@
 	$effect(() => {
 		if (section === "sessions" && session.token) loadSessions();
 		if (section === "privacy" && session.token) loadBlocked();
+		if (section === "account" && session.token) loadTotpStatus();
 	});
 
 	function describeSession(s: api.ApiSession): string {
@@ -346,6 +444,99 @@
 							</p>
 						</div>
 					</div>
+				</div>
+
+				<div class="card">
+					{#if totpStage === "idle"}
+						<div class="row">
+							<div>
+								<p class="row-label">Two-factor authentication</p>
+								<p class="row-value muted">Not enabled. Add an authenticator app for extra login security.</p>
+							</div>
+							<button class="edit" onclick={beginTotpSetup} disabled={totpBusy}>
+								<ShieldPlus size={14} strokeWidth={2} />
+								Enable
+							</button>
+						</div>
+					{:else if totpStage === "setting-up"}
+						<p class="row-label">Scan this with your authenticator app</p>
+						<p class="hint" style="margin-bottom: 12px;">
+							Google Authenticator, Aegis, 1Password — anything that supports TOTP.
+						</p>
+						{#if totpQrDataUrl}
+							<img class="totp-qr" src={totpQrDataUrl} alt="Two-factor authentication QR code" />
+						{/if}
+						<p class="hint" style="margin: 8px 0 4px;">Or enter this code manually:</p>
+						<p class="row-value totp-secret">{totpSecret}</p>
+						<label class="field" style="margin-top: 12px;">
+							6-digit code
+							<input class="inline-input" type="text" bind:value={totpCodeInput} placeholder="123456" maxlength="6" />
+						</label>
+						{#if totpError}<p class="error-text">{totpError}</p>{/if}
+						<div class="row-actions" style="margin-top: 12px;">
+							<button class="ghost" onclick={() => (totpStage = "idle")}>Cancel</button>
+							<button class="primary" onclick={confirmTotpSetup} disabled={totpBusy || totpCodeInput.trim().length !== 6}>
+								{totpBusy ? "Verifying…" : "Verify & Enable"}
+							</button>
+						</div>
+					{:else if totpStage === "backup-codes"}
+						<p class="row-label">Save your backup codes</p>
+						<p class="hint" style="margin-bottom: 12px;">
+							Each code works once, if you lose access to your authenticator app. There's no other
+							way back into the account — store these somewhere safe.
+						</p>
+						<div class="backup-codes">
+							{#each totpBackupCodes as code (code)}
+								<code>{code}</code>
+							{/each}
+						</div>
+						<div class="row-actions" style="margin-top: 12px;">
+							<button class="primary" onclick={finishBackupCodesReview}>I saved these codes</button>
+						</div>
+					{:else if totpStage === "disabling"}
+						<p class="row-label">Disable two-factor authentication</p>
+						<p class="hint" style="margin-bottom: 12px;">Enter a current code from your app, or a backup code, to confirm.</p>
+						<label class="field">
+							Code
+							<input class="inline-input" type="text" bind:value={totpCodeInput} placeholder="123456" />
+						</label>
+						{#if totpError}<p class="error-text">{totpError}</p>{/if}
+						<div class="row-actions" style="margin-top: 12px;">
+							<button class="ghost" onclick={() => (totpStage = "enabled")}>Cancel</button>
+							<button class="primary danger-fill" onclick={confirmTotpDisable} disabled={totpBusy || !totpCodeInput.trim()}>
+								{totpBusy ? "Disabling…" : "Disable"}
+							</button>
+						</div>
+					{:else if totpStage === "regenerating"}
+						<p class="row-label">Regenerate backup codes</p>
+						<p class="hint" style="margin-bottom: 12px;">This invalidates your old backup codes. Confirm with a current code.</p>
+						<label class="field">
+							Code
+							<input class="inline-input" type="text" bind:value={totpCodeInput} placeholder="123456" />
+						</label>
+						{#if totpError}<p class="error-text">{totpError}</p>{/if}
+						<div class="row-actions" style="margin-top: 12px;">
+							<button class="ghost" onclick={() => (totpStage = "enabled")}>Cancel</button>
+							<button class="primary" onclick={confirmRegenerateBackupCodes} disabled={totpBusy || !totpCodeInput.trim()}>
+								{totpBusy ? "Generating…" : "Regenerate"}
+							</button>
+						</div>
+					{:else}
+						<div class="row">
+							<div>
+								<p class="row-label">Two-factor authentication</p>
+								<p class="row-value muted">Enabled — your login also asks for a code from your authenticator app.</p>
+							</div>
+						</div>
+						<div class="row-actions">
+							<button class="ghost" onclick={() => { totpCodeInput = ""; totpError = ""; totpStage = "regenerating"; }}>
+								New Backup Codes
+							</button>
+							<button class="edit danger-text" onclick={() => { totpCodeInput = ""; totpError = ""; totpStage = "disabling"; }}>
+								Disable
+							</button>
+						</div>
+					{/if}
 				</div>
 			{:else if section === "privacy"}
 				<h2>Privacy &amp; Safety</h2>
@@ -761,6 +952,9 @@
 
 	.edit {
 		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 6px;
 		padding: 8px 14px;
 		border-radius: 6px;
 		background: var(--active);
@@ -835,6 +1029,61 @@
 	.primary:disabled {
 		background: var(--active);
 		color: var(--ink-faint);
+	}
+
+	.primary.danger-fill {
+		background: var(--danger);
+		color: white;
+	}
+
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		font-family: var(--font-mono);
+		font-size: 11px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--ink-dim);
+	}
+
+	.error-text {
+		margin: 8px 0 0;
+		font-size: 12px;
+		color: var(--danger);
+	}
+
+	.totp-qr {
+		display: block;
+		width: 160px;
+		height: 160px;
+		border-radius: 8px;
+		background: white;
+		padding: 8px;
+	}
+
+	.totp-secret {
+		font-family: var(--font-mono);
+		letter-spacing: 0.06em;
+		word-break: break-all;
+	}
+
+	.backup-codes {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+
+	.backup-codes code {
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		padding: 8px 10px;
+		text-align: center;
+		font-family: var(--font-mono);
+		font-size: 13px;
+		color: var(--ink);
 	}
 
 	.switch-row {
