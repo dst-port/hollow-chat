@@ -19,7 +19,7 @@
 		type ApiThread,
 		type ApiMessage
 	} from "$lib/api/client";
-	import { encryptForChannel, decryptFromChannel } from "$lib/crypto/group";
+	import { encryptForChannel, decryptFromChannel, absorbSenderKeyFor } from "$lib/crypto/group";
 	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
 
 	let { channelId, initialThreadId, onClose }: {
@@ -44,6 +44,17 @@
 		try {
 			return await decryptFromChannel(myUsername, channelId, msg.author, msg.content);
 		} catch {
+			const token = session.token;
+			if (token) {
+				const absorbed = await absorbSenderKeyFor(token, myUsername, channelId, msg.author);
+				if (absorbed) {
+					try {
+						return await decryptFromChannel(myUsername, channelId, msg.author, msg.content);
+					} catch {
+						return "[unable to decrypt message]";
+					}
+				}
+			}
 			return "[unable to decrypt message]";
 		}
 	}

@@ -2,6 +2,7 @@ import { kdf } from "./primitives";
 import * as aead from "./aead";
 import { toBase64, fromBase64, utf8Encode, utf8Decode } from "./encoding";
 import { encryptForPeer, decryptFromPeer } from "./dm";
+import { listSenderKeys } from "$lib/api/client";
 import {
 	loadSendState,
 	saveSendState,
@@ -136,6 +137,23 @@ export async function decryptFromChannel(
 	});
 
 	return utf8Decode(plaintext);
+}
+
+export async function absorbSenderKeyFor(
+	token: string,
+	myUsername: string,
+	channelId: string,
+	senderUsername: string
+): Promise<boolean> {
+	try {
+		const pending = await listSenderKeys(token, channelId);
+		const entry = pending.find((p) => p.sender_username === senderUsername);
+		if (!entry) return false;
+		await absorbDistribution(myUsername, entry.sender_username, entry.ciphertext);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 export function markDistributedTo(myUsername: string, channelId: string, memberIds: string[]) {

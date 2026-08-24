@@ -51,6 +51,14 @@ pub async fn upload_bundle(
 
     let mut tx = state.pool.begin().await?;
 
+    let existing: Option<(Vec<u8>,)> =
+        sqlx::query_as("SELECT x25519_public FROM identity_keys WHERE user_id = $1")
+            .bind(session.user_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+    let identity_changed = existing.map(|(x,)| x != x25519_public).unwrap_or(true);
+
     sqlx::query(
         "INSERT INTO identity_keys \
             (user_id, ed25519_public, x25519_public, signed_prekey_id, signed_prekey_public, signed_prekey_signature, updated_at) \
@@ -71,6 +79,13 @@ pub async fn upload_bundle(
     .bind(&signed_prekey_signature)
     .execute(&mut *tx)
     .await?;
+
+    if identity_changed {
+        sqlx::query("DELETE FROM one_time_prekeys WHERE user_id = $1")
+            .bind(session.user_id)
+            .execute(&mut *tx)
+            .await?;
+    }
 
     for prekey in &payload.one_time_prekeys {
         let public_key = decode(&prekey.public_key)?;

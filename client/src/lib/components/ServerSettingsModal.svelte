@@ -15,6 +15,7 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import {
+		renameServer,
 		setSlowmode,
 		listRoles,
 		createRole,
@@ -234,12 +235,18 @@
 		if (event.key === "Escape") onClose();
 	}
 
-	function saveName() {
+	async function saveName() {
+		const token = session.token;
 		const trimmed = name.trim();
-		if (!trimmed) return;
-		server.name = trimmed;
-		server.initials = trimmed.slice(0, 2).toUpperCase();
-		toast.push("Server updated");
+		if (!token || !trimmed) return;
+		try {
+			await renameServer(token, server.id, trimmed);
+			server.name = trimmed;
+			server.initials = trimmed.slice(0, 2).toUpperCase();
+			toast.push("Server updated");
+		} catch {
+			toast.push("Couldn't rename server");
+		}
 	}
 
 	function deleteServer() {

@@ -8,9 +8,10 @@
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import { clickOutside } from "$lib/actions/clickOutside";
 
-	let { pinned, canManage, onClose, onCopy, onTogglePin, onEdit, onDelete, onCreateThread }: {
+	let { pinned, canEdit, canDelete, onClose, onCopy, onTogglePin, onEdit, onDelete, onCreateThread }: {
 		pinned: boolean;
-		canManage: boolean;
+		canEdit: boolean;
+		canDelete: boolean;
 		onClose: () => void;
 		onCopy: () => void;
 		onTogglePin: () => void;
@@ -53,7 +54,7 @@
 			Create Thread
 		</button>
 	{/if}
-	{#if canManage && onEdit}
+	{#if canEdit && onEdit}
 		<button
 			class="item"
 			onclick={() => {
@@ -65,7 +66,7 @@
 			Edit Message
 		</button>
 	{/if}
-	{#if canManage && onDelete}
+	{#if canDelete && onDelete}
 		<button
 			class="item danger"
 			onclick={() => {

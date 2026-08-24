@@ -45,6 +45,7 @@
 		listMembers as apiListMembers,
 		publishSenderKeys,
 		listSenderKeys,
+		PERMISSIONS,
 		ApiError,
 		type ApiMessage,
 		type ApiReplyPreview,
@@ -59,7 +60,8 @@
 		needsRedistribution,
 		markDistributedTo,
 		getOrCreateSendState,
-		packageDistribution
+		packageDistribution,
+		absorbSenderKeyFor
 	} from "$lib/crypto/group";
 	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
 	import { call } from "$lib/webrtc/call.svelte";
@@ -114,6 +116,17 @@
 				? await decryptFromPeer(myUsername, channel.name, blob)
 				: await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
 		} catch {
+			const token = session.token;
+			if (!isDm && token) {
+				const absorbed = await absorbSenderKeyFor(token, myUsername, channel.id, authorUsername);
+				if (absorbed) {
+					try {
+						return await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
+					} catch {
+						return "[unable to decrypt message]";
+					}
+				}
+			}
 			return "[unable to decrypt message]";
 		}
 	}
@@ -195,6 +208,34 @@
 
 	let messages = $state<Message[]>([]);
 	let lastId: string | null = null;
+	let canManageMessages = $state(false);
+
+	$effect(() => {
+		const token = session.token;
+		const myUserId = session.userId;
+		if (isDm || !serverId || !token || !myUserId) {
+			canManageMessages = false;
+			return;
+		}
+		let cancelled = false;
+		apiListMembers(token, serverId)
+			.then((members) => {
+				if (cancelled) return;
+				const me = members.find((m) => m.id === myUserId);
+				if (!me) {
+					canManageMessages = false;
+					return;
+				}
+				canManageMessages =
+					me.is_owner || me.roles.some((r) => (r.permissions & PERMISSIONS.MANAGE_MESSAGES) !== 0);
+			})
+			.catch(() => {
+				canManageMessages = false;
+			});
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	$effect(() => {
 		const token = session.token;
@@ -726,7 +767,8 @@
 							{#if openMenuId === message.id}
 								<MessageMenu
 									pinned={!!message.pinned}
-									canManage={isMine(message)}
+									canEdit={isMine(message)}
+									canDelete={isMine(message) || canManageMessages}
 									onClose={() => (openMenuId = null)}
 									onCopy={() => copyText(message)}
 									onTogglePin={() => togglePin(message)}
