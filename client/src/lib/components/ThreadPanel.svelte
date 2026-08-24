@@ -81,6 +81,7 @@
 	async function decryptThreadMessages(rows: ApiMessage[]) {
 		const out = [];
 		for (const row of rows) {
+			ensureProfileLoaded(row.author);
 			out.push({
 				id: row.id,
 				author: row.author,
@@ -234,7 +235,7 @@
 					</div>
 					<div class="body">
 						<p class="meta">
-							<span class="author" style:color={colorForName(message.author)}>{message.author}</span>
+							<span class="author" style:color={colorForName(message.author)}>{displayNameFor(message.author)}</span>
 							<span class="time">{new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
 						</p>
 						{#if message.content}

@@ -727,10 +727,8 @@
 							</p>
 						{/if}
 						{#if !isGrouped(index)}
-							{@const shownName = displayNameFor(message.author)}
 							<p class="meta">
-								<span class="author" style:color={message.color}>{shownName}</span>
-								{#if shownName !== message.author}<span class="author-handle">@{message.author}</span>{/if}
+								<span class="author" style:color={message.color}>{displayNameFor(message.author)}</span>
 								<span class="time">{message.time}</span>
 								{#if message.edited}<span class="edited-flag">(edited)</span>{/if}
 								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
@@ -1100,11 +1098,6 @@
 		font-family: var(--font-mono);
 		font-weight: 600;
 		font-size: 13px;
-	}
-
-	.author-handle {
-		font-size: 11px;
-		color: var(--ink-faint);
 	}
 
 	.time {
