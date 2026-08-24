@@ -32,8 +32,6 @@ class BadgeStore {
 	async loadForUser(token: string, username: string): Promise<void> {
 		await this.loadCatalog(token);
 
-		if (this.byUsername[username]) return;
-
 		const inFlight = this.userLoading.get(username);
 		if (inFlight) return inFlight;
 
