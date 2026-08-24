@@ -8,6 +8,7 @@
 	import ServerMenu from "$lib/components/ServerMenu.svelte";
 	import InviteModal from "$lib/components/InviteModal.svelte";
 	import CreateChannelModal from "$lib/components/CreateChannelModal.svelte";
+	import ServerSettingsModal from "$lib/components/ServerSettingsModal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import type { ChannelType, ServerEntry } from "$lib/data/mock";
 
@@ -22,22 +23,22 @@
 	} = $props();
 
 	let search = $state("");
-	let textCollapsed = $state(false);
-	let voiceCollapsed = $state(false);
+	let collapsedCategories = $state<Record<string, boolean>>({});
 	let menuOpen = $state(false);
 	let inviteOpen = $state(false);
 	let createChannelOpen = $state(false);
+	let serverSettingsOpen = $state(false);
 
-	const textChannels = $derived(
-		server.channels.filter(
-			(c) => c.type === "text" && c.name.toLowerCase().includes(search.toLowerCase())
-		)
-	);
-	const voiceChannels = $derived(
-		server.channels.filter(
-			(c) => c.type === "voice" && c.name.toLowerCase().includes(search.toLowerCase())
-		)
-	);
+	const categories = $derived.by(() => {
+		const groups = new Map<string, typeof server.channels>();
+		for (const channel of server.channels) {
+			if (!channel.name.toLowerCase().includes(search.toLowerCase())) continue;
+			const key = channel.category ?? (channel.type === "text" ? "Text Channels" : "Voice Channels");
+			if (!groups.has(key)) groups.set(key, []);
+			groups.get(key)!.push(channel);
+		}
+		return Array.from(groups.entries()).map(([name, channels]) => ({ name, channels }));
+	});
 
 	function selectChannel(id: string) {
 		onSelectChannel(id);
@@ -58,6 +59,7 @@
 		</button>
 		{#if menuOpen}
 			<ServerMenu
+				serverId={server.id}
 				onClose={() => (menuOpen = false)}
 				onInvite={() => {
 					menuOpen = false;
@@ -69,7 +71,7 @@
 				}}
 				onSettings={() => {
 					menuOpen = false;
-					toast.push("Server settings aren't wired up yet");
+					serverSettingsOpen = true;
 				}}
 				onLeave={() => {
 					menuOpen = false;
@@ -85,48 +87,40 @@
 	</div>
 
 	<div class="channels">
-		<div class="section">
-			<button class="label" onclick={() => (textCollapsed = !textCollapsed)}>
-				<ChevronDown class={`caret ${textCollapsed ? "collapsed" : ""}`} size={12} strokeWidth={3} />
-				Text Channels
-			</button>
-			{#if !textCollapsed}
-				<div transition:slide={{ duration: 160 }}>
-					{#each textChannels as channel (channel.id)}
-						<button
-							class="channel"
-							class:active={channel.id === activeChannelId}
-							onclick={() => selectChannel(channel.id)}
-						>
-							<Hash size={16} strokeWidth={2} class="channel-icon" />
-							<span class="name" class:unread={channel.unread}>{channel.name}</span>
-							{#if channel.unread}<span class="unread-dot"></span>{/if}
-						</button>
-					{/each}
-				</div>
-			{/if}
-		</div>
-
-		<div class="section">
-			<button class="label" onclick={() => (voiceCollapsed = !voiceCollapsed)}>
-				<ChevronDown class={`caret ${voiceCollapsed ? "collapsed" : ""}`} size={12} strokeWidth={3} />
-				Voice Channels
-			</button>
-			{#if !voiceCollapsed}
-				<div transition:slide={{ duration: 160 }}>
-					{#each voiceChannels as channel (channel.id)}
-						<button
-							class="channel"
-							class:active={channel.id === activeChannelId}
-							onclick={() => selectChannel(channel.id)}
-						>
-							<Volume2 size={16} strokeWidth={2} class="channel-icon" />
-							<span class="name">{channel.name}</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
-		</div>
+		{#each categories as category (category.name)}
+			<div class="section">
+				<button
+					class="label"
+					onclick={() => (collapsedCategories[category.name] = !collapsedCategories[category.name])}
+				>
+					<ChevronDown
+						class={`caret ${collapsedCategories[category.name] ? "collapsed" : ""}`}
+						size={12}
+						strokeWidth={3}
+					/>
+					{category.name}
+				</button>
+				{#if !collapsedCategories[category.name]}
+					<div transition:slide={{ duration: 160 }}>
+						{#each category.channels as channel (channel.id)}
+							<button
+								class="channel"
+								class:active={channel.id === activeChannelId}
+								onclick={() => selectChannel(channel.id)}
+							>
+								{#if channel.type === "text"}
+									<Hash size={16} strokeWidth={2} class="channel-icon" />
+								{:else}
+									<Volume2 size={16} strokeWidth={2} class="channel-icon" />
+								{/if}
+								<span class="name" class:unread={channel.unread}>{channel.name}</span>
+								{#if channel.unread}<span class="unread-dot"></span>{/if}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/each}
 	</div>
 
 	<UserBar {username} {onLogout} />
@@ -138,6 +132,10 @@
 
 {#if createChannelOpen}
 	<CreateChannelModal onClose={() => (createChannelOpen = false)} onCreate={handleCreateChannel} />
+{/if}
+
+{#if serverSettingsOpen}
+	<ServerSettingsModal server={server} onClose={() => (serverSettingsOpen = false)} onLeave={onLeaveServer} />
 {/if}
 
 <style>
@@ -162,7 +160,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0 16px;
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-weight: 700;
 		font-size: 13px;
 		letter-spacing: 0.01em;
@@ -232,11 +230,11 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		color: var(--ink-faint);
+		color: var(--ink);
 	}
 
 	.label:hover {
-		color: var(--ink-dim);
+		color: var(--ink);
 	}
 
 	.label :global(.caret) {

@@ -5,6 +5,7 @@ export type Channel = {
 	name: string;
 	type: ChannelType;
 	unread?: boolean;
+	category?: string;
 };
 
 export type ServerEntry = {
@@ -38,11 +39,13 @@ export function createServers(): ServerEntry[] {
 			name: "Void Raiders",
 			initials: "VR",
 			channels: [
-				{ id: "general", name: "general", type: "text" },
-				{ id: "clips", name: "clips", type: "text", unread: true },
-				{ id: "strategy", name: "strategy", type: "text" },
-				{ id: "lounge", name: "Lounge", type: "voice" },
-				{ id: "raid-voice", name: "Raid Voice", type: "voice" }
+				{ id: "rules", name: "rules", type: "text", category: "📌 Important" },
+				{ id: "announcements", name: "announcements", type: "text", category: "📌 Important" },
+				{ id: "general", name: "general", type: "text", category: "💬 Chats" },
+				{ id: "clips", name: "clips", type: "text", unread: true, category: "💬 Chats" },
+				{ id: "strategy", name: "strategy", type: "text", category: "💬 Chats" },
+				{ id: "lounge", name: "Lounge", type: "voice", category: "🔊 Voice" },
+				{ id: "raid-voice", name: "Raid Voice", type: "voice", category: "🔊 Voice" }
 			]
 		},
 		{
@@ -104,18 +107,31 @@ export function createMessages(): Message[] {
 	];
 }
 
+export type Role = {
+	label: string;
+	color: string;
+};
+
+export type BadgeId = "supporter" | "dev-contributor" | "developer" | "owner" | "staff";
+
+export const BADGE_META: Record<BadgeId, { label: string; description: string }> = {
+	supporter: { label: "Supporter", description: "Subscribed to Hollow Chatter" },
+	"dev-contributor": { label: "Hollow Chat Development", description: "Contributed to building HollowChat" },
+	developer: { label: "Developer", description: "Verified app or bot developer" },
+	owner: { label: "Owner", description: "Owns HollowChat" },
+	staff: { label: "Hollow Staff", description: "Works at HollowChat" }
+};
+
 export type Member = {
 	id: string;
 	name: string;
 	color: string;
-	status: "online" | "idle" | "offline";
+	status?: "online" | "idle" | "offline";
+	roles?: Role[];
+	badges?: BadgeId[];
+	activity?: string;
+	bio?: string;
+	memberSince?: string;
 };
-
-export const members: Member[] = [
-	{ id: "1", name: "ghostpixel", color: "#9c93c2", status: "online" },
-	{ id: "2", name: "nullbyte", color: "#6fb98f", status: "online" },
-	{ id: "3", name: "vex", color: "#e2793f", status: "idle" },
-	{ id: "4", name: "shade", color: "#5c5566", status: "offline" }
-];
 
 export const EMOJI_PALETTE = ["👍", "❤️", "😂", "🔥", "🎉", "👀"];

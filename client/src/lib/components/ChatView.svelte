@@ -6,7 +6,6 @@
 	import Users from "@lucide/svelte/icons/users";
 	import Inbox from "@lucide/svelte/icons/inbox";
 	import Search from "@lucide/svelte/icons/search";
-	import SmilePlus from "@lucide/svelte/icons/smile-plus";
 	import Reply from "@lucide/svelte/icons/reply";
 	import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
 	import SendHorizontal from "@lucide/svelte/icons/send-horizontal";
@@ -17,14 +16,110 @@
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
 	import EmojiPicker from "$lib/components/EmojiPicker.svelte";
+	import { emojify } from "$lib/actions/emojify";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import UserRound from "@lucide/svelte/icons/user-round";
+	import {
+		recordEmojiUse,
+		frequentEmoji,
+		listMessages,
+		sendMessage,
+		listDmMessages,
+		sendDmMessage,
+		type ApiMessage
+	} from "$lib/api/client";
+	import { colorForName } from "$lib/utils/color";
+	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
+	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
 	import type { Channel, Message } from "$lib/data/mock";
 
-	let { channel, messages = $bindable(), onToggleMembers }: {
+	const DEFAULT_QUICK_EMOJI = ["👍", "❤️", "😂", "🔥", "🎉"];
+	const POLL_INTERVAL_MS = 3000;
+
+	let { channel, isDm = false, onToggleMembers }: {
 		channel: Channel;
-		messages: Message[];
-		onToggleMembers: () => void;
+		isDm?: boolean;
+		onToggleMembers?: () => void;
 	} = $props();
+
+	const fetchMessages = $derived(isDm ? listDmMessages : listMessages);
+	const postMessage = $derived(isDm ? sendDmMessage : sendMessage);
+
+	async function toMessage(apiMsg: ApiMessage): Promise<Message> {
+		let content = apiMsg.content;
+		const myUsername = session.username;
+
+		if (isDm && myUsername) {
+			if (apiMsg.author === myUsername) {
+				content = recallSent(apiMsg.id) ?? "[sent from another device]";
+			} else {
+				try {
+					content = await decryptFromPeer(myUsername, channel.name, apiMsg.content);
+				} catch {
+					content = "[unable to decrypt message]";
+				}
+			}
+		}
+
+		return {
+			id: apiMsg.id,
+			author: apiMsg.author,
+			color: colorForName(apiMsg.author),
+			content,
+			time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+		};
+	}
+
+	async function toMessages(rows: ApiMessage[]): Promise<Message[]> {
+		const out: Message[] = [];
+		for (const row of rows) out.push(await toMessage(row));
+		return out;
+	}
+
+	let messages = $state<Message[]>([]);
+	let lastId: string | null = null;
+
+	$effect(() => {
+		const token = session.token;
+		const channelId = channel.id;
+		const fetcher = fetchMessages;
+		if (!token) return;
+
+		messages = [];
+		lastId = null;
+		let cancelled = false;
+
+		fetcher(token, channelId)
+			.then(async (rows) => {
+				if (cancelled) return;
+				const converted = await toMessages(rows);
+				if (cancelled) return;
+				messages = converted;
+				lastId = rows.at(-1)?.id ?? lastId;
+			})
+			.catch(() => {});
+
+		const interval = setInterval(() => {
+			if (!lastId) return;
+			fetcher(token, channelId, { after: lastId })
+				.then(async (rows) => {
+					if (cancelled || rows.length === 0) return;
+					const known = new Set(messages.map((m) => m.id));
+					for (const row of rows) {
+						if (cancelled) return;
+						if (!known.has(row.id)) messages.push(await toMessage(row));
+					}
+					lastId = rows.at(-1)!.id;
+				})
+				.catch(() => {});
+		}, POLL_INTERVAL_MS);
+
+		return () => {
+			cancelled = true;
+			clearInterval(interval);
+		};
+	});
 
 	let draft = $state("");
 	let replyingTo = $state<Message | null>(null);
@@ -34,21 +129,53 @@
 	let notificationsOpen = $state(false);
 	let inboxOpen = $state(false);
 	let muted = $state(false);
+	let emojiCounts = $state<Record<string, number>>({});
 
 	const pinnedMessages = $derived(messages.filter((m) => m.pinned));
+	const quickEmoji = $derived.by(() => {
+		const used = Object.entries(emojiCounts)
+			.sort((a, b) => b[1] - a[1])
+			.map(([emoji]) => emoji);
+		for (const emoji of DEFAULT_QUICK_EMOJI) {
+			if (used.length >= 5) break;
+			if (!used.includes(emoji)) used.push(emoji);
+		}
+		return used.slice(0, 5);
+	});
 
-	function send(event: SubmitEvent) {
+	$effect(() => {
+		const token = session.token;
+		if (!token) return;
+		frequentEmoji(token, 5)
+			.then((rows) => {
+				const counts: Record<string, number> = {};
+				for (const row of rows) counts[row.emoji] = row.count;
+				emojiCounts = counts;
+			})
+			.catch(() => {});
+	});
+
+	async function send(event: SubmitEvent) {
 		event.preventDefault();
-		if (!draft.trim()) return;
-		messages.push({
-			id: crypto.randomUUID(),
-			author: "you",
-			color: "#9a9ba1",
-			content: draft.trim(),
-			time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-		});
+		const content = draft.trim();
+		const token = session.token;
+		const myUsername = session.username;
+		if (!content || !token) return;
 		draft = "";
 		replyingTo = null;
+
+		try {
+			let payload = content;
+			if (isDm && myUsername) {
+				payload = await encryptForPeer(token, myUsername, channel.name, content);
+			}
+			const apiMsg = await postMessage(token, channel.id, payload);
+			if (isDm) rememberSent(apiMsg.id, content);
+			messages.push(await toMessage(apiMsg));
+			lastId = apiMsg.id;
+		} catch {
+			toast.push("Message failed to send");
+		}
 	}
 
 	function isGrouped(index: number) {
@@ -87,12 +214,28 @@
 
 	function insertEmoji(emoji: string) {
 		draft += emoji;
+		trackEmojiUse(emoji);
+	}
+
+	function trackEmojiUse(emoji: string) {
+		emojiCounts[emoji] = (emojiCounts[emoji] ?? 0) + 1;
+		const token = session.token;
+		if (token) recordEmojiUse(token, emoji).catch(() => {});
+	}
+
+	function react(message: Message, emoji: string) {
+		toggleReaction(message, emoji);
+		trackEmojiUse(emoji);
 	}
 </script>
 
 <section class="chat">
 	<header class="header">
-		<Hash size={18} strokeWidth={2.5} class="hash" />
+		{#if isDm}
+			<UserRound size={18} strokeWidth={2.5} class="hash" />
+		{:else}
+			<Hash size={18} strokeWidth={2.5} class="hash" />
+		{/if}
 		{#key channel.id}
 			<span class="name" in:fade={{ duration: 150 }}>{channel.name}</span>
 		{/key}
@@ -124,9 +267,11 @@
 					</InfoPopover>
 				{/if}
 			</div>
-			<button class="icon-button" title="Members" onclick={onToggleMembers}>
-				<Users size={17} strokeWidth={2} />
-			</button>
+			{#if !isDm}
+				<button class="icon-button" title="Members" onclick={onToggleMembers}>
+					<Users size={17} strokeWidth={2} />
+				</button>
+			{/if}
 			<div class="header-search">
 				<Search size={13} strokeWidth={2.5} />
 				<input type="text" placeholder="Search" />
@@ -147,9 +292,20 @@
 	<div class="messages">
 		{#if messages.length === 0}
 			<div class="welcome">
-				<div class="welcome-icon"><Hash size={28} strokeWidth={2} /></div>
-				<h2>Welcome to #{channel.name}</h2>
-				<p>This is the start of the channel.</p>
+				<div class="welcome-icon">
+					{#if isDm}
+						<UserRound size={28} strokeWidth={2} />
+					{:else}
+						<Hash size={28} strokeWidth={2} />
+					{/if}
+				</div>
+				{#if isDm}
+					<h2>{channel.name}</h2>
+					<p>This is the start of your conversation with {channel.name}.</p>
+				{:else}
+					<h2>Welcome to #{channel.name}</h2>
+					<p>This is the start of the channel.</p>
+				{/if}
 			</div>
 		{/if}
 		{#key channel.id}
@@ -173,13 +329,14 @@
 								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
 							</p>
 						{/if}
-						<p class="content">{message.content}</p>
+						<p class="content" use:emojify>{message.content}</p>
 						{#if message.reactions && message.reactions.length > 0}
 							<div class="reactions">
 								{#each message.reactions as reaction (reaction.emoji)}
 									<button
 										class="reaction"
 										class:reacted={reaction.reacted}
+										use:emojify
 										onclick={() => toggleReaction(message, reaction.emoji)}
 									>
 										{reaction.emoji} {reaction.count}
@@ -190,9 +347,11 @@
 					</div>
 
 					<div class="hover-actions">
-						<button class="icon-button small" title="Add reaction" onclick={() => toggleReaction(message, "👍")}>
-							<SmilePlus size={15} strokeWidth={2} />
-						</button>
+						{#each quickEmoji as emoji (emoji)}
+							<button class="icon-button small quick-react" use:emojify title={`React with ${emoji}`} onclick={() => react(message, emoji)}>
+								{emoji}
+							</button>
+						{/each}
 						<button class="icon-button small" title="Reply" onclick={() => (replyingTo = message)}>
 							<Reply size={15} strokeWidth={2} />
 						</button>
@@ -236,7 +395,7 @@
 		</button>
 		<input
 			type="text"
-			placeholder={`Message #${channel.name}`}
+			placeholder={isDm ? `Message ${channel.name}` : `Message #${channel.name}`}
 			bind:value={draft}
 		/>
 		<div class="anchor">
@@ -337,6 +496,13 @@
 
 	.icon-button.small {
 		padding: 4px;
+	}
+
+	.icon-button.quick-react {
+		font-size: 14px;
+		line-height: 1;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.toggle-row {

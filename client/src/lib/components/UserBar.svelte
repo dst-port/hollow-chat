@@ -5,6 +5,7 @@
 	import HeadphoneOff from "@lucide/svelte/icons/headphone-off";
 	import Settings from "@lucide/svelte/icons/settings";
 	import SettingsModal from "$lib/components/SettingsModal.svelte";
+	import OwnProfilePopover from "$lib/components/OwnProfilePopover.svelte";
 
 	let { username, onLogout }: {
 		username: string;
@@ -14,16 +15,20 @@
 	let muted = $state(false);
 	let deafened = $state(false);
 	let settingsOpen = $state(false);
+	let profileAnchor = $state<HTMLElement | null>(null);
 </script>
 
 <div class="user-panel">
-	<div class="ring">
-		<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
-	</div>
-	<div class="identity">
-		<p class="username">{username}</p>
-		<p class="status">online</p>
-	</div>
+	<button class="identity-trigger" onclick={(e) => (profileAnchor = profileAnchor ? null : (e.currentTarget as HTMLElement))}>
+		<div class="status-avatar">
+			<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
+			<span class="status-dot on-void online"></span>
+		</div>
+		<div class="identity">
+			<p class="username">{username}</p>
+			<p class="status">online</p>
+		</div>
+	</button>
 	<div class="controls">
 		<button
 			class="icon-button"
@@ -47,6 +52,15 @@
 	</div>
 </div>
 
+{#if profileAnchor}
+	<OwnProfilePopover
+		{username}
+		anchor={profileAnchor}
+		onEditProfile={() => (settingsOpen = true)}
+		onClose={() => (profileAnchor = null)}
+	/>
+{/if}
+
 {#if settingsOpen}
 	<SettingsModal {username} onClose={() => (settingsOpen = false)} onLogout={onLogout} />
 {/if}
@@ -62,28 +76,33 @@
 		background: var(--void);
 	}
 
-	.ring {
-		flex-shrink: 0;
-		width: 36px;
-		height: 36px;
-		border-radius: 50%;
-		padding: 2px;
-		background: var(--online);
+	.identity-trigger {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 4px;
+		border-radius: 8px;
+		transition: background-color 0.15s ease;
+	}
+
+	.identity-trigger:hover {
+		background: var(--hover);
 	}
 
 	.avatar {
-		width: 100%;
-		height: 100%;
+		width: 36px;
+		height: 36px;
 		border-radius: 50%;
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-weight: 700;
 		font-size: 12px;
-		border: 2px solid var(--void);
 	}
 
 	.identity {

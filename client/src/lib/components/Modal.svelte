@@ -27,7 +27,6 @@
 		tabindex="-1"
 		style:width={`${width}px`}
 		onclick={(e) => e.stopPropagation()}
-		onkeydown={(e) => e.stopPropagation()}
 		transition:scale={{ duration: 180, start: 0.96, easing: cubicOut }}
 	>
 		<div class="header">
@@ -70,7 +69,7 @@
 
 	.header h2 {
 		margin: 0;
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-weight: 700;
 		font-size: 16px;
 	}

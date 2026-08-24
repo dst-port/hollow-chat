@@ -2,17 +2,37 @@
 	import { fly } from "svelte/transition";
 	import UserPlus from "@lucide/svelte/icons/user-plus";
 	import PlusCircle from "@lucide/svelte/icons/plus-circle";
+	import FolderPlus from "@lucide/svelte/icons/folder-plus";
 	import Settings from "@lucide/svelte/icons/settings";
+	import Bell from "@lucide/svelte/icons/bell";
+	import ShieldCheck from "@lucide/svelte/icons/shield-check";
+	import BellOff from "@lucide/svelte/icons/bell-off";
+	import IdCard from "@lucide/svelte/icons/id-card";
 	import LogOut from "@lucide/svelte/icons/log-out";
 	import { clickOutside } from "$lib/actions/clickOutside";
+	import { toast } from "$lib/stores/toast.svelte";
 
-	let { onClose, onInvite, onCreateChannel, onSettings, onLeave }: {
+	let { serverId, onClose, onInvite, onCreateChannel, onSettings, onLeave }: {
+		serverId: string;
 		onClose: () => void;
 		onInvite: () => void;
 		onCreateChannel: () => void;
 		onSettings: () => void;
 		onLeave: () => void;
 	} = $props();
+
+	let hideMuted = $state(false);
+
+	function stub(label: string) {
+		toast.push(`${label} isn't wired up yet`);
+		onClose();
+	}
+
+	function copyServerId() {
+		navigator.clipboard.writeText(serverId);
+		toast.push("Server ID copied");
+		onClose();
+	}
 </script>
 
 <div class="menu" use:clickOutside={onClose} transition:fly={{ y: -6, duration: 140 }}>
@@ -20,13 +40,38 @@
 		Invite People
 		<UserPlus size={15} strokeWidth={2} />
 	</button>
+	<button class="item" onclick={onSettings}>
+		Server Settings
+		<Settings size={15} strokeWidth={2} />
+	</button>
+	<div class="divider"></div>
 	<button class="item" onclick={onCreateChannel}>
 		Create Channel
 		<PlusCircle size={15} strokeWidth={2} />
 	</button>
-	<button class="item" onclick={onSettings}>
-		Server Settings
-		<Settings size={15} strokeWidth={2} />
+	<button class="item" onclick={() => stub("Create Category")}>
+		Create Category
+		<FolderPlus size={15} strokeWidth={2} />
+	</button>
+	<div class="divider"></div>
+	<button class="item" onclick={() => stub("Notification Settings")}>
+		Notification Settings
+		<Bell size={15} strokeWidth={2} />
+	</button>
+	<button class="item" onclick={() => stub("Privacy Settings")}>
+		Privacy Settings
+		<ShieldCheck size={15} strokeWidth={2} />
+	</button>
+	<button class="item" onclick={() => (hideMuted = !hideMuted)}>
+		Hide Muted Channels
+		<span class="checkbox" class:checked={hideMuted}>
+			{#if hideMuted}<BellOff size={11} strokeWidth={3} />{/if}
+		</span>
+	</button>
+	<div class="divider"></div>
+	<button class="item" onclick={copyServerId}>
+		Copy Server ID
+		<IdCard size={15} strokeWidth={2} />
 	</button>
 	<div class="divider"></div>
 	<button class="item danger" onclick={onLeave}>
@@ -74,6 +119,24 @@
 	.item.danger:hover {
 		background: rgba(216, 60, 62, 0.12);
 		color: var(--danger);
+	}
+
+	.checkbox {
+		width: 15px;
+		height: 15px;
+		flex-shrink: 0;
+		border-radius: 4px;
+		border: 1.5px solid var(--ink-faint);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--void);
+		transition: background-color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.checkbox.checked {
+		background: var(--accent-fill);
+		border-color: var(--accent-fill);
 	}
 
 	.divider {

@@ -31,3 +31,5 @@ pnpm tauri dev
 ## License
 
 AGPLv3 — see [LICENSE](LICENSE). A fork offering network access must release its source.
+
+Emoji graphics are [Twemoji](https://github.com/jdecked/twemoji), licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).

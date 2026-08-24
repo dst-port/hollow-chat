@@ -1,4 +1,5 @@
 import { me } from "$lib/api/client";
+import { ensureIdentity } from "$lib/crypto/identity";
 
 const STORAGE_KEY = "hollowchat_session";
 
@@ -28,6 +29,7 @@ class SessionStore {
 			await me(stored.token);
 			this.token = stored.token;
 			this.username = stored.username;
+			ensureIdentity(stored.token, stored.username).catch(() => {});
 		} catch {
 			localStorage.removeItem(STORAGE_KEY);
 		}
@@ -39,6 +41,7 @@ class SessionStore {
 		this.token = token;
 		this.username = username;
 		localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, username }));
+		ensureIdentity(token, username).catch(() => {});
 	}
 
 	clear() {

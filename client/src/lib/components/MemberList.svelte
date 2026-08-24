@@ -2,12 +2,21 @@
 	import ProfilePopover from "$lib/components/ProfilePopover.svelte";
 	import type { Member } from "$lib/data/mock";
 
-	let { members }: { members: Member[] } = $props();
+	let { members, serverName }: { members: Member[]; serverName: string } = $props();
 
 	let openMember = $state<{ id: string; anchor: HTMLElement } | null>(null);
 
-	const online = $derived(members.filter((m) => m.status === "online" || m.status === "idle"));
-	const offline = $derived(members.filter((m) => m.status === "offline"));
+	const groups = $derived.by(() => {
+		const map = new Map<string, Member[]>();
+		for (const member of members) {
+			const key =
+				member.roles?.[0]?.label ??
+				(member.status ? (member.status === "offline" ? "Offline" : "Online") : "Members");
+			if (!map.has(key)) map.set(key, []);
+			map.get(key)!.push(member);
+		}
+		return Array.from(map.entries()).map(([name, list]) => ({ name, members: list }));
+	});
 
 	function toggle(id: string, event: MouseEvent) {
 		const target = event.currentTarget as HTMLElement;
@@ -16,42 +25,32 @@
 </script>
 
 <aside class="members">
-	{#if online.length > 0}
-		<p class="label">Online — {online.length}</p>
-		{#each online as member (member.id)}
+	{#each groups as group (group.name)}
+		<p class="label">{group.name} — {group.members.length}</p>
+		{#each group.members as member (member.id)}
 			<div class="anchor">
-				<button class="member" onclick={(e) => toggle(member.id, e)}>
-					<div class="ring" class:idle={member.status === "idle"}>
+				<button class="member" class:offline={member.status === "offline"} onclick={(e) => toggle(member.id, e)}>
+					<div class="status-avatar">
 						<div class="avatar" style:background={member.color}>
 							{member.name.slice(0, 2).toUpperCase()}
 						</div>
+						{#if member.status}<span class="status-dot {member.status}"></span>{/if}
 					</div>
-					<span class="name">{member.name}</span>
+					<div class="identity">
+						<p class="name" style:color={member.status !== "offline" ? member.roles?.[0]?.color : undefined}>
+							{member.name}
+						</p>
+						{#if member.activity}<p class="activity">{member.activity}</p>{/if}
+					</div>
 				</button>
 			</div>
 		{/each}
-	{/if}
-
-	{#if offline.length > 0}
-		<p class="label">Offline — {offline.length}</p>
-		{#each offline as member (member.id)}
-			<div class="anchor">
-				<button class="member offline" onclick={(e) => toggle(member.id, e)}>
-					<div class="ring offline">
-						<div class="avatar" style:background={member.color}>
-							{member.name.slice(0, 2).toUpperCase()}
-						</div>
-					</div>
-					<span class="name">{member.name}</span>
-				</button>
-			</div>
-		{/each}
-	{/if}
+	{/each}
 </aside>
 
 {#if openMember}
 	{@const member = members.find((m) => m.id === openMember!.id)!}
-	<ProfilePopover {member} anchor={openMember.anchor} onClose={() => (openMember = null)} />
+	<ProfilePopover {member} {serverName} anchor={openMember.anchor} onClose={() => (openMember = null)} />
 {/if}
 
 <style>
@@ -77,6 +76,10 @@
 		color: var(--ink-faint);
 	}
 
+	.label:first-child {
+		margin-top: 0;
+	}
+
 	.member {
 		width: 100%;
 		transition: background-color 0.15s ease;
@@ -95,42 +98,9 @@
 		opacity: 0.5;
 	}
 
-	.ring {
-		flex-shrink: 0;
+	.avatar {
 		width: 32px;
 		height: 32px;
-		border-radius: 50%;
-		padding: 2px;
-		background: conic-gradient(var(--online) 0deg, var(--online) 360deg);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		animation: ring-pulse 2.4s ease-in-out infinite;
-	}
-
-	.ring.idle {
-		background: conic-gradient(var(--idle) 0deg, var(--idle) 360deg);
-		animation: none;
-	}
-
-	.ring.offline {
-		background: var(--ink-faint);
-		animation: none;
-	}
-
-	@keyframes ring-pulse {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.5;
-		}
-	}
-
-	.avatar {
-		width: 100%;
-		height: 100%;
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
@@ -139,13 +109,28 @@
 		font-size: 10px;
 		font-weight: 600;
 		color: var(--void);
-		border: 2px solid var(--sidebar);
+	}
+
+	.identity {
+		flex: 1;
+		min-width: 0;
+		text-align: left;
 	}
 
 	.name {
+		margin: 0;
 		font-size: 13px;
 		font-weight: 500;
 		color: var(--ink-dim);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.activity {
+		margin: 1px 0 0;
+		font-size: 11px;
+		color: var(--ink-faint);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;

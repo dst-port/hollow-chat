@@ -80,7 +80,7 @@
 <div class="window-frame screen">
 	<div class="card">
 		<div class="brand">
-			<span class="mark">HC</span>
+			<img class="mark" src="/logo/hollowchat-mark.png" alt="" />
 			<span class="name">HollowChat</span>
 		</div>
 
@@ -220,17 +220,12 @@
 		height: 32px;
 		border-radius: 10px;
 		background: var(--accent-soft);
-		color: var(--ink);
-		font-family: var(--font-display);
-		font-weight: 700;
-		font-size: 12px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		object-fit: contain;
+		padding: 5px;
 	}
 
 	.brand .name {
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-weight: 700;
 		font-size: 15px;
 		letter-spacing: 0.01em;

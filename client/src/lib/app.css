@@ -21,7 +21,7 @@
 	--idle: #c9a227;
 	--danger: #d83c3e;
 
-	--font-display: "Unbounded", sans-serif;
+	--font-display: "Comfortaa", sans-serif;
 	--font-mono: "IBM Plex Mono", ui-monospace, monospace;
 	--font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -30,20 +30,27 @@
 	box-sizing: border-box;
 }
 
-html,
+html {
+	height: 100%;
+	width: 100%;
+}
+
 body {
 	margin: 0;
 	height: 100%;
+	width: 100%;
 	background: transparent;
 	color: var(--ink);
 	font-family: var(--font-body);
 	font-size: 14px;
 	-webkit-font-smoothing: antialiased;
+	overflow: hidden;
 }
 
 .window-frame {
-	height: calc(100vh - 24px);
-	width: calc(100vw - 24px);
+	box-sizing: border-box;
+	height: calc(100% - 24px);
+	width: calc(100% - 24px);
 	margin: 12px;
 	border-radius: 14px;
 	overflow: hidden;
@@ -52,6 +59,46 @@ body {
 	-webkit-backdrop-filter: blur(24px);
 	border: 1px solid var(--hairline);
 	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.status-avatar {
+	position: relative;
+	flex-shrink: 0;
+	display: flex;
+}
+
+.status-dot {
+	position: absolute;
+	right: -2px;
+	bottom: -2px;
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	background: var(--ink-faint);
+	border: 2px solid var(--sidebar);
+}
+
+.status-dot.online {
+	background: var(--online);
+}
+
+.status-dot.idle {
+	background: var(--idle);
+}
+
+.status-dot.on-panel {
+	border-color: var(--panel);
+}
+
+.status-dot.on-void {
+	border-color: var(--void);
+}
+
+img.emoji {
+	width: 1.25em;
+	height: 1.25em;
+	vertical-align: -0.25em;
+	object-fit: contain;
 }
 
 button {

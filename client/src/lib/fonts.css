@@ -1,9 +1,9 @@
 @font-face {
-	font-family: "Unbounded";
+	font-family: "Comfortaa";
 	font-style: normal;
-	font-weight: 400 900;
+	font-weight: 300 700;
 	font-display: swap;
-	src: url("/fonts/unbounded-variable.woff2") format("woff2");
+	src: url("/fonts/comfortaa-variable.woff2") format("woff2");
 }
 
 @font-face {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fade } from "svelte/transition";
 	import Plus from "@lucide/svelte/icons/plus";
 	import type { ServerEntry } from "$lib/data/mock";
 
@@ -9,12 +10,44 @@
 		onSelectHome: () => void;
 		onAddServer: () => void;
 	} = $props();
+
+	let hovered = $state<{ label: string; anchor: HTMLElement } | null>(null);
+
+	function show(label: string) {
+		return (event: MouseEvent | FocusEvent) => {
+			hovered = { label, anchor: event.currentTarget as HTMLElement };
+		};
+	}
+
+	function hide() {
+		hovered = null;
+	}
+
+	function tooltipPosition(anchor: HTMLElement) {
+		const frame = document.querySelector(".window-frame");
+		const frameRect = frame ? frame.getBoundingClientRect() : { top: 0, left: 0 };
+		const anchorRect = anchor.getBoundingClientRect();
+
+		return {
+			top: anchorRect.top - frameRect.top + anchorRect.height / 2,
+			left: anchorRect.right - frameRect.left + 14
+		};
+	}
 </script>
 
 <nav class="rail">
-	<button class="home" class:active={activeId === null} title="Direct Messages" onclick={onSelectHome}>
+	<button
+		class="home"
+		class:active={activeId === null}
+		aria-label="Direct Messages"
+		onclick={onSelectHome}
+		onmouseenter={show("Direct Messages")}
+		onmouseleave={hide}
+		onfocus={show("Direct Messages")}
+		onblur={hide}
+	>
 		<span class="pill" class:active={activeId === null}></span>
-		HC
+		<img class="mark" src="/logo/hollowchat-mark.png" alt="" />
 	</button>
 	<div class="divider"></div>
 
@@ -24,8 +57,12 @@
 				<button
 					class="server"
 					class:active={server.id === activeId}
-					title={server.name}
+					aria-label={server.name}
 					onclick={() => onSelect(server.id)}
+					onmouseenter={show(server.name)}
+					onmouseleave={hide}
+					onfocus={show(server.name)}
+					onblur={hide}
 				>
 					<span
 						class="pill"
@@ -43,10 +80,30 @@
 
 	<div class="spacer"></div>
 
-	<button class="add" title="Add a server" onclick={onAddServer}>
+	<button
+		class="add"
+		aria-label="Add a server"
+		onclick={onAddServer}
+		onmouseenter={show("Add a Server")}
+		onmouseleave={hide}
+		onfocus={show("Add a Server")}
+		onblur={hide}
+	>
 		<Plus size={20} strokeWidth={2.25} />
 	</button>
 </nav>
+
+{#if hovered}
+	{@const pos = tooltipPosition(hovered.anchor)}
+	<span
+		class="rail-tooltip"
+		style:top={`${pos.top}px`}
+		style:left={`${pos.left}px`}
+		transition:fade={{ duration: 100 }}
+	>
+		{hovered.label}
+	</span>
+{/if}
 
 <style>
 	.rail {
@@ -68,7 +125,7 @@
 		border-radius: 16px;
 		background: var(--accent-soft);
 		color: var(--ink);
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-weight: 700;
 		font-size: 12px;
 		display: flex;
@@ -81,6 +138,13 @@
 	.home.active {
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
+	}
+
+	.mark {
+		width: 26px;
+		height: 26px;
+		object-fit: contain;
+		pointer-events: none;
 	}
 
 	.divider {
@@ -197,5 +261,31 @@
 		border-radius: 16px;
 		background: var(--online);
 		color: var(--void);
+	}
+
+	.rail-tooltip {
+		position: fixed;
+		transform: translateY(-50%);
+		padding: 8px 12px;
+		border-radius: 6px;
+		background: var(--void);
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-weight: 700;
+		font-size: 13px;
+		white-space: nowrap;
+		pointer-events: none;
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+		z-index: 200;
+	}
+
+	.rail-tooltip::before {
+		content: "";
+		position: absolute;
+		right: 100%;
+		top: 50%;
+		transform: translateY(-50%);
+		border: 6px solid transparent;
+		border-right-color: var(--void);
 	}
 </style>

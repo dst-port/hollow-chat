@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fly } from "svelte/transition";
 	import { clickOutside } from "$lib/actions/clickOutside";
+	import { emojify } from "$lib/actions/emojify";
 	import { EMOJI_PALETTE } from "$lib/data/mock";
 
 	let { onClose, onPick }: {
@@ -13,6 +14,7 @@
 	{#each EMOJI_PALETTE as emoji (emoji)}
 		<button
 			class="emoji"
+			use:emojify
 			onclick={() => {
 				onPick(emoji);
 				onClose();
