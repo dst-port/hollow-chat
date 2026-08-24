@@ -8,7 +8,16 @@
 	import Palette from "@lucide/svelte/icons/palette";
 	import Monitor from "@lucide/svelte/icons/monitor";
 	import LogOut from "@lucide/svelte/icons/log-out";
+	import CreditCard from "@lucide/svelte/icons/credit-card";
+	import Sparkles from "@lucide/svelte/icons/sparkles";
+	import Check from "@lucide/svelte/icons/check";
+	import Copy from "@lucide/svelte/icons/copy";
+	import { openUrl } from "@tauri-apps/plugin-opener";
+	import { renameLocalIdentity } from "$lib/crypto/identity";
+	import { renameAllSessions } from "$lib/crypto/session-store";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import * as api from "$lib/api/client";
 
 	let { username, onClose, onLogout }: {
 		username: string;
@@ -16,15 +25,47 @@
 		onLogout: () => void;
 	} = $props();
 
-	type Section = "account" | "privacy" | "notifications" | "appearance" | "sessions";
+	type Section = "account" | "privacy" | "notifications" | "appearance" | "sessions" | "billing";
 	let section = $state<Section>("account");
+
+	let billing = $state<api.BillingStatus | null>(null);
+	let checkoutLoading = $state(false);
+
+	$effect(() => {
+		const token = session.token;
+		if (!token) return;
+		api
+			.billingStatus(token)
+			.then((status) => (billing = status))
+			.catch(() => {});
+	});
+
+	async function upgrade() {
+		const token = session.token;
+		if (!token) return;
+		checkoutLoading = true;
+		try {
+			const { url } = await api.createCheckout(token);
+			await openUrl(url);
+		} catch (err) {
+			if (err instanceof api.ApiError && err.status === 503) {
+				toast.push("Billing isn't configured on this server yet");
+			} else {
+				toast.push("Couldn't start checkout");
+			}
+		} finally {
+			checkoutLoading = false;
+		}
+	}
 
 	const initialUsername = username;
 
 	let editingUsername = $state(false);
 	let usernameDraft = $state(initialUsername);
 	let editingPassword = $state(false);
-	let passwordDraft = $state("");
+	let regeneratedPassword = $state<string | null>(null);
+	let regenerating = $state(false);
+	let passwordCopied = $state(false);
 
 	let notifyMessages = $state(true);
 	let notifyMentions = $state(true);
@@ -33,32 +74,121 @@
 	let reducedMotion = $state(false);
 	let compactMode = $state(false);
 
-	const sessions = [
-		{ id: "1", label: "This device", detail: "Linux · Wayland · current session", current: true },
-		{ id: "2", label: "Unknown device", detail: "Last active 3 days ago", current: false }
-	];
-	let revokedIds = $state<string[]>([]);
+	let sessions = $state<api.ApiSession[]>([]);
+
+	function loadSessions() {
+		const token = session.token;
+		if (!token) return;
+		api
+			.listSessions(token)
+			.then((rows) => (sessions = rows))
+			.catch(() => {});
+	}
+
+	let blocked = $state<api.ApiBlockedUser[]>([]);
+
+	function loadBlocked() {
+		const token = session.token;
+		if (!token) return;
+		api
+			.listBlocked(token)
+			.then((rows) => (blocked = rows))
+			.catch(() => {});
+	}
+
+	function unblock(id: string) {
+		const token = session.token;
+		if (!token) return;
+		api
+			.unblockUser(token, id)
+			.then(() => {
+				blocked = blocked.filter((b) => b.id !== id);
+				toast.push("Unblocked");
+			})
+			.catch(() => toast.push("Couldn't unblock"));
+	}
+
+	$effect(() => {
+		if (section === "sessions" && session.token) loadSessions();
+		if (section === "privacy" && session.token) loadBlocked();
+	});
+
+	function describeSession(s: api.ApiSession): string {
+		const ua = s.user_agent ?? "";
+		let device = "Unknown device";
+		if (/Windows/.test(ua)) device = "Windows";
+		else if (/Mac OS/.test(ua)) device = "macOS";
+		else if (/Linux/.test(ua)) device = "Linux";
+		else if (/Android/.test(ua)) device = "Android";
+		else if (/iPhone|iPad/.test(ua)) device = "iOS";
+		const when = new Date(s.created_at).toLocaleDateString([], { month: "short", day: "numeric" });
+		return `${device}${s.ip_address ? " · " + s.ip_address : ""} · signed in ${when}`;
+	}
 
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key === "Escape") onClose();
 	}
 
-	function saveUsername() {
-		toast.push("Changing your username isn't wired up yet");
-		editingUsername = false;
-		usernameDraft = username;
+	async function saveUsername() {
+		const token = session.token;
+		const newUsername = usernameDraft.trim();
+		if (!token || !newUsername || newUsername === username) {
+			editingUsername = false;
+			return;
+		}
+		try {
+			await api.changeUsername(token, newUsername);
+			renameLocalIdentity(username, newUsername);
+			renameAllSessions(username, newUsername);
+			session.set(token, newUsername);
+			editingUsername = false;
+			toast.push("Username updated");
+		} catch (err) {
+			if (err instanceof api.ApiError && err.status === 409) {
+				toast.push("That username is already taken");
+			} else {
+				toast.push("Couldn't change username");
+			}
+		}
 	}
 
-	function savePassword() {
-		if (!passwordDraft.trim()) return;
-		toast.push("Changing your password isn't wired up yet");
+	async function regeneratePassword() {
+		const token = session.token;
+		if (!token) return;
+		regenerating = true;
+		try {
+			const res = await api.regeneratePassword(token);
+			regeneratedPassword = res.password;
+		} catch {
+			toast.push("Couldn't generate a new password");
+			editingPassword = false;
+		} finally {
+			regenerating = false;
+		}
+	}
+
+	async function copyRegeneratedPassword() {
+		if (!regeneratedPassword) return;
+		await navigator.clipboard.writeText(regeneratedPassword);
+		passwordCopied = true;
+		setTimeout(() => (passwordCopied = false), 1500);
+	}
+
+	function closePasswordChange() {
 		editingPassword = false;
-		passwordDraft = "";
+		regeneratedPassword = null;
 	}
 
 	function revoke(id: string) {
-		revokedIds.push(id);
-		toast.push("Session revoked");
+		const token = session.token;
+		if (!token) return;
+		api
+			.revokeSession(token, id)
+			.then(() => {
+				sessions = sessions.filter((s) => s.id !== id);
+				toast.push("Session revoked");
+			})
+			.catch(() => toast.push("Couldn't revoke session"));
 	}
 
 	function toggle(setter: (v: boolean) => void, current: boolean, label: string) {
@@ -100,6 +230,10 @@
 			<button class="nav-item" class:active={section === "sessions"} onclick={() => (section = "sessions")}>
 				<Monitor size={16} strokeWidth={2} />
 				Devices
+			</button>
+			<button class="nav-item" class:active={section === "billing"} onclick={() => (section = "billing")}>
+				<CreditCard size={16} strokeWidth={2} />
+				Billing
 			</button>
 
 			<div class="nav-spacer"></div>
@@ -162,24 +296,44 @@
 				</div>
 
 				<div class="card">
-					<div class="row">
-						<div>
-							<p class="row-label">Password</p>
-							{#if editingPassword}
-								<input class="inline-input" type="password" bind:value={passwordDraft} placeholder="New password" />
-							{:else}
+					{#if !editingPassword}
+						<div class="row">
+							<div>
+								<p class="row-label">Password</p>
 								<p class="row-value">••••••••••••</p>
-							{/if}
-						</div>
-						{#if editingPassword}
-							<div class="row-actions">
-								<button class="ghost" onclick={() => ((editingPassword = false), (passwordDraft = ""))}>Cancel</button>
-								<button class="primary" onclick={savePassword} disabled={!passwordDraft.trim()}>Save</button>
 							</div>
-						{:else}
 							<button class="edit" onclick={() => (editingPassword = true)}>Change</button>
-						{/if}
-					</div>
+						</div>
+					{:else if regeneratedPassword}
+						<p class="row-label">Save your new password now</p>
+						<p class="hint" style="margin-bottom: 12px;">
+							This is the only time we'll show it. Your old password no longer works.
+						</p>
+						<div class="password-box">
+							<code>{regeneratedPassword}</code>
+							<button type="button" class="copy" onclick={copyRegeneratedPassword} title="Copy password">
+								{#if passwordCopied}
+									<Check size={15} strokeWidth={2.5} />
+								{:else}
+									<Copy size={15} strokeWidth={2} />
+								{/if}
+							</button>
+						</div>
+						<div class="row-actions" style="margin-top: 12px;">
+							<button class="primary" onclick={closePasswordChange}>Done</button>
+						</div>
+					{:else}
+						<p class="row-label">Generate a new password?</p>
+						<p class="hint" style="margin-bottom: 12px;">
+							HollowChat has no user-chosen passwords — we'll generate a new random one and show it once. Your current password stops working immediately.
+						</p>
+						<div class="row-actions">
+							<button class="ghost" onclick={() => (editingPassword = false)}>Cancel</button>
+							<button class="primary" onclick={regeneratePassword} disabled={regenerating}>
+								{regenerating ? "Generating…" : "Generate New Password"}
+							</button>
+						</div>
+					{/if}
 
 					<div class="row">
 						<div>
@@ -203,31 +357,42 @@
 					</div>
 					<div class="row">
 						<div>
-							<p class="row-label">Message storage</p>
+							<p class="row-label">Direct message storage</p>
 							<p class="row-value muted">
-								End-to-end encrypted. The server only ever sees ciphertext.
+								End-to-end encrypted (X3DH + Double Ratchet). The server only ever sees ciphertext.
+							</p>
+						</div>
+					</div>
+					<div class="row">
+						<div>
+							<p class="row-label">Server channel storage</p>
+							<p class="row-value muted">
+								Not end-to-end encrypted yet. Readable by the server operator.
 							</p>
 						</div>
 					</div>
 					<div class="row">
 						<div>
 							<p class="row-label">IP logging</p>
-							<p class="row-value muted">Never logged, on any layer of the stack.</p>
+							<p class="row-value muted">
+								Logged only against your own active sessions, so you can review and revoke them under Devices.
+							</p>
 						</div>
 					</div>
 				</div>
 
 				<div class="card">
-					<div class="switch-row">
-						<div>
-							<p class="row-label">Direct messages from server members</p>
-							<p class="row-value muted">Allow anyone sharing a server with you to message you directly.</p>
-						</div>
-						<label class="switch">
-							<input type="checkbox" checked />
-							<span class="track"><span class="thumb"></span></span>
-						</label>
-					</div>
+					<p class="row-label" style="margin-bottom: 12px;">Blocked users</p>
+					{#if blocked.length === 0}
+						<p class="row-value muted">You haven't blocked anyone.</p>
+					{:else}
+						{#each blocked as b (b.id)}
+							<div class="row">
+								<p class="row-value">{b.username}</p>
+								<button class="edit" onclick={() => unblock(b.id)}>Unblock</button>
+							</div>
+						{/each}
+					{/if}
 				</div>
 			{:else if section === "notifications"}
 				<h2>Notifications</h2>
@@ -294,16 +459,19 @@
 					<p class="row-label">Theme</p>
 					<p class="row-value muted">HollowChat ships with one neutral theme. More are on the way.</p>
 				</div>
-			{:else}
+			{:else if section === "sessions"}
 				<h2>Devices</h2>
 				<p class="hint" style="margin-bottom: 16px;">Sessions currently signed in to your account.</p>
 
 				<div class="card">
-					{#each sessions.filter((s) => !revokedIds.includes(s.id)) as s (s.id)}
+					{#if sessions.length === 0}
+						<p class="row-value muted">No active sessions.</p>
+					{/if}
+					{#each sessions as s (s.id)}
 						<div class="row">
 							<div>
-								<p class="row-label">{s.label}{s.current ? " (current)" : ""}</p>
-								<p class="row-value muted">{s.detail}</p>
+								<p class="row-label">{s.current ? "This device" : "Other device"}</p>
+								<p class="row-value muted">{describeSession(s)}</p>
 							</div>
 							{#if !s.current}
 								<button class="edit danger-text" onclick={() => revoke(s.id)}>Revoke</button>
@@ -311,6 +479,41 @@
 						</div>
 					{/each}
 				</div>
+			{:else}
+				<h2>Billing</h2>
+
+				<div class="card plan-card" class:premium={billing?.tier === "premium"}>
+					<div class="plan-header">
+						{#if billing?.tier === "premium"}
+							<Sparkles size={18} strokeWidth={2} />
+						{:else}
+							<CreditCard size={18} strokeWidth={2} />
+						{/if}
+						<p class="row-label">{billing?.tier === "premium" ? "Premium" : "Free"} plan</p>
+					</div>
+					<p class="row-value muted">
+						{#if billing?.tier === "premium"}
+							File uploads up to 2GB. Thanks for supporting HollowChat.
+						{:else}
+							File uploads up to 50MB. Upgrade for 2GB uploads.
+						{/if}
+					</p>
+					{#if billing?.subscription_status && billing.subscription_status !== "active"}
+						<p class="row-value muted">Subscription status: {billing.subscription_status}</p>
+					{/if}
+				</div>
+
+				{#if billing?.tier !== "premium"}
+					<div class="card">
+						<p class="row-label">Upgrade to Premium</p>
+						<p class="row-value muted" style="margin-bottom: 12px;">
+							Raise your file upload limit from 50MB to 2GB per file.
+						</p>
+						<button class="edit" onclick={upgrade} disabled={checkoutLoading}>
+							{checkoutLoading ? "Opening checkout…" : "Upgrade"}
+						</button>
+					</div>
+				{/if}
 			{/if}
 		</div>
 	</div>
@@ -425,6 +628,39 @@
 		margin-bottom: 16px;
 	}
 
+	.password-box {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		padding: 14px 12px 14px 16px;
+	}
+
+	.password-box code {
+		flex: 1;
+		font-family: var(--font-mono);
+		font-size: 15px;
+		font-weight: 500;
+		letter-spacing: 0.02em;
+		word-break: break-all;
+		color: var(--ink);
+	}
+
+	.password-box .copy {
+		flex-shrink: 0;
+		display: flex;
+		padding: 8px;
+		border-radius: 6px;
+		color: var(--ink-dim);
+	}
+
+	.password-box .copy:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
 	.identity {
 		display: flex;
 		align-items: center;
@@ -532,8 +768,41 @@
 		background: var(--hover);
 	}
 
+	.edit:disabled {
+		color: var(--ink-faint);
+		cursor: default;
+	}
+
 	.edit.danger-text {
 		color: var(--danger);
+	}
+
+	.plan-card {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.plan-card.premium {
+		background: var(--accent-soft);
+	}
+
+	.plan-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.plan-header :global(svg) {
+		color: var(--ink-dim);
+	}
+
+	.plan-card.premium .plan-header :global(svg) {
+		color: var(--online);
+	}
+
+	.plan-header .row-label {
+		margin: 0;
 	}
 
 	.ghost {

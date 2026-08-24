@@ -4,16 +4,20 @@
 	import Compass from "@lucide/svelte/icons/compass";
 	import Modal from "$lib/components/Modal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import { joinServer, ApiError, type ApiServer } from "$lib/api/client";
 
-	let { onClose, onCreate }: {
+	let { onClose, onCreate, onJoin }: {
 		onClose: () => void;
 		onCreate: (name: string) => void;
+		onJoin: (server: ApiServer) => void;
 	} = $props();
 
 	type Step = "choice" | "create" | "join";
 	let step = $state<Step>("choice");
 	let name = $state("");
 	let inviteLink = $state("");
+	let joining = $state(false);
 
 	function submitCreate(event: SubmitEvent) {
 		event.preventDefault();
@@ -22,10 +26,30 @@
 		onCreate(trimmed);
 	}
 
-	function submitJoin(event: SubmitEvent) {
+	function extractCode(input: string): string {
+		const trimmed = input.trim();
+		const parts = trimmed.split("/").filter(Boolean);
+		return parts[parts.length - 1] ?? trimmed;
+	}
+
+	async function submitJoin(event: SubmitEvent) {
 		event.preventDefault();
-		if (!inviteLink.trim()) return;
-		toast.push("Joining servers isn't wired up yet");
+		const code = extractCode(inviteLink);
+		const token = session.token;
+		if (!code || !token) return;
+		joining = true;
+		try {
+			const server = await joinServer(token, code);
+			onJoin(server);
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 404) {
+				toast.push("That invite doesn't exist or has expired");
+			} else {
+				toast.push("Couldn't join server");
+			}
+		} finally {
+			joining = false;
+		}
 	}
 
 	const title = $derived(
@@ -70,7 +94,9 @@
 				Invite link
 				<input type="text" bind:value={inviteLink} required placeholder="hollowchat.app/invite/a1b2c3d4" />
 			</label>
-			<button type="submit" disabled={!inviteLink.trim()}>Join Server</button>
+			<button type="submit" disabled={!inviteLink.trim() || joining}>
+				{joining ? "Joining…" : "Join Server"}
+			</button>
 		</form>
 		<div class="discover">
 			<Compass size={18} strokeWidth={2} />

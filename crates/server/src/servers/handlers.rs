@@ -1,5 +1,6 @@
 use axum::extract::{Path, State};
 use axum::Json;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -274,4 +275,91 @@ pub async fn list_members(
     .await?;
 
     Ok(Json(members))
+}
+
+fn generate_invite_code() -> String {
+    const ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::thread_rng();
+    (0..10)
+        .map(|_| ALPHABET[rng.gen_range(0..ALPHABET.len())] as char)
+        .collect()
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct InviteDto {
+    pub code: String,
+}
+
+pub async fn get_invite(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+) -> Result<Json<InviteDto>, AppError> {
+    require_member(&state.pool, id, session.user_id).await?;
+
+    let existing: Option<InviteDto> =
+        sqlx::query_as("SELECT code FROM server_invites WHERE server_id = $1")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await?;
+
+    if let Some(invite) = existing {
+        return Ok(Json(invite));
+    }
+
+    for _ in 0..5 {
+        let code = generate_invite_code();
+        let result = sqlx::query("INSERT INTO server_invites (server_id, code) VALUES ($1, $2)")
+            .bind(id)
+            .bind(&code)
+            .execute(&state.pool)
+            .await;
+
+        match result {
+            Ok(_) => return Ok(Json(InviteDto { code })),
+            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => continue,
+            Err(err) => return Err(err.into()),
+        }
+    }
+
+    Err(AppError::InviteGenerationFailed)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct JoinServerRequest {
+    pub code: String,
+}
+
+pub async fn join_server(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<JoinServerRequest>,
+) -> Result<Json<ServerWithChannels>, AppError> {
+    let code = payload.code.trim();
+
+    let server_id: Option<(Uuid,)> =
+        sqlx::query_as("SELECT server_id FROM server_invites WHERE code = $1")
+            .bind(code)
+            .fetch_optional(&state.pool)
+            .await?;
+
+    let (server_id,) = server_id.ok_or(AppError::NotFound)?;
+
+    sqlx::query(
+        "INSERT INTO server_members (server_id, user_id) VALUES ($1, $2) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(server_id)
+    .bind(session.user_id)
+    .execute(&state.pool)
+    .await?;
+
+    let server: ServerDto = sqlx::query_as("SELECT id, name, owner_id FROM servers WHERE id = $1")
+        .bind(server_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+    let channels = load_channels(&state.pool, server.id).await?;
+
+    Ok(Json(ServerWithChannels { server, channels }))
 }

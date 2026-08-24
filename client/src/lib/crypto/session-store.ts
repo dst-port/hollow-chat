@@ -21,3 +21,20 @@ export function saveSession(myUsername: string, peerUsername: string, state: Rat
 export function clearSession(myUsername: string, peerUsername: string) {
 	localStorage.removeItem(storageKey(myUsername, peerUsername));
 }
+
+export function renameAllSessions(oldUsername: string, newUsername: string) {
+	const prefix = `hollowchat_session_${oldUsername}_`;
+	const renames: [string, string][] = [];
+	for (let i = 0; i < localStorage.length; i++) {
+		const key = localStorage.key(i);
+		if (key && key.startsWith(prefix)) {
+			const peer = key.slice(prefix.length);
+			renames.push([key, storageKey(newUsername, peer)]);
+		}
+	}
+	for (const [oldKey, newKey] of renames) {
+		const raw = localStorage.getItem(oldKey);
+		if (raw) localStorage.setItem(newKey, raw);
+		localStorage.removeItem(oldKey);
+	}
+}

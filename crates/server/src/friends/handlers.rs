@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
-use crate::social::{are_friends, ordered_pair, user_id_by_username};
+use crate::social::{are_blocked, are_friends, ordered_pair, user_id_by_username};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -101,6 +101,9 @@ pub async fn send_request(
 
     if are_friends(&state.pool, session.user_id, target_id).await? {
         return Err(AppError::AlreadyFriends);
+    }
+    if are_blocked(&state.pool, session.user_id, target_id).await? {
+        return Err(AppError::Blocked);
     }
 
     let reverse: Option<(Uuid,)> = sqlx::query_as(

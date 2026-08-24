@@ -5,3 +5,4 @@ node_modules/
 client/src-tauri/target
 client/.svelte-kit
 client/build
+/data

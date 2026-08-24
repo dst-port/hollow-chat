@@ -13,6 +13,7 @@
 	import type { Member, Channel } from "$lib/data/mock";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
+	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import * as api from "$lib/api/client";
 
@@ -98,17 +99,34 @@
 	const onlineFriends = $derived(friends.filter((m) => m.status !== "offline"));
 	const visibleFriends = $derived(tab === "online" ? onlineFriends : friends);
 
-	function messageFriend(friend: Member) {
+	function openDmWith(targetUsername: string) {
 		const token = session.token;
 		if (!token) return;
 		api
-			.openDm(token, friend.name)
+			.openDm(token, targetUsername)
 			.then((dm) => {
 				if (!dmChannels.some((d) => d.id === dm.id)) dmChannels = [dm, ...dmChannels];
 				activeDmId = dm.id;
 			})
-			.catch(() => toast.push("Couldn't open conversation"));
+			.catch((err: api.ApiError) => {
+				if (err.status === 401) {
+					toast.push("You can only message friends — send a friend request first");
+				} else {
+					toast.push("Couldn't open conversation");
+				}
+			});
 	}
+
+	function messageFriend(friend: Member) {
+		openDmWith(friend.name);
+	}
+
+	$effect(() => {
+		const target = pendingDm.username;
+		if (!target || !session.token) return;
+		pendingDm.consume();
+		openDmWith(target);
+	});
 
 	function selectDm(id: string) {
 		activeDmId = id;

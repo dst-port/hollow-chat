@@ -3,15 +3,18 @@
 	import Copy from "@lucide/svelte/icons/copy";
 	import Pin from "@lucide/svelte/icons/pin";
 	import PinOff from "@lucide/svelte/icons/pin-off";
+	import SquarePen from "@lucide/svelte/icons/square-pen";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import { clickOutside } from "$lib/actions/clickOutside";
 
-	let { pinned, onClose, onCopy, onTogglePin, onDelete }: {
+	let { pinned, canManage, onClose, onCopy, onTogglePin, onEdit, onDelete }: {
 		pinned: boolean;
+		canManage: boolean;
 		onClose: () => void;
 		onCopy: () => void;
 		onTogglePin: () => void;
-		onDelete: () => void;
+		onEdit?: () => void;
+		onDelete?: () => void;
 	} = $props();
 </script>
 
@@ -36,16 +39,30 @@
 		{#if pinned}<PinOff size={14} strokeWidth={2} />{:else}<Pin size={14} strokeWidth={2} />{/if}
 		{pinned ? "Unpin Message" : "Pin Message"}
 	</button>
-	<button
-		class="item danger"
-		onclick={() => {
-			onDelete();
-			onClose();
-		}}
-	>
-		<Trash2 size={14} strokeWidth={2} />
-		Delete Message
-	</button>
+	{#if canManage && onEdit}
+		<button
+			class="item"
+			onclick={() => {
+				onEdit();
+				onClose();
+			}}
+		>
+			<SquarePen size={14} strokeWidth={2} />
+			Edit Message
+		</button>
+	{/if}
+	{#if canManage && onDelete}
+		<button
+			class="item danger"
+			onclick={() => {
+				onDelete();
+				onClose();
+			}}
+		>
+			<Trash2 size={14} strokeWidth={2} />
+			Delete Message
+		</button>
+	{/if}
 </div>
 
 <style>

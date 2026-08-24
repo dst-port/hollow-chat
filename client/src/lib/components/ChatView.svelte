@@ -12,6 +12,8 @@
 	import Paperclip from "@lucide/svelte/icons/paperclip";
 	import Smile from "@lucide/svelte/icons/smile";
 	import X from "@lucide/svelte/icons/x";
+	import FileIcon from "@lucide/svelte/icons/file";
+	import Download from "@lucide/svelte/icons/download";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
@@ -27,12 +29,26 @@
 		sendMessage,
 		listDmMessages,
 		sendDmMessage,
-		type ApiMessage
+		uploadFile,
+		fileUrl,
+		editMessage as apiEditMessage,
+		deleteMessage as apiDeleteMessage,
+		pinMessage as apiPinMessage,
+		unpinMessage as apiUnpinMessage,
+		listPinned as apiListPinned,
+		addReaction as apiAddReaction,
+		removeReaction as apiRemoveReaction,
+		ApiError,
+		type ApiMessage,
+		type ApiReplyPreview,
+		type MessageScope
 	} from "$lib/api/client";
 	import { colorForName } from "$lib/utils/color";
 	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
 	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
-	import type { Channel, Message } from "$lib/data/mock";
+	import { loadAttachmentBlobUrl, triggerDownload } from "$lib/utils/attachment";
+	import { renderMarkdown } from "$lib/utils/markdown";
+	import type { Channel, Message, MessageAttachment } from "$lib/data/mock";
 
 	const DEFAULT_QUICK_EMOJI = ["👍", "❤️", "😂", "🔥", "🎉"];
 	const POLL_INTERVAL_MS = 3000;
@@ -43,30 +59,77 @@
 		onToggleMembers?: () => void;
 	} = $props();
 
-	const fetchMessages = $derived(isDm ? listDmMessages : listMessages);
-	const postMessage = $derived(isDm ? sendDmMessage : sendMessage);
+	const scope: MessageScope = isDm ? "dm" : "channel";
+
+	function fetchMessages(
+		token: string,
+		id: string,
+		opts?: { before?: string; after?: string; limit?: number }
+	) {
+		return isDm ? listDmMessages(token, id, opts) : listMessages(token, id, opts);
+	}
+
+	function postMessage(
+		token: string,
+		id: string,
+		content: string | null,
+		attachmentId?: string,
+		replyToId?: string
+	) {
+		return isDm
+			? sendDmMessage(token, id, content, attachmentId, replyToId)
+			: sendMessage(token, id, content, attachmentId, replyToId);
+	}
+
+	async function decryptStoredContent(
+		authorUsername: string,
+		messageId: string,
+		blob: string
+	): Promise<string> {
+		const myUsername = session.username;
+		if (!isDm || !myUsername) return blob;
+		if (authorUsername === myUsername) {
+			return recallSent(messageId) ?? "[sent from another device]";
+		}
+		try {
+			return await decryptFromPeer(myUsername, channel.name, blob);
+		} catch {
+			return "[unable to decrypt message]";
+		}
+	}
+
+	async function toReplyPreview(reply: ApiReplyPreview | null) {
+		if (!reply) return undefined;
+		const content = reply.content
+			? await decryptStoredContent(reply.author, reply.id, reply.content)
+			: reply.has_attachment
+				? "📎 Attachment"
+				: "";
+		return { id: reply.id, author: reply.author, content, hasAttachment: reply.has_attachment };
+	}
 
 	async function toMessage(apiMsg: ApiMessage): Promise<Message> {
-		let content = apiMsg.content;
-		const myUsername = session.username;
-
-		if (isDm && myUsername) {
-			if (apiMsg.author === myUsername) {
-				content = recallSent(apiMsg.id) ?? "[sent from another device]";
-			} else {
-				try {
-					content = await decryptFromPeer(myUsername, channel.name, apiMsg.content);
-				} catch {
-					content = "[unable to decrypt message]";
-				}
-			}
-		}
+		const content = apiMsg.content
+			? await decryptStoredContent(apiMsg.author, apiMsg.id, apiMsg.content)
+			: "";
 
 		return {
 			id: apiMsg.id,
 			author: apiMsg.author,
 			color: colorForName(apiMsg.author),
 			content,
+			attachment: apiMsg.attachment
+				? {
+						id: apiMsg.attachment.id,
+						filename: apiMsg.attachment.filename,
+						mimeType: apiMsg.attachment.mime_type,
+						sizeBytes: apiMsg.attachment.size_bytes
+					}
+				: undefined,
+			reactions: apiMsg.reactions.map((r) => ({ emoji: r.emoji, count: r.count, reacted: r.reacted })),
+			pinned: apiMsg.pinned,
+			replyTo: await toReplyPreview(apiMsg.reply_to),
+			edited: !!apiMsg.edited_at,
 			time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 		};
 	}
@@ -122,6 +185,9 @@
 	});
 
 	let draft = $state("");
+	let pendingFile = $state<File | null>(null);
+	let uploading = $state(false);
+	let fileInputEl = $state<HTMLInputElement | undefined>();
 	let replyingTo = $state<Message | null>(null);
 	let openMenuId = $state<string | null>(null);
 	let composerEmojiOpen = $state(false);
@@ -131,7 +197,6 @@
 	let muted = $state(false);
 	let emojiCounts = $state<Record<string, number>>({});
 
-	const pinnedMessages = $derived(messages.filter((m) => m.pinned));
 	const quickEmoji = $derived.by(() => {
 		const used = Object.entries(emojiCounts)
 			.sort((a, b) => b[1] - a[1])
@@ -155,32 +220,104 @@
 			.catch(() => {});
 	});
 
+	let imageUrls = $state<Record<string, string>>({});
+
+	$effect(() => {
+		const token = session.token;
+		if (!token) return;
+		for (const message of messages) {
+			const attachment = message.attachment;
+			if (attachment && attachment.mimeType.startsWith("image/") && !imageUrls[attachment.id]) {
+				loadAttachmentBlobUrl(token, attachment.id, attachment.filename)
+					.then((url) => {
+						imageUrls[attachment.id] = url;
+					})
+					.catch(() => {});
+			}
+		}
+	});
+
+	async function downloadAttachment(attachment: MessageAttachment) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			const url = await loadAttachmentBlobUrl(token, attachment.id, attachment.filename);
+			triggerDownload(url, attachment.filename);
+		} catch {
+			toast.push("Couldn't download file");
+		}
+	}
+
+	function pickFile() {
+		fileInputEl?.click();
+	}
+
+	function onFileChosen(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		pendingFile = input.files?.[0] ?? null;
+		input.value = "";
+	}
+
+	function clearPendingFile() {
+		pendingFile = null;
+	}
+
+	function formatSize(bytes: number): string {
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+		if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+		return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+	}
+
 	async function send(event: SubmitEvent) {
 		event.preventDefault();
 		const content = draft.trim();
 		const token = session.token;
 		const myUsername = session.username;
-		if (!content || !token) return;
+		const file = pendingFile;
+		const replyToId = replyingTo?.id;
+		if ((!content && !file) || !token) return;
+
 		draft = "";
+		pendingFile = null;
 		replyingTo = null;
 
 		try {
-			let payload = content;
-			if (isDm && myUsername) {
+			let attachmentId: string | undefined;
+			if (file) {
+				uploading = true;
+				const uploaded = await uploadFile(token, file);
+				attachmentId = uploaded.id;
+			}
+
+			let payload: string | null = content || null;
+			if (isDm && myUsername && content) {
 				payload = await encryptForPeer(token, myUsername, channel.name, content);
 			}
-			const apiMsg = await postMessage(token, channel.id, payload);
-			if (isDm) rememberSent(apiMsg.id, content);
+
+			const apiMsg = await postMessage(token, channel.id, payload, attachmentId, replyToId);
+			if (isDm && content) rememberSent(apiMsg.id, content);
 			messages.push(await toMessage(apiMsg));
 			lastId = apiMsg.id;
-		} catch {
-			toast.push("Message failed to send");
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 413) {
+				toast.push("File is too large for your plan (50MB free / 2GB premium)");
+			} else if (err instanceof ApiError && err.status === 429) {
+				toast.push("You're sending messages too fast — slow down");
+			} else {
+				toast.push("Message failed to send");
+			}
+		} finally {
+			uploading = false;
 		}
 	}
 
 	function isGrouped(index: number) {
 		if (index === 0) return false;
-		return messages[index - 1].author === messages[index].author;
+		return (
+			messages[index - 1].author === messages[index].author &&
+			!messages[index].replyTo
+		);
 	}
 
 	function copyText(message: Message) {
@@ -188,19 +325,47 @@
 		toast.push("Copied");
 	}
 
-	function togglePin(message: Message) {
-		message.pinned = !message.pinned;
-		toast.push(message.pinned ? "Message pinned" : "Message unpinned");
+	function isMine(message: Message) {
+		return message.author === session.username;
 	}
 
-	function deleteMessage(message: Message) {
+	async function togglePin(message: Message) {
+		const token = session.token;
+		if (!token) return;
+		const next = !message.pinned;
+		message.pinned = next;
+		try {
+			if (next) await apiPinMessage(token, scope, channel.id, message.id);
+			else await apiUnpinMessage(token, scope, channel.id, message.id);
+			toast.push(next ? "Message pinned" : "Message unpinned");
+		} catch {
+			message.pinned = !next;
+			toast.push("Couldn't update pin");
+		}
+	}
+
+	async function deleteMessage(message: Message) {
+		const token = session.token;
+		if (!token) return;
+		const backup = messages;
 		messages = messages.filter((m) => m.id !== message.id);
-		toast.push("Message deleted");
+		try {
+			await apiDeleteMessage(token, scope, channel.id, message.id);
+			toast.push("Message deleted");
+		} catch {
+			messages = backup;
+			toast.push("Couldn't delete message");
+		}
 	}
 
-	function toggleReaction(message: Message, emoji: string) {
+	async function toggleReaction(message: Message, emoji: string) {
+		const token = session.token;
+		if (!token) return;
+
 		if (!message.reactions) message.reactions = [];
 		const existing = message.reactions.find((r) => r.emoji === emoji);
+		const wasReacted = existing?.reacted ?? false;
+
 		if (existing) {
 			existing.reacted = !existing.reacted;
 			existing.count += existing.reacted ? 1 : -1;
@@ -209,6 +374,13 @@
 			}
 		} else {
 			message.reactions.push({ emoji, count: 1, reacted: true });
+		}
+
+		try {
+			if (wasReacted) await apiRemoveReaction(token, scope, channel.id, message.id, emoji);
+			else await apiAddReaction(token, scope, channel.id, message.id, emoji);
+		} catch {
+			toast.push("Couldn't update reaction");
 		}
 	}
 
@@ -227,6 +399,57 @@
 		toggleReaction(message, emoji);
 		trackEmojiUse(emoji);
 	}
+
+	let editingId = $state<string | null>(null);
+	let editDraft = $state("");
+
+	function startEdit(message: Message) {
+		editingId = message.id;
+		editDraft = message.content;
+	}
+
+	function cancelEdit() {
+		editingId = null;
+		editDraft = "";
+	}
+
+	async function saveEdit(message: Message) {
+		const token = session.token;
+		const content = editDraft.trim();
+		if (!token || !content) return;
+
+		try {
+			let payload = content;
+			if (isDm && session.username) {
+				payload = await encryptForPeer(token, session.username, channel.name, content);
+			}
+			await apiEditMessage(token, scope, channel.id, message.id, payload);
+			if (isDm) rememberSent(message.id, content);
+			message.content = content;
+			message.edited = true;
+			editingId = null;
+			editDraft = "";
+		} catch {
+			toast.push("Couldn't edit message");
+		}
+	}
+
+	let pinnedMessages = $state<Message[]>([]);
+
+	async function openPinned() {
+		pinnedOpen = !pinnedOpen;
+		if (!pinnedOpen) return;
+		const token = session.token;
+		if (!token) return;
+		try {
+			const rows = await apiListPinned(token, scope, channel.id);
+			const out: Message[] = [];
+			for (const row of rows) out.push(await toMessage(row));
+			pinnedMessages = out;
+		} catch {
+			pinnedMessages = [];
+		}
+	}
 </script>
 
 <section class="chat">
@@ -242,7 +465,7 @@
 		<div class="spacer"></div>
 		<div class="header-icons">
 			<div class="anchor">
-				<button class="icon-button" title="Pinned messages" onclick={() => (pinnedOpen = !pinnedOpen)}>
+				<button class="icon-button" title="Pinned messages" onclick={openPinned}>
 					<Pin size={17} strokeWidth={2} />
 				</button>
 				{#if pinnedOpen}
@@ -322,14 +545,56 @@
 					{/if}
 
 					<div class="body">
+						{#if message.replyTo}
+							<p class="reply-quote">
+								<Reply size={12} strokeWidth={2} />
+								<span class="reply-author">{message.replyTo.author}</span>
+								<span class="reply-snippet">{message.replyTo.content}</span>
+							</p>
+						{/if}
 						{#if !isGrouped(index)}
 							<p class="meta">
 								<span class="author" style:color={message.color}>{message.author}</span>
 								<span class="time">{message.time}</span>
+								{#if message.edited}<span class="edited-flag">(edited)</span>{/if}
 								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
 							</p>
 						{/if}
-						<p class="content" use:emojify>{message.content}</p>
+						{#if editingId === message.id}
+							<form class="edit-form" onsubmit={(e) => (e.preventDefault(), saveEdit(message))}>
+								<input type="text" bind:value={editDraft} />
+								<div class="edit-actions">
+									<button type="button" class="ghost-small" onclick={cancelEdit}>Cancel</button>
+									<button type="submit" class="primary-small" disabled={!editDraft.trim()}>Save</button>
+								</div>
+							</form>
+						{:else if message.content}
+							<p class="content" use:emojify>
+								{@html renderMarkdown(message.content)}
+								{#if message.edited && isGrouped(index)}<span class="edited-flag">(edited)</span>{/if}
+							</p>
+						{/if}
+						{#if message.attachment}
+							{#if message.attachment.mimeType.startsWith("image/") && imageUrls[message.attachment.id]}
+								<a
+									class="attachment-image"
+									href={imageUrls[message.attachment.id]}
+									target="_blank"
+									rel="noreferrer"
+								>
+									<img src={imageUrls[message.attachment.id]} alt={message.attachment.filename} />
+								</a>
+							{:else}
+								<button class="attachment-file" onclick={() => downloadAttachment(message.attachment!)}>
+									<FileIcon size={20} strokeWidth={2} />
+									<span class="attachment-info">
+										<span class="attachment-name">{message.attachment.filename}</span>
+										<span class="attachment-size">{formatSize(message.attachment.sizeBytes)}</span>
+									</span>
+									<Download size={16} strokeWidth={2} />
+								</button>
+							{/if}
+						{/if}
 						{#if message.reactions && message.reactions.length > 0}
 							<div class="reactions">
 								{#each message.reactions as reaction (reaction.emoji)}
@@ -366,9 +631,11 @@
 							{#if openMenuId === message.id}
 								<MessageMenu
 									pinned={!!message.pinned}
+									canManage={isMine(message)}
 									onClose={() => (openMenuId = null)}
 									onCopy={() => copyText(message)}
 									onTogglePin={() => togglePin(message)}
+									onEdit={() => startEdit(message)}
 									onDelete={() => deleteMessage(message)}
 								/>
 							{/if}
@@ -389,8 +656,25 @@
 		</div>
 	{/if}
 
+	{#if pendingFile}
+		<div class="pending-file" transition:fly={{ y: 8, duration: 140 }}>
+			<FileIcon size={16} strokeWidth={2} />
+			<span class="pending-name">{pendingFile.name}</span>
+			<span class="pending-size">{formatSize(pendingFile.size)}</span>
+			<button type="button" class="cancel-reply" onclick={clearPendingFile} title="Remove file">
+				<X size={14} strokeWidth={2} />
+			</button>
+		</div>
+	{/if}
+
 	<form class="composer" onsubmit={send}>
-		<button type="button" class="attach" title="Upload a file" onclick={() => toast.push("File uploads aren't wired up yet")}>
+		<input
+			type="file"
+			bind:this={fileInputEl}
+			onchange={onFileChosen}
+			style="display: none;"
+		/>
+		<button type="button" class="attach" title="Upload a file" onclick={pickFile}>
 			<Paperclip size={18} strokeWidth={2} />
 		</button>
 		<input
@@ -406,7 +690,7 @@
 				<EmojiPicker onClose={() => (composerEmojiOpen = false)} onPick={insertEmoji} />
 			{/if}
 		</div>
-		<button type="submit" disabled={draft.trim().length === 0}>
+		<button type="submit" disabled={(draft.trim().length === 0 && !pendingFile) || uploading}>
 			<SendHorizontal size={16} strokeWidth={2.25} />
 		</button>
 	</form>
@@ -640,6 +924,232 @@
 		line-height: 1.4;
 		color: var(--ink);
 		word-break: break-word;
+	}
+
+	.edited-flag {
+		margin-left: 4px;
+		font-size: 10px;
+		color: var(--ink-faint);
+	}
+
+	.content :global(strong) {
+		font-weight: 700;
+	}
+
+	.content :global(em) {
+		font-style: italic;
+	}
+
+	.content :global(u) {
+		text-decoration: underline;
+	}
+
+	.content :global(del) {
+		text-decoration: line-through;
+		opacity: 0.7;
+	}
+
+	.content :global(code.md-inline) {
+		background: var(--sidebar);
+		border-radius: 4px;
+		padding: 1px 5px;
+		font-family: var(--font-mono);
+		font-size: 0.9em;
+	}
+
+	.content :global(pre.md-block) {
+		background: var(--sidebar);
+		border-radius: 6px;
+		padding: 10px 12px;
+		margin: 4px 0;
+		overflow-x: auto;
+	}
+
+	.content :global(pre.md-block code) {
+		font-family: var(--font-mono);
+		font-size: 13px;
+		white-space: pre;
+	}
+
+	.content :global(.md-spoiler) {
+		background: var(--ink-faint);
+		color: transparent;
+		border-radius: 3px;
+		cursor: pointer;
+		transition: background-color 0.1s ease, color 0.1s ease;
+	}
+
+	.content :global(.md-spoiler.revealed) {
+		background: var(--active);
+		color: var(--ink);
+	}
+
+	.reply-quote {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: 0 0 2px;
+		font-size: 12px;
+		color: var(--ink-faint);
+		overflow: hidden;
+	}
+
+	.reply-quote :global(svg) {
+		flex-shrink: 0;
+		transform: scaleX(-1);
+	}
+
+	.reply-author {
+		flex-shrink: 0;
+		font-weight: 600;
+		color: var(--ink-dim);
+	}
+
+	.reply-snippet {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.edit-form {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.edit-form input {
+		width: 100%;
+		background: var(--sidebar);
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		padding: 8px 10px;
+		font-family: var(--font-body);
+		font-size: 14px;
+		color: var(--ink);
+	}
+
+	.edit-form input:focus {
+		outline: none;
+		border-color: var(--ink-dim);
+	}
+
+	.edit-actions {
+		display: flex;
+		gap: 8px;
+	}
+
+	.ghost-small,
+	.primary-small {
+		padding: 5px 10px;
+		border-radius: 5px;
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.ghost-small {
+		color: var(--ink-dim);
+	}
+
+	.ghost-small:hover {
+		color: var(--ink);
+	}
+
+	.primary-small {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
+	}
+
+	.primary-small:disabled {
+		background: var(--active);
+		color: var(--ink-faint);
+	}
+
+	.attachment-image {
+		display: block;
+		max-width: 320px;
+		margin-top: 4px;
+		border-radius: 8px;
+		overflow: hidden;
+	}
+
+	.attachment-image img {
+		display: block;
+		max-width: 100%;
+		max-height: 300px;
+		object-fit: contain;
+	}
+
+	.attachment-file {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-top: 4px;
+		padding: 10px 12px;
+		max-width: 320px;
+		background: var(--sidebar);
+		border-radius: 8px;
+		color: var(--ink);
+		transition: background-color 0.15s ease;
+	}
+
+	.attachment-file:hover {
+		background: var(--hover);
+	}
+
+	.attachment-file :global(svg:first-child) {
+		flex-shrink: 0;
+		color: var(--ink-faint);
+	}
+
+	.attachment-info {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.attachment-name {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink);
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.attachment-size {
+		font-size: 11px;
+		color: var(--ink-faint);
+	}
+
+	.pending-file {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 0 16px;
+		padding: 8px 12px;
+		background: var(--active);
+		border-radius: 8px 8px 0 0;
+		font-size: 12px;
+		color: var(--ink-dim);
+	}
+
+	.pending-name {
+		flex: 1;
+		min-width: 0;
+		color: var(--ink);
+		font-weight: 600;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.pending-size {
+		color: var(--ink-faint);
+		flex-shrink: 0;
 	}
 
 	.reactions {

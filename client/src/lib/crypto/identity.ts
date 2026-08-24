@@ -48,6 +48,13 @@ function save(username: string, identity: StoredIdentity) {
 	localStorage.setItem(storageKey(username), JSON.stringify(identity));
 }
 
+export function renameLocalIdentity(oldUsername: string, newUsername: string) {
+	const raw = localStorage.getItem(storageKey(oldUsername));
+	if (!raw) return;
+	localStorage.setItem(storageKey(newUsername), raw);
+	localStorage.removeItem(storageKey(oldUsername));
+}
+
 function generateOneTimePrekeys(startId: number, count: number): Record<number, StoredKeyPair> {
 	const out: Record<number, StoredKeyPair> = {};
 	for (let i = 0; i < count; i++) {

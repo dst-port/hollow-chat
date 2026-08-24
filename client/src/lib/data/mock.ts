@@ -22,14 +22,31 @@ export type Reaction = {
 	reacted: boolean;
 };
 
+export type MessageAttachment = {
+	id: string;
+	filename: string;
+	mimeType: string;
+	sizeBytes: number;
+};
+
+export type ReplyPreview = {
+	id: string;
+	author: string;
+	content: string;
+	hasAttachment: boolean;
+};
+
 export type Message = {
 	id: string;
 	author: string;
 	color: string;
 	content: string;
 	time: string;
+	attachment?: MessageAttachment;
 	reactions?: Reaction[];
 	pinned?: boolean;
+	replyTo?: ReplyPreview;
+	edited?: boolean;
 };
 
 export function createServers(): ServerEntry[] {

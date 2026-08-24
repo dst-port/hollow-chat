@@ -11,10 +11,12 @@ use crate::state::AppState;
 pub struct AuthSession {
     pub user_id: Uuid,
     pub username: String,
+    pub session_id: Uuid,
 }
 
 #[derive(sqlx::FromRow)]
 struct SessionRow {
+    session_id: Uuid,
     user_id: Uuid,
     username: String,
 }
@@ -39,7 +41,7 @@ where
         let token_hash = hash_token(token);
 
         let row: Option<SessionRow> = sqlx::query_as(
-            "SELECT users.id AS user_id, users.username AS username \
+            "SELECT sessions.id AS session_id, users.id AS user_id, users.username AS username \
              FROM sessions \
              JOIN users ON users.id = sessions.user_id \
              WHERE sessions.token_hash = $1 AND sessions.expires_at > $2",
@@ -54,6 +56,7 @@ where
         Ok(AuthSession {
             user_id: row.user_id,
             username: row.username,
+            session_id: row.session_id,
         })
     }
 }

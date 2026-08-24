@@ -7,6 +7,7 @@ use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
 use dashmap::DashMap;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct RateLimiter {
@@ -27,6 +28,35 @@ impl RateLimiter {
     fn check(&self, ip: IpAddr) -> bool {
         let now = Instant::now();
         let mut entry = self.hits.entry(ip).or_insert((0, now));
+
+        if now.duration_since(entry.1) > self.window {
+            *entry = (0, now);
+        }
+
+        entry.0 += 1;
+        entry.0 <= self.max_attempts
+    }
+}
+
+#[derive(Clone)]
+pub struct UserRateLimiter {
+    hits: Arc<DashMap<Uuid, (u32, Instant)>>,
+    max_attempts: u32,
+    window: Duration,
+}
+
+impl UserRateLimiter {
+    pub fn new(max_attempts: u32, window: Duration) -> Self {
+        Self {
+            hits: Arc::new(DashMap::new()),
+            max_attempts,
+            window,
+        }
+    }
+
+    pub fn check(&self, user_id: Uuid) -> bool {
+        let now = Instant::now();
+        let mut entry = self.hits.entry(user_id).or_insert((0, now));
 
         if now.duration_since(entry.1) > self.window {
             *entry = (0, now);

@@ -19,12 +19,28 @@ pub enum AppError {
     InvalidMessage,
     #[error("already friends")]
     AlreadyFriends,
+    #[error("blocked")]
+    Blocked,
     #[error("friend request already sent")]
     RequestAlreadySent,
     #[error("invalid key material")]
     InvalidKeyMaterial,
     #[error("no key bundle for this user")]
     NoKeyBundle,
+    #[error("you're sending messages too fast, slow down")]
+    RateLimited,
+    #[error("file too large for your plan")]
+    FileTooLarge,
+    #[error("unsupported or missing attachment")]
+    InvalidAttachment,
+    #[error("attachment not found")]
+    AttachmentNotFound,
+    #[error("billing is not configured on this server")]
+    BillingNotConfigured,
+    #[error("billing provider error")]
+    BillingProvider,
+    #[error("couldn't generate an invite code, try again")]
+    InviteGenerationFailed,
     #[error("invalid credentials")]
     InvalidCredentials,
     #[error("unauthorized")]
@@ -47,9 +63,17 @@ impl IntoResponse for AppError {
             AppError::InvalidChannelType => StatusCode::BAD_REQUEST,
             AppError::InvalidMessage => StatusCode::BAD_REQUEST,
             AppError::AlreadyFriends => StatusCode::CONFLICT,
+            AppError::Blocked => StatusCode::FORBIDDEN,
             AppError::RequestAlreadySent => StatusCode::CONFLICT,
             AppError::InvalidKeyMaterial => StatusCode::BAD_REQUEST,
             AppError::NoKeyBundle => StatusCode::NOT_FOUND,
+            AppError::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+            AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            AppError::InvalidAttachment => StatusCode::BAD_REQUEST,
+            AppError::AttachmentNotFound => StatusCode::NOT_FOUND,
+            AppError::BillingNotConfigured => StatusCode::SERVICE_UNAVAILABLE,
+            AppError::BillingProvider => StatusCode::BAD_GATEWAY,
+            AppError::InviteGenerationFailed => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::NotFound => StatusCode::NOT_FOUND,

@@ -150,7 +150,7 @@
 </div>
 
 {#if inviteOpen}
-	<InviteModal serverName={server.name} inviteCode={server.id.slice(0, 8)} onClose={() => (inviteOpen = false)} />
+	<InviteModal serverName={server.name} serverId={server.id} onClose={() => (inviteOpen = false)} />
 {/if}
 
 {#if confirmDelete}

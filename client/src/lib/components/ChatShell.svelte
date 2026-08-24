@@ -9,6 +9,7 @@
 	import { type ChannelType, type Member, type ServerEntry } from "$lib/data/mock";
 	import { session } from "$lib/stores/session.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import * as api from "$lib/api/client";
 
@@ -100,6 +101,11 @@
 		activeServerId = null;
 	}
 
+	function messageUser(username: string) {
+		pendingDm.request(username);
+		activeServerId = null;
+	}
+
 	function selectChannel(id: string) {
 		activeChannelId = id;
 		if (activeServer) {
@@ -121,6 +127,14 @@
 				toast.push(`${name} created`);
 			})
 			.catch(() => toast.push("Couldn't create server"));
+	}
+
+	function joinServer(server: api.ApiServer) {
+		const entry = toServerEntry(server);
+		if (!serverList.some((s) => s.id === entry.id)) serverList.push(entry);
+		createServerOpen = false;
+		selectServer(entry.id);
+		toast.push(`Joined ${entry.name}`);
 	}
 
 	function createChannel(name: string, type: ChannelType) {
@@ -181,7 +195,7 @@
 					onToggleMembers={() => (showMembers = !showMembers)}
 				/>
 				{#if showMembers}
-					<MemberList members={memberList} serverName={activeServer.name} />
+					<MemberList members={memberList} serverName={activeServer.name} onMessage={messageUser} />
 				{/if}
 			{:else}
 				<HomeView username={session.username ?? ""} onLogout={() => session.clear()} />
@@ -191,7 +205,7 @@
 </div>
 
 {#if createServerOpen}
-	<CreateServerModal onClose={() => (createServerOpen = false)} onCreate={createServer} />
+	<CreateServerModal onClose={() => (createServerOpen = false)} onCreate={createServer} onJoin={joinServer} />
 {/if}
 
 <style>

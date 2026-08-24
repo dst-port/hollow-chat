@@ -2,7 +2,11 @@
 	import ProfilePopover from "$lib/components/ProfilePopover.svelte";
 	import type { Member } from "$lib/data/mock";
 
-	let { members, serverName }: { members: Member[]; serverName: string } = $props();
+	let { members, serverName, onMessage }: {
+		members: Member[];
+		serverName: string;
+		onMessage: (username: string) => void;
+	} = $props();
 
 	let openMember = $state<{ id: string; anchor: HTMLElement } | null>(null);
 
@@ -50,7 +54,13 @@
 
 {#if openMember}
 	{@const member = members.find((m) => m.id === openMember!.id)!}
-	<ProfilePopover {member} {serverName} anchor={openMember.anchor} onClose={() => (openMember = null)} />
+	<ProfilePopover
+		{member}
+		{serverName}
+		anchor={openMember.anchor}
+		onClose={() => (openMember = null)}
+		{onMessage}
+	/>
 {/if}
 
 <style>

@@ -47,6 +47,33 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 	return text ? JSON.parse(text) : (undefined as T);
 }
 
+export function fileUrl(id: string, filename: string): string {
+	return `${BASE_URL}/files/${id}/${encodeURIComponent(filename)}`;
+}
+
+export async function uploadFile(token: string, file: File): Promise<ApiAttachment> {
+	const form = new FormData();
+	form.append("file", file, file.name);
+
+	let response: Response;
+	try {
+		response = await fetch(`${BASE_URL}/files`, {
+			method: "PUT",
+			headers: { authorization: `Bearer ${token}` },
+			body: form
+		});
+	} catch {
+		throw new ApiError(0, "network error");
+	}
+
+	if (!response.ok) {
+		const body = await response.json().catch(() => ({ error: response.statusText }));
+		throw new ApiError(response.status, body.error ?? "upload failed");
+	}
+
+	return response.json();
+}
+
 export type RegisterResponse = {
 	username: string;
 	password: string;
@@ -77,6 +104,42 @@ export function login(username: string, password: string) {
 
 export function me(token: string) {
 	return request<MeResponse>("/auth/me", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function changeUsername(token: string, username: string) {
+	return request<{ username: string }>("/auth/username", {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ username })
+	});
+}
+
+export function regeneratePassword(token: string) {
+	return request<{ password: string }>("/auth/regenerate-password", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type ApiSession = {
+	id: string;
+	user_agent: string | null;
+	ip_address: string | null;
+	created_at: string;
+	current: boolean;
+};
+
+export function listSessions(token: string) {
+	return request<ApiSession[]>("/auth/sessions", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function revokeSession(token: string, id: string) {
+	return request<void>(`/auth/sessions/${id}`, {
+		method: "DELETE",
 		headers: { authorization: `Bearer ${token}` }
 	});
 }
@@ -114,12 +177,37 @@ export type ApiServer = {
 	channels: ApiChannel[];
 };
 
+export type ApiAttachment = {
+	id: string;
+	filename: string;
+	mime_type: string;
+	size_bytes: number;
+};
+
+export type ApiReplyPreview = {
+	id: string;
+	author: string;
+	content: string | null;
+	has_attachment: boolean;
+};
+
+export type ApiReaction = {
+	emoji: string;
+	count: number;
+	reacted: boolean;
+};
+
 export type ApiMessage = {
 	id: string;
 	author_id: string | null;
 	author: string;
-	content: string;
+	content: string | null;
+	attachment: ApiAttachment | null;
+	reply_to: ApiReplyPreview | null;
+	reactions: ApiReaction[];
+	pinned: boolean;
 	timestamp: string;
+	edited_at: string | null;
 };
 
 export function listServers(token: string) {
@@ -189,6 +277,31 @@ export function removeFriend(token: string, userId: string) {
 	});
 }
 
+export type ApiBlockedUser = {
+	id: string;
+	username: string;
+};
+
+export function listBlocked(token: string) {
+	return request<ApiBlockedUser[]>("/blocks", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function blockUser(token: string, userId: string) {
+	return request<void>(`/blocks/${userId}`, {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function unblockUser(token: string, userId: string) {
+	return request<void>(`/blocks/${userId}`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
 export function listFriendRequests(token: string) {
 	return request<ApiFriendRequest[]>("/friends/requests", {
 		headers: { authorization: `Bearer ${token}` }
@@ -250,11 +363,108 @@ export function listDmMessages(
 	});
 }
 
-export function sendDmMessage(token: string, dmId: string, content: string) {
+export function sendDmMessage(
+	token: string,
+	dmId: string,
+	content: string | null,
+	attachmentId?: string,
+	replyToId?: string
+) {
 	return request<ApiMessage>(`/dms/${dmId}/messages`, {
 		method: "POST",
 		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ content, attachment_id: attachmentId, reply_to_id: replyToId })
+	});
+}
+
+export type MessageScope = "channel" | "dm";
+
+function messagesBase(scope: MessageScope, id: string): string {
+	return scope === "channel" ? `/channels/${id}` : `/dms/${id}`;
+}
+
+export function editMessage(
+	token: string,
+	scope: MessageScope,
+	id: string,
+	messageId: string,
+	content: string
+) {
+	return request<ApiMessage>(`${messagesBase(scope, id)}/messages/${messageId}`, {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
 		body: JSON.stringify({ content })
+	});
+}
+
+export function deleteMessage(token: string, scope: MessageScope, id: string, messageId: string) {
+	return request<void>(`${messagesBase(scope, id)}/messages/${messageId}`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function pinMessage(token: string, scope: MessageScope, id: string, messageId: string) {
+	return request<void>(`${messagesBase(scope, id)}/messages/${messageId}/pin`, {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function unpinMessage(token: string, scope: MessageScope, id: string, messageId: string) {
+	return request<void>(`${messagesBase(scope, id)}/messages/${messageId}/pin`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function listPinned(token: string, scope: MessageScope, id: string) {
+	return request<ApiMessage[]>(`${messagesBase(scope, id)}/pinned`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function addReaction(
+	token: string,
+	scope: MessageScope,
+	id: string,
+	messageId: string,
+	emoji: string
+) {
+	return request<void>(
+		`${messagesBase(scope, id)}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+		{ method: "PUT", headers: { authorization: `Bearer ${token}` } }
+	);
+}
+
+export function removeReaction(
+	token: string,
+	scope: MessageScope,
+	id: string,
+	messageId: string,
+	emoji: string
+) {
+	return request<void>(
+		`${messagesBase(scope, id)}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+		{ method: "DELETE", headers: { authorization: `Bearer ${token}` } }
+	);
+}
+
+export type BillingStatus = {
+	tier: "free" | "premium";
+	subscription_status: string | null;
+};
+
+export function billingStatus(token: string) {
+	return request<BillingStatus>("/billing/status", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function createCheckout(token: string) {
+	return request<{ url: string }>("/billing/checkout", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` }
 	});
 }
 
@@ -312,6 +522,20 @@ export function listMembers(token: string, serverId: string) {
 	});
 }
 
+export function getServerInvite(token: string, serverId: string) {
+	return request<{ code: string }>(`/servers/${serverId}/invite`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function joinServer(token: string, code: string) {
+	return request<ApiServer>("/servers/join", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ code })
+	});
+}
+
 export function listMessages(
 	token: string,
 	channelId: string,
@@ -325,10 +549,16 @@ export function listMessages(
 	});
 }
 
-export function sendMessage(token: string, channelId: string, content: string) {
+export function sendMessage(
+	token: string,
+	channelId: string,
+	content: string | null,
+	attachmentId?: string,
+	replyToId?: string
+) {
 	return request<ApiMessage>(`/channels/${channelId}/messages`, {
 		method: "POST",
 		headers: { authorization: `Bearer ${token}` },
-		body: JSON.stringify({ content })
+		body: JSON.stringify({ content, attachment_id: attachmentId, reply_to_id: replyToId })
 	});
 }

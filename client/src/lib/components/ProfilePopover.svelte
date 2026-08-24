@@ -5,16 +5,22 @@
 	import CalendarDays from "@lucide/svelte/icons/calendar-days";
 	import Users from "@lucide/svelte/icons/users";
 	import SendHorizontal from "@lucide/svelte/icons/send-horizontal";
+	import UserMinus from "@lucide/svelte/icons/user-minus";
+	import IdCard from "@lucide/svelte/icons/id-card";
+	import ShieldOff from "@lucide/svelte/icons/shield-off";
 	import Badges from "$lib/components/Badges.svelte";
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import * as api from "$lib/api/client";
 	import type { Member } from "$lib/data/mock";
 
-	let { member, serverName, anchor, onClose }: {
+	let { member, serverName, anchor, onClose, onMessage }: {
 		member: Member;
 		serverName: string;
 		anchor: HTMLElement;
 		onClose: () => void;
+		onMessage: (username: string) => void;
 	} = $props();
 
 	const POPOVER_WIDTH = 280;
@@ -45,12 +51,38 @@
 	}
 
 	function message() {
-		toast.push("Direct messages aren't wired up yet");
+		onMessage(member.name);
 		onClose();
 	}
 
-	function moreOptions() {
-		toast.push("More options aren't wired up yet");
+	let moreOpen = $state(false);
+
+	function copyUserId() {
+		navigator.clipboard.writeText(member.id);
+		toast.push("User ID copied");
+		moreOpen = false;
+	}
+
+	function removeFriend() {
+		const token = session.token;
+		if (!token) return;
+		api
+			.removeFriend(token, member.id)
+			.then(() => toast.push(`Removed ${member.name} as a friend`))
+			.catch(() => toast.push("Couldn't remove friend"));
+		moreOpen = false;
+		onClose();
+	}
+
+	function blockUser() {
+		const token = session.token;
+		if (!token) return;
+		api
+			.blockUser(token, member.id)
+			.then(() => toast.push(`Blocked ${member.name}`))
+			.catch(() => toast.push("Couldn't block user"));
+		moreOpen = false;
+		onClose();
 	}
 
 	function sendDraft(event: SubmitEvent) {
@@ -77,9 +109,27 @@
 			{#if member.status}<span class="status-dot on-panel {member.status}"></span>{/if}
 		</div>
 		<div class="header-actions">
-			<button class="icon-action" title="More" onclick={moreOptions}>
-				<MoreHorizontal size={16} strokeWidth={2} />
-			</button>
+			<div class="anchor">
+				<button class="icon-action" title="More" onclick={() => (moreOpen = !moreOpen)}>
+					<MoreHorizontal size={16} strokeWidth={2} />
+				</button>
+				{#if moreOpen}
+					<div class="more-menu" use:clickOutside={() => (moreOpen = false)} transition:fly={{ y: -4, duration: 120 }}>
+						<button class="menu-item" onclick={copyUserId}>
+							<IdCard size={14} strokeWidth={2} />
+							Copy User ID
+						</button>
+						<button class="menu-item danger" onclick={removeFriend}>
+							<UserMinus size={14} strokeWidth={2} />
+							Remove Friend
+						</button>
+						<button class="menu-item danger" onclick={blockUser}>
+							<ShieldOff size={14} strokeWidth={2} />
+							Block User
+						</button>
+					</div>
+				{/if}
+			</div>
 			<button class="icon-action primary" title="Message" onclick={message}>
 				<MessageSquare size={16} strokeWidth={2} />
 			</button>
@@ -211,6 +261,49 @@
 	.icon-action:hover {
 		background: var(--active);
 		color: var(--ink);
+	}
+
+	.anchor {
+		position: relative;
+	}
+
+	.more-menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		left: 0;
+		background: var(--panel);
+		border-radius: 8px;
+		padding: 6px;
+		min-width: 170px;
+		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+		z-index: 60;
+	}
+
+	.menu-item {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 10px;
+		border-radius: 6px;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.menu-item:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.menu-item.danger {
+		color: var(--danger);
+	}
+
+	.menu-item.danger:hover {
+		background: rgba(216, 60, 62, 0.12);
+		color: var(--danger);
 	}
 
 	.icon-action.primary {

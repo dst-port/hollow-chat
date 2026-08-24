@@ -29,3 +29,16 @@ pub async fn are_friends(pool: &sqlx::PgPool, a: Uuid, b: Uuid) -> Result<bool, 
     .await?;
     Ok(row.is_some())
 }
+
+pub async fn are_blocked(pool: &sqlx::PgPool, a: Uuid, b: Uuid) -> Result<bool, AppError> {
+    let row: Option<(i32,)> = sqlx::query_as(
+        "SELECT 1 FROM blocked_users \
+         WHERE (blocker_id = $1 AND blocked_id = $2) \
+            OR (blocker_id = $2 AND blocked_id = $1)",
+    )
+    .bind(a)
+    .bind(b)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.is_some())
+}
