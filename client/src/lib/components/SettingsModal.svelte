@@ -15,6 +15,7 @@
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import { renameLocalIdentity } from "$lib/crypto/identity";
 	import { renameAllSessions } from "$lib/crypto/session-store";
+	import { renameAllGroupKeys } from "$lib/crypto/group-key-store";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import * as api from "$lib/api/client";
@@ -140,6 +141,7 @@
 			await api.changeUsername(token, newUsername);
 			renameLocalIdentity(username, newUsername);
 			renameAllSessions(username, newUsername);
+			renameAllGroupKeys(username, newUsername);
 			session.set(token, newUsername);
 			editingUsername = false;
 			toast.push("Username updated");
@@ -367,7 +369,10 @@
 						<div>
 							<p class="row-label">Server channel storage</p>
 							<p class="row-value muted">
-								Not end-to-end encrypted yet. Readable by the server operator.
+								Message text is end-to-end encrypted with a per-channel sender key, shared directly
+								between members — the server only ever sees ciphertext. Attachments in server
+								channels aren't encrypted yet. A member removed from the server can still read
+								messages sent with a key they already received until the channel is next re-keyed.
 							</p>
 						</div>
 					</div>

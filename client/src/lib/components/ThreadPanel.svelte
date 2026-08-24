@@ -19,6 +19,8 @@
 		type ApiThread,
 		type ApiMessage
 	} from "$lib/api/client";
+	import { encryptForChannel, decryptFromChannel } from "$lib/crypto/group";
+	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
 
 	let { channelId, initialThreadId, onClose }: {
 		channelId: string;
@@ -28,9 +30,36 @@
 
 	let threads = $state<ApiThread[]>([]);
 	let activeThread = $state<ApiThread | null>(null);
-	let threadMessages = $state<ApiMessage[]>([]);
+	let threadMessages = $state<{ id: string; author: string; content: string; timestamp: string }[]>([]);
 	let draft = $state("");
 	let loading = $state(false);
+
+	async function decryptThreadMessage(msg: ApiMessage): Promise<string> {
+		if (!msg.content) return "";
+		const myUsername = session.username;
+		if (!myUsername) return msg.content;
+		if (msg.author === myUsername) {
+			return recallSent(msg.id) ?? "[sent from another device]";
+		}
+		try {
+			return await decryptFromChannel(myUsername, channelId, msg.author, msg.content);
+		} catch {
+			return "[unable to decrypt message]";
+		}
+	}
+
+	async function decryptThreadMessages(rows: ApiMessage[]) {
+		const out = [];
+		for (const row of rows) {
+			out.push({
+				id: row.id,
+				author: row.author,
+				content: await decryptThreadMessage(row),
+				timestamp: row.timestamp
+			});
+		}
+		return out;
+	}
 
 	function relativeTime(iso: string | null) {
 		if (!iso) return "No replies yet";
@@ -59,7 +88,8 @@
 		if (!token) return;
 		loading = true;
 		try {
-			threadMessages = await listThreadMessages(token, channelId, thread.id);
+			const rows = await listThreadMessages(token, channelId, thread.id);
+			threadMessages = await decryptThreadMessages(rows);
 		} catch {
 			toast.push("Couldn't load thread");
 		} finally {
@@ -77,11 +107,14 @@
 		event.preventDefault();
 		const content = draft.trim();
 		const token = session.token;
-		if (!content || !token || !activeThread) return;
+		const myUsername = session.username;
+		if (!content || !token || !myUsername || !activeThread) return;
 		draft = "";
 		try {
-			const msg = await sendThreadMessage(token, channelId, activeThread.id, content);
-			threadMessages.push(msg);
+			const payload = await encryptForChannel(myUsername, channelId, content);
+			const msg = await sendThreadMessage(token, channelId, activeThread.id, payload);
+			rememberSent(msg.id, content);
+			threadMessages.push({ id: msg.id, author: msg.author, content, timestamp: msg.timestamp });
 		} catch {
 			toast.push("Reply failed to send");
 		}

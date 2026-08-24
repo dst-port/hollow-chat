@@ -587,6 +587,30 @@ export function prekeyCount(token: string) {
 	});
 }
 
+export type ApiSenderKey = {
+	sender_id: string;
+	sender_username: string;
+	ciphertext: string;
+};
+
+export function publishSenderKeys(
+	token: string,
+	channelId: string,
+	entries: { recipient_id: string; ciphertext: string }[]
+) {
+	return request<void>(`/channels/${channelId}/sender-keys`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ entries })
+	});
+}
+
+export function listSenderKeys(token: string, channelId: string) {
+	return request<ApiSenderKey[]>(`/channels/${channelId}/sender-keys`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
 export type ApiRole = {
 	id: string;
 	server_id: string;

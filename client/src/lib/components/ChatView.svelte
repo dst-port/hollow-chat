@@ -41,6 +41,9 @@
 		addReaction as apiAddReaction,
 		removeReaction as apiRemoveReaction,
 		createThread as apiCreateThread,
+		listMembers as apiListMembers,
+		publishSenderKeys,
+		listSenderKeys,
 		ApiError,
 		type ApiMessage,
 		type ApiReplyPreview,
@@ -48,6 +51,15 @@
 	} from "$lib/api/client";
 	import { colorForName } from "$lib/utils/color";
 	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
+	import {
+		encryptForChannel,
+		decryptFromChannel,
+		absorbDistribution,
+		needsRedistribution,
+		markDistributedTo,
+		getOrCreateSendState,
+		packageDistribution
+	} from "$lib/crypto/group";
 	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
 	import { loadAttachmentBlobUrl, triggerDownload } from "$lib/utils/attachment";
 	import { renderMarkdown } from "$lib/utils/markdown";
@@ -56,9 +68,10 @@
 	const DEFAULT_QUICK_EMOJI = ["👍", "❤️", "😂", "🔥", "🎉"];
 	const POLL_INTERVAL_MS = 3000;
 
-	let { channel, isDm = false, onToggleMembers }: {
+	let { channel, isDm = false, serverId, onToggleMembers }: {
 		channel: Channel;
 		isDm?: boolean;
+		serverId?: string;
 		onToggleMembers?: () => void;
 	} = $props();
 
@@ -90,14 +103,49 @@
 		blob: string
 	): Promise<string> {
 		const myUsername = session.username;
-		if (!isDm || !myUsername) return blob;
+		if (!myUsername) return blob;
 		if (authorUsername === myUsername) {
 			return recallSent(messageId) ?? "[sent from another device]";
 		}
 		try {
-			return await decryptFromPeer(myUsername, channel.name, blob);
+			return isDm
+				? await decryptFromPeer(myUsername, channel.name, blob)
+				: await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
 		} catch {
 			return "[unable to decrypt message]";
+		}
+	}
+
+	async function encryptOutgoing(myUsername: string, token: string, content: string): Promise<string> {
+		return isDm
+			? encryptForPeer(token, myUsername, channel.name, content)
+			: encryptForChannel(myUsername, channel.id, content);
+	}
+
+	async function bootstrapChannelKeys(token: string, myUsername: string) {
+		if (isDm || !serverId) return;
+
+		const pending = await listSenderKeys(token, channel.id).catch(() => []);
+		for (const entry of pending) {
+			await absorbDistribution(myUsername, entry.sender_username, entry.ciphertext).catch(() => {});
+		}
+
+		try {
+			const members = await apiListMembers(token, serverId);
+			const others = members.filter((m) => m.username !== myUsername);
+			const memberIds = others.map((m) => m.id);
+			if (needsRedistribution(myUsername, channel.id, memberIds)) {
+				const state = getOrCreateSendState(myUsername, channel.id);
+				const entries = [];
+				for (const member of others) {
+					const ciphertext = await packageDistribution(token, myUsername, channel.id, state, member.username);
+					entries.push({ recipient_id: member.id, ciphertext });
+				}
+				if (entries.length > 0) await publishSenderKeys(token, channel.id, entries);
+				markDistributedTo(myUsername, channel.id, memberIds);
+			}
+		} catch {
+			return;
 		}
 	}
 
@@ -148,15 +196,18 @@
 
 	$effect(() => {
 		const token = session.token;
+		const myUsername = session.username;
 		const channelId = channel.id;
 		const fetcher = fetchMessages;
-		if (!token) return;
+		if (!token || !myUsername) return;
 
 		messages = [];
 		lastId = null;
 		let cancelled = false;
 
-		fetcher(token, channelId)
+		bootstrapChannelKeys(token, myUsername)
+			.catch(() => {})
+			.then(() => fetcher(token, channelId))
 			.then(async (rows) => {
 				if (cancelled) return;
 				const converted = await toMessages(rows);
@@ -294,12 +345,12 @@
 			}
 
 			let payload: string | null = content || null;
-			if (isDm && myUsername && content) {
-				payload = await encryptForPeer(token, myUsername, channel.name, content);
+			if (myUsername && content) {
+				payload = await encryptOutgoing(myUsername, token, content);
 			}
 
 			const apiMsg = await postMessage(token, channel.id, payload, attachmentId, replyToId);
-			if (isDm && content) rememberSent(apiMsg.id, content);
+			if (content) rememberSent(apiMsg.id, content);
 			messages.push(await toMessage(apiMsg));
 			lastId = apiMsg.id;
 		} catch (err) {
@@ -423,11 +474,11 @@
 
 		try {
 			let payload = content;
-			if (isDm && session.username) {
-				payload = await encryptForPeer(token, session.username, channel.name, content);
+			if (session.username) {
+				payload = await encryptOutgoing(session.username, token, content);
 			}
 			await apiEditMessage(token, scope, channel.id, message.id, payload);
-			if (isDm) rememberSent(message.id, content);
+			rememberSent(message.id, content);
 			message.content = content;
 			message.edited = true;
 			editingId = null;

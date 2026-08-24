@@ -195,6 +195,7 @@
 				/>
 				<ChatView
 					channel={activeChannel}
+					serverId={activeServer.id}
 					onToggleMembers={() => (showMembers = !showMembers)}
 				/>
 				{#if showMembers}
