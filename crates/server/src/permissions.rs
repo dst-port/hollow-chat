@@ -36,6 +36,8 @@ pub async fn effective_permissions(
     let rows: Vec<(i64,)> = sqlx::query_as(
         "SELECT server_roles.permissions FROM server_member_roles \
          JOIN server_roles ON server_roles.id = server_member_roles.role_id \
+         JOIN server_members ON server_members.server_id = server_member_roles.server_id \
+             AND server_members.user_id = server_member_roles.user_id \
          WHERE server_member_roles.server_id = $1 AND server_member_roles.user_id = $2",
     )
     .bind(server_id)

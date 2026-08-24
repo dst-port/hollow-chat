@@ -336,11 +336,21 @@ pub async fn kick_member(
         return Err(AppError::Unauthorized);
     }
 
+    let mut tx = state.pool.begin().await?;
+
+    sqlx::query("DELETE FROM server_member_roles WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
     sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
         .bind(server_id)
         .bind(user_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
 
     Ok(())
 }
@@ -406,6 +416,12 @@ pub async fn ban_member(
     .bind(&payload.reason)
     .execute(&mut *tx)
     .await?;
+
+    sqlx::query("DELETE FROM server_member_roles WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
 
     sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
         .bind(server_id)
