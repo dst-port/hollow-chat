@@ -29,6 +29,7 @@
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import Badges from "$lib/components/Badges.svelte";
+	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, onClose, onLogout, initialSection = "account" }: {
@@ -224,6 +225,7 @@
 			.catch(() => toast.push("Couldn't unblock"));
 	}
 
+	let displayNameDraft = $state("");
 	let bioDraft = $state("");
 	let pronounsDraft = $state("");
 	let statusTextDraft = $state("");
@@ -238,6 +240,7 @@
 	function syncProfileDrafts() {
 		const profile = profileStore.forUser(username);
 		if (!profile) return;
+		displayNameDraft = profile.display_name ?? "";
 		bioDraft = profile.bio ?? "";
 		pronounsDraft = profile.pronouns ?? "";
 		statusTextDraft = profile.status_text ?? "";
@@ -258,6 +261,7 @@
 		profileSaving = true;
 		try {
 			const updated = await api.updateProfile(token, {
+				display_name: displayNameDraft,
 				bio: bioDraft,
 				pronouns: pronounsDraft,
 				status_text: statusTextDraft,
@@ -461,7 +465,7 @@
 					{#if !profileStore.forUser(username)?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 				</div>
 				<div class="nav-identity-text">
-					<p class="nav-identity-name">{username}</p>
+					<p class="nav-identity-name">{profileStore.forUser(username)?.display_name || username}</p>
 					<p class="nav-identity-edit"><Pencil size={10} strokeWidth={2.5} />Edit Profile</p>
 				</div>
 			</button>
@@ -549,10 +553,11 @@
 						</div>
 
 						<p class="preview-name">
-							{username}
+							{displayNameDraft || username}
+							{#if pronounsDraft}<span class="preview-pronouns">{pronounsDraft}</span>{/if}
 							{#if ownBadges.length > 0}<Badges badges={ownBadges} />{/if}
 						</p>
-						{#if pronounsDraft}<p class="preview-pronouns">{pronounsDraft}</p>{/if}
+						{#if displayNameDraft}<p class="preview-handle">@{username}</p>{/if}
 						{#if statusTextDraft}<p class="preview-status">{statusTextDraft}</p>{/if}
 
 						<div class="preview-image-actions" style="margin-top: 10px;">
@@ -570,6 +575,10 @@
 
 				<div class="card">
 					<label class="field">
+						Display Name
+						<input class="inline-input" type="text" bind:value={displayNameDraft} maxlength="32" placeholder={username} />
+					</label>
+					<label class="field" style="margin-top: 14px;">
 						About Me
 						<textarea class="inline-textarea" bind:value={bioDraft} maxlength="190" rows="3" placeholder="Tell people a bit about yourself"></textarea>
 					</label>
@@ -589,14 +598,14 @@
 							<p class="row-label">Accent Color</p>
 							<p class="row-value muted">Colors your name in profiles and popovers.</p>
 						</div>
-						<input class="color-swatch" type="color" bind:value={accentColorDraft} />
+						<ColorPicker bind:value={accentColorDraft} />
 					</div>
 					<div class="row">
 						<div>
 							<p class="row-label">Banner Color</p>
 							<p class="row-value muted">Used when you don't have a banner image.</p>
 						</div>
-						<input class="color-swatch" type="color" bind:value={bannerColorDraft} />
+						<ColorPicker bind:value={bannerColorDraft} />
 					</div>
 				</div>
 
@@ -1574,7 +1583,13 @@
 	}
 
 	.preview-pronouns {
-		margin: 2px 0 0;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--ink-faint);
+	}
+
+	.preview-handle {
+		margin: 1px 0 0;
 		font-size: 12px;
 		color: var(--ink-faint);
 	}
@@ -1600,15 +1615,5 @@
 	.inline-textarea:focus {
 		outline: none;
 		border-color: var(--ink-dim);
-	}
-
-	.color-swatch {
-		width: 40px;
-		height: 32px;
-		border: 1px solid var(--hairline);
-		border-radius: 6px;
-		background: none;
-		padding: 2px;
-		flex-shrink: 0;
 	}
 </style>

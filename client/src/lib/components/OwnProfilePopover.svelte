@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { fly } from "svelte/transition";
 	import Pencil from "@lucide/svelte/icons/pencil";
+	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import IdCard from "@lucide/svelte/icons/id-card";
+	import SmilePlus from "@lucide/svelte/icons/smile-plus";
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import Badges from "$lib/components/Badges.svelte";
+	import StatusModal from "$lib/components/StatusModal.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, anchor, onEditProfile, onClose }: {
@@ -26,7 +29,20 @@
 
 	const profile = $derived(profileStore.forUser(username));
 
-	const POPOVER_WIDTH = 260;
+	let statusModalOpen = $state(false);
+
+	async function quickClearStatus() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			const updated = await api.updateProfile(token, { status_text: "", status_clear_minutes: 0 });
+			profileStore.set(updated);
+		} catch {
+			toast.push("Couldn't clear status");
+		}
+	}
+
+	const POPOVER_WIDTH = 280;
 
 	function computePosition() {
 		const frame = document.querySelector(".window-frame");
@@ -69,14 +85,27 @@
 			{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 		</div>
 		<span class="status-dot on-panel online"></span>
+		{#if profile?.status_text}
+			<div class="status-bubble" transition:fly={{ y: 4, duration: 140 }}>
+				{profile.status_text}
+				<div class="status-bubble-actions">
+					<button class="bubble-action" title="Edit status" onclick={() => (statusModalOpen = true)}>
+						<Pencil size={11} strokeWidth={2.5} />
+					</button>
+					<button class="bubble-action" title="Clear status" onclick={quickClearStatus}>
+						<Trash2 size={11} strokeWidth={2.5} />
+					</button>
+				</div>
+			</div>
+		{/if}
 	</div>
 	<div class="body">
-		<p class="name-row">
-			<span class="name" style:color={profile?.accent_color || undefined}>{username}</span>
+		<p class="name">{profile?.display_name || username}</p>
+		<p class="meta-row">
+			<span class="meta-username" style:color={profile?.accent_color || undefined}>{username}</span>
+			{#if profile?.pronouns}<span class="dot">•</span><span class="meta-item">{profile.pronouns}</span>{/if}
 			<Badges badges={badgeStore.forUser(username)} />
 		</p>
-		{#if profile?.pronouns}<p class="pronouns">{profile.pronouns}</p>{/if}
-		<p class="status">{profile?.status_text || "online"}</p>
 
 		<div class="bio">
 			<p class="bio-label">About me</p>
@@ -87,12 +116,20 @@
 			<Pencil size={15} strokeWidth={2} />
 			Edit Profile
 		</button>
+		<button class="action ghost" onclick={() => (statusModalOpen = true)}>
+			<SmilePlus size={15} strokeWidth={2} />
+			{profile?.status_text ? "Edit Status" : "Set Status"}
+		</button>
 		<button class="action ghost" onclick={copyId}>
 			<IdCard size={15} strokeWidth={2} />
 			Copy User ID
 		</button>
 	</div>
 </div>
+
+{#if statusModalOpen}
+	<StatusModal {username} onClose={() => (statusModalOpen = false)} />
+{/if}
 
 <style>
 	.popover {
@@ -110,8 +147,54 @@
 	}
 
 	.avatar-row {
+		position: relative;
 		margin: -26px 0 0 16px;
 		width: fit-content;
+	}
+
+	.status-bubble {
+		position: absolute;
+		left: 64px;
+		bottom: 28px;
+		max-width: 170px;
+		background: var(--active);
+		color: var(--ink);
+		border-radius: 10px;
+		border-bottom-left-radius: 4px;
+		padding: 7px 26px 7px 10px;
+		font-size: 12px;
+		line-height: 1.35;
+		box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+	}
+
+	.status-bubble-actions {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		display: flex;
+		gap: 2px;
+		opacity: 0;
+		transition: opacity 0.12s ease;
+	}
+
+	.status-bubble:hover .status-bubble-actions {
+		opacity: 1;
+	}
+
+	.bubble-action {
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--sidebar);
+		color: var(--ink-dim);
+	}
+
+	.bubble-action:hover {
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.avatar {
@@ -129,12 +212,6 @@
 		font-size: 16px;
 	}
 
-	.pronouns {
-		margin: 1px 0 0;
-		font-size: 11px;
-		color: var(--ink-faint);
-	}
-
 	.status-dot {
 		width: 13px;
 		height: 13px;
@@ -144,25 +221,32 @@
 		padding: 12px 16px 16px;
 	}
 
-	.name-row {
-		margin: 0;
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 6px;
-	}
-
 	.name {
+		margin: 0;
 		font-family: var(--font-mono);
 		font-weight: 700;
-		font-size: 15px;
+		font-size: 16px;
 		color: var(--ink);
 	}
 
-	.status {
-		margin: 2px 0 12px;
+	.meta-row {
+		margin: 3px 0 12px;
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 5px;
+	}
+
+	.meta-username,
+	.meta-item {
 		font-size: 12px;
-		color: var(--online);
+		font-weight: 500;
+		color: var(--ink-faint);
+	}
+
+	.dot {
+		font-size: 10px;
+		color: var(--ink-faint);
 	}
 
 	.bio {

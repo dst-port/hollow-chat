@@ -865,6 +865,7 @@ export function userBadges(token: string, username: string) {
 
 export type ApiProfile = {
 	username: string;
+	display_name: string | null;
 	bio: string | null;
 	pronouns: string | null;
 	status_text: string | null;
@@ -882,9 +883,11 @@ export function fetchProfile(token: string, username: string) {
 }
 
 export type UpdateProfileBody = {
+	display_name?: string;
 	bio?: string;
 	pronouns?: string;
 	status_text?: string;
+	status_clear_minutes?: number;
 	accent_color?: string;
 	banner_color?: string;
 };

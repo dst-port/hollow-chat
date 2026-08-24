@@ -24,6 +24,7 @@
 	import { emojify } from "$lib/actions/emojify";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import {
 		recordEmojiUse,
@@ -34,6 +35,7 @@
 		sendDmMessage,
 		uploadFile,
 		fileUrl,
+		resolveUrl,
 		editMessage as apiEditMessage,
 		deleteMessage as apiDeleteMessage,
 		pinMessage as apiPinMessage,
@@ -180,6 +182,15 @@
 		}
 	}
 
+	function ensureProfileLoaded(username: string) {
+		const token = session.token;
+		if (token && !profileStore.forUser(username)) profileStore.load(token, username);
+	}
+
+	function displayNameFor(username: string): string {
+		return profileStore.forUser(username)?.display_name || username;
+	}
+
 	async function toReplyPreview(reply: ApiReplyPreview | null) {
 		if (!reply) return undefined;
 		const content = reply.content
@@ -194,6 +205,7 @@
 		const content = apiMsg.content
 			? await decryptStoredContent(apiMsg.author, apiMsg.id, apiMsg.content)
 			: "";
+		ensureProfileLoaded(apiMsg.author);
 
 		return {
 			id: apiMsg.id,
@@ -669,7 +681,8 @@
 		</div>
 	</header>
 
-	<div class="messages">
+	{#key channel.id}
+	<div class="messages" in:fade={{ duration: 160 }}>
 		{#if messages.length === 0}
 			<div class="welcome">
 				<div class="welcome-icon">
@@ -688,12 +701,16 @@
 				{/if}
 			</div>
 		{/if}
-		{#key channel.id}
 			{#each messages as message, index (message.id)}
 				<div class="message" class:grouped={isGrouped(index)} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
 					{#if !isGrouped(index)}
-						<div class="avatar" style:background={message.color}>
-							{message.author.slice(0, 2).toUpperCase()}
+						{@const authorAvatarUrl = profileStore.forUser(message.author)?.avatar_url}
+						<div
+							class="avatar"
+							style:background={authorAvatarUrl ? undefined : message.color}
+							style:background-image={authorAvatarUrl ? `url(${resolveUrl(authorAvatarUrl)})` : undefined}
+						>
+							{#if !authorAvatarUrl}{message.author.slice(0, 2).toUpperCase()}{/if}
 						</div>
 					{:else}
 						<div class="avatar-spacer">
@@ -705,13 +722,15 @@
 						{#if message.replyTo}
 							<p class="reply-quote">
 								<Reply size={12} strokeWidth={2} />
-								<span class="reply-author">{message.replyTo.author}</span>
+								<span class="reply-author">{displayNameFor(message.replyTo.author)}</span>
 								<span class="reply-snippet">{message.replyTo.content}</span>
 							</p>
 						{/if}
 						{#if !isGrouped(index)}
+							{@const shownName = displayNameFor(message.author)}
 							<p class="meta">
-								<span class="author" style:color={message.color}>{message.author}</span>
+								<span class="author" style:color={message.color}>{shownName}</span>
+								{#if shownName !== message.author}<span class="author-handle">@{message.author}</span>{/if}
 								<span class="time">{message.time}</span>
 								{#if message.edited}<span class="edited-flag">(edited)</span>{/if}
 								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
@@ -802,13 +821,13 @@
 					</div>
 				</div>
 			{/each}
-		{/key}
 	</div>
+	{/key}
 
 	{#if replyingTo}
 		<div class="reply-banner" transition:fly={{ y: 8, duration: 140 }}>
 			<Reply size={14} strokeWidth={2} />
-			<span>Replying to <strong>{replyingTo.author}</strong></span>
+			<span>Replying to <strong>{displayNameFor(replyingTo.author)}</strong></span>
 			<button class="cancel-reply" onclick={() => (replyingTo = null)}>
 				<X size={14} strokeWidth={2} />
 			</button>
@@ -1038,6 +1057,8 @@
 		font-size: 12px;
 		font-weight: 600;
 		color: var(--void);
+		background-size: cover;
+		background-position: center;
 	}
 
 	.avatar-spacer {
@@ -1079,6 +1100,11 @@
 		font-family: var(--font-mono);
 		font-weight: 600;
 		font-size: 13px;
+	}
+
+	.author-handle {
+		font-size: 11px;
+		color: var(--ink-faint);
 	}
 
 	.time {

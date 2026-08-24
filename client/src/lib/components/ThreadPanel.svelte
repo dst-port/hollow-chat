@@ -11,11 +11,13 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import { renderMarkdown } from "$lib/utils/markdown";
+	import { profileStore } from "$lib/stores/profile.svelte";
 	import {
 		listThreads,
 		listThreadMessages,
 		sendThreadMessage,
 		setThreadArchived,
+		resolveUrl,
 		type ApiThread,
 		type ApiMessage
 	} from "$lib/api/client";
@@ -33,6 +35,15 @@
 	let threadMessages = $state<{ id: string; author: string; content: string; timestamp: string }[]>([]);
 	let draft = $state("");
 	let loading = $state(false);
+
+	function ensureProfileLoaded(username: string) {
+		const token = session.token;
+		if (token && !profileStore.forUser(username)) profileStore.load(token, username);
+	}
+
+	function displayNameFor(username: string): string {
+		return profileStore.forUser(username)?.display_name || username;
+	}
 
 	async function decryptThreadMessage(msg: ApiMessage): Promise<string> {
 		if (!msg.content) return "";

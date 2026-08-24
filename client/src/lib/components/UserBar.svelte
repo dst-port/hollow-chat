@@ -43,7 +43,7 @@
 			<span class="status-dot on-void online"></span>
 		</div>
 		<div class="identity">
-			<p class="username" style:color={profile?.accent_color || undefined}>{username}</p>
+			<p class="username" style:color={profile?.accent_color || undefined}>{profile?.display_name || username}</p>
 			<p class="status">{profile?.status_text || "online"}</p>
 		</div>
 	</button>

@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN status_clear_at TIMESTAMPTZ;

@@ -2,6 +2,8 @@
 	import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 	import ChevronRight from "@lucide/svelte/icons/chevron-right";
 	import Compass from "@lucide/svelte/icons/compass";
+	import Sparkles from "@lucide/svelte/icons/sparkles";
+	import DoorOpen from "@lucide/svelte/icons/door-open";
 	import Modal from "$lib/components/Modal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
@@ -62,12 +64,14 @@
 		<p class="hint">Your server is where you and your friends hang out. Make yours and start talking.</p>
 		<div class="choices">
 			<button class="choice" onclick={() => (step = "create")}>
-				<span>Create My Own</span>
-				<ChevronRight size={16} strokeWidth={2} />
+				<span class="choice-icon create"><Sparkles size={16} strokeWidth={2} /></span>
+				<span class="choice-label">Create My Own</span>
+				<ChevronRight size={16} strokeWidth={2} class="choice-chevron" />
 			</button>
 			<button class="choice" onclick={() => (step = "join")}>
-				<span>Join a Server</span>
-				<ChevronRight size={16} strokeWidth={2} />
+				<span class="choice-icon join"><DoorOpen size={16} strokeWidth={2} /></span>
+				<span class="choice-label">Join a Server</span>
+				<ChevronRight size={16} strokeWidth={2} class="choice-chevron" />
 			</button>
 		</div>
 	{:else if step === "create"}
@@ -133,18 +137,59 @@
 		width: 100%;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		padding: 14px 16px;
+		gap: 12px;
+		padding: 12px 14px;
 		border-radius: 8px;
 		background: var(--sidebar);
+		border: 1px solid transparent;
 		color: var(--ink);
 		font-weight: 600;
 		font-size: 14px;
-		transition: background-color 0.15s ease;
+		transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+	}
+
+	.choice-icon {
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		border-radius: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.choice-icon.create {
+		background: color-mix(in srgb, var(--accent-fill) 22%, transparent);
+		color: var(--accent-fill);
+	}
+
+	.choice-icon.join {
+		background: color-mix(in srgb, var(--online) 20%, transparent);
+		color: var(--online);
+	}
+
+	.choice-label {
+		flex: 1;
+	}
+
+	.choice :global(.choice-chevron) {
+		flex-shrink: 0;
+		color: var(--ink-faint);
+		transition: transform 0.15s ease;
 	}
 
 	.choice:hover {
-		background: var(--hover);
+		background: var(--active);
+		border-color: var(--hairline);
+	}
+
+	.choice:hover :global(.choice-chevron) {
+		transform: translateX(2px);
+		color: var(--ink-dim);
+	}
+
+	.choice:active {
+		transform: scale(0.985);
 	}
 
 	.back {

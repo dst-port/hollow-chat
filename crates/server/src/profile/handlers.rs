@@ -12,6 +12,7 @@ use crate::state::AppState;
 const MAX_BIO_LEN: usize = 190;
 const MAX_STATUS_TEXT_LEN: usize = 128;
 const MAX_PRONOUNS_LEN: usize = 40;
+const MAX_DISPLAY_NAME_LEN: usize = 32;
 
 fn is_hex_color(value: &str) -> bool {
     value.len() == 7
@@ -26,6 +27,7 @@ fn file_url(attachment_id: Uuid, filename: &str) -> String {
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct ProfileDto {
     pub username: String,
+    pub display_name: Option<String>,
     pub bio: Option<String>,
     pub pronouns: Option<String>,
     pub status_text: Option<String>,
@@ -41,6 +43,7 @@ pub struct ProfileDto {
 #[derive(sqlx::FromRow)]
 struct ProfileRow {
     username: String,
+    display_name: Option<String>,
     bio: Option<String>,
     pronouns: Option<String>,
     status_text: Option<String>,
@@ -55,7 +58,9 @@ struct ProfileRow {
 
 async fn load_profile(pool: &sqlx::PgPool, user_id: Uuid) -> Result<ProfileDto, AppError> {
     let row: ProfileRow = sqlx::query_as(
-        "SELECT users.username, users.bio, users.pronouns, users.status_text, \
+        "SELECT users.username, users.display_name, users.bio, users.pronouns, \
+                CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
+                     THEN NULL ELSE users.status_text END AS status_text, \
                 users.accent_color, users.banner_color, users.created_at AS member_since, \
                 users.avatar_attachment_id, avatar.filename AS avatar_filename, \
                 users.banner_attachment_id, banner.filename AS banner_filename \
@@ -71,6 +76,7 @@ async fn load_profile(pool: &sqlx::PgPool, user_id: Uuid) -> Result<ProfileDto, 
 
     Ok(ProfileDto {
         username: row.username,
+        display_name: row.display_name,
         bio: row.bio,
         pronouns: row.pronouns,
         status_text: row.status_text,
@@ -100,11 +106,15 @@ pub async fn get_profile(
 #[derive(Debug, Deserialize)]
 pub struct UpdateProfileRequest {
     #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
     pub bio: Option<String>,
     #[serde(default)]
     pub pronouns: Option<String>,
     #[serde(default)]
     pub status_text: Option<String>,
+    #[serde(default)]
+    pub status_clear_minutes: Option<i64>,
     #[serde(default)]
     pub accent_color: Option<String>,
     #[serde(default)]
@@ -141,27 +151,35 @@ pub async fn update_profile(
     session: AuthSession,
     Json(payload): Json<UpdateProfileRequest>,
 ) -> Result<Json<ProfileDto>, AppError> {
+    let display_name = clean(payload.display_name, MAX_DISPLAY_NAME_LEN)?;
     let bio = clean(payload.bio, MAX_BIO_LEN)?;
     let pronouns = clean(payload.pronouns, MAX_PRONOUNS_LEN)?;
     let status_text = clean(payload.status_text, MAX_STATUS_TEXT_LEN)?;
     let accent_color = clean_color(payload.accent_color)?;
     let banner_color = clean_color(payload.banner_color)?;
+    let clear_minutes = payload.status_clear_minutes.filter(|m| *m >= 0);
 
     sqlx::query(
         "UPDATE users SET \
-            bio = CASE WHEN $1 IS NULL THEN bio WHEN $1 = '' THEN NULL ELSE $1 END, \
-            pronouns = CASE WHEN $2 IS NULL THEN pronouns WHEN $2 = '' THEN NULL ELSE $2 END, \
-            status_text = CASE WHEN $3 IS NULL THEN status_text WHEN $3 = '' THEN NULL ELSE $3 END, \
-            accent_color = CASE WHEN $4 IS NULL THEN accent_color WHEN $4 = '' THEN NULL ELSE $4 END, \
-            banner_color = CASE WHEN $5 IS NULL THEN banner_color WHEN $5 = '' THEN NULL ELSE $5 END \
-         WHERE id = $6",
+            display_name = CASE WHEN $1 IS NULL THEN display_name WHEN $1 = '' THEN NULL ELSE $1 END, \
+            bio = CASE WHEN $2 IS NULL THEN bio WHEN $2 = '' THEN NULL ELSE $2 END, \
+            pronouns = CASE WHEN $3 IS NULL THEN pronouns WHEN $3 = '' THEN NULL ELSE $3 END, \
+            status_text = CASE WHEN $4 IS NULL THEN status_text WHEN $4 = '' THEN NULL ELSE $4 END, \
+            accent_color = CASE WHEN $5 IS NULL THEN accent_color WHEN $5 = '' THEN NULL ELSE $5 END, \
+            banner_color = CASE WHEN $6 IS NULL THEN banner_color WHEN $6 = '' THEN NULL ELSE $6 END, \
+            status_clear_at = CASE WHEN $8::bigint IS NULL THEN status_clear_at \
+                                    WHEN $8::bigint = 0 THEN NULL \
+                                    ELSE now() + make_interval(mins => $8::int) END \
+         WHERE id = $7",
     )
+    .bind(&display_name)
     .bind(&bio)
     .bind(&pronouns)
     .bind(&status_text)
     .bind(&accent_color)
     .bind(&banner_color)
     .bind(session.user_id)
+    .bind(clear_minutes)
     .execute(&state.pool)
     .await?;
 
