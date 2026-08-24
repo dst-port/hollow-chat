@@ -6,6 +6,8 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::permissions::{require_permission, BAN_MEMBERS, KICK_MEMBERS, MANAGE_CHANNELS, MANAGE_SERVER};
+use crate::roles::handlers::{load_member_roles, RoleDto};
 use crate::state::AppState;
 
 fn validate_name(name: &str) -> Result<String, AppError> {
@@ -27,19 +29,6 @@ async fn require_member(pool: &sqlx::PgPool, server_id: Uuid, user_id: Uuid) -> 
     .await?;
 
     exists.map(|_| ()).ok_or(AppError::Unauthorized)
-}
-
-async fn require_owner(pool: &sqlx::PgPool, server_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
-    let owner: Option<(Uuid,)> = sqlx::query_as("SELECT owner_id FROM servers WHERE id = $1")
-        .bind(server_id)
-        .fetch_optional(pool)
-        .await?;
-
-    match owner {
-        Some((owner_id,)) if owner_id == user_id => Ok(()),
-        Some(_) => Err(AppError::Unauthorized),
-        None => Err(AppError::NotFound),
-    }
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -164,7 +153,7 @@ pub async fn rename_server(
     Json(payload): Json<RenameServerRequest>,
 ) -> Result<Json<ServerDto>, AppError> {
     let name = validate_name(&payload.name)?;
-    require_owner(&state.pool, id, session.user_id).await?;
+    require_permission(&state.pool, id, session.user_id, MANAGE_SERVER).await?;
 
     let server: ServerDto = sqlx::query_as(
         "UPDATE servers SET name = $1 WHERE id = $2 RETURNING id, name, owner_id",
@@ -227,7 +216,7 @@ pub async fn create_channel(
     if payload.kind != "text" && payload.kind != "voice" {
         return Err(AppError::InvalidChannelType);
     }
-    require_member(&state.pool, id, session.user_id).await?;
+    require_permission(&state.pool, id, session.user_id, MANAGE_CHANNELS).await?;
 
     let position: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM channels WHERE server_id = $1",
@@ -263,7 +252,7 @@ pub async fn set_slowmode(
     Path((server_id, channel_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<SetSlowmodeRequest>,
 ) -> Result<Json<ChannelDto>, AppError> {
-    require_owner(&state.pool, server_id, session.user_id).await?;
+    require_permission(&state.pool, server_id, session.user_id, MANAGE_CHANNELS).await?;
     let seconds = payload.seconds.clamp(0, 21600);
 
     let channel: ChannelDto = sqlx::query_as(
@@ -280,10 +269,12 @@ pub async fn set_slowmode(
     Ok(Json(channel))
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
 pub struct MemberDto {
     pub id: Uuid,
     pub username: String,
+    pub is_owner: bool,
+    pub roles: Vec<RoleDto>,
 }
 
 pub async fn list_members(
@@ -293,7 +284,13 @@ pub async fn list_members(
 ) -> Result<Json<Vec<MemberDto>>, AppError> {
     require_member(&state.pool, id, session.user_id).await?;
 
-    let members: Vec<MemberDto> = sqlx::query_as(
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        id: Uuid,
+        username: String,
+    }
+
+    let rows: Vec<Row> = sqlx::query_as(
         "SELECT users.id, users.username FROM server_members \
          JOIN users ON users.id = server_members.user_id \
          WHERE server_members.server_id = $1 \
@@ -303,7 +300,138 @@ pub async fn list_members(
     .fetch_all(&state.pool)
     .await?;
 
+    let owner: (Uuid,) = sqlx::query_as("SELECT owner_id FROM servers WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+
+    let user_ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let mut roles_by_user = load_member_roles(&state.pool, id, &user_ids).await?;
+
+    let members = rows
+        .into_iter()
+        .map(|r| MemberDto {
+            is_owner: r.id == owner.0,
+            roles: roles_by_user.remove(&r.id).unwrap_or_default(),
+            id: r.id,
+            username: r.username,
+        })
+        .collect();
+
     Ok(Json(members))
+}
+
+pub async fn kick_member(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((server_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<(), AppError> {
+    require_permission(&state.pool, server_id, session.user_id, KICK_MEMBERS).await?;
+
+    let owner: (Uuid,) = sqlx::query_as("SELECT owner_id FROM servers WHERE id = $1")
+        .bind(server_id)
+        .fetch_one(&state.pool)
+        .await?;
+    if owner.0 == user_id {
+        return Err(AppError::Unauthorized);
+    }
+
+    sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(user_id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(())
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct BanDto {
+    pub user_id: Uuid,
+    pub username: String,
+    pub reason: Option<String>,
+}
+
+pub async fn list_bans(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(server_id): Path<Uuid>,
+) -> Result<Json<Vec<BanDto>>, AppError> {
+    require_permission(&state.pool, server_id, session.user_id, BAN_MEMBERS).await?;
+
+    let bans: Vec<BanDto> = sqlx::query_as(
+        "SELECT server_bans.user_id, users.username, server_bans.reason FROM server_bans \
+         JOIN users ON users.id = server_bans.user_id \
+         WHERE server_bans.server_id = $1 \
+         ORDER BY server_bans.created_at DESC",
+    )
+    .bind(server_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(bans))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BanMemberRequest {
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+pub async fn ban_member(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((server_id, user_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<BanMemberRequest>,
+) -> Result<(), AppError> {
+    require_permission(&state.pool, server_id, session.user_id, BAN_MEMBERS).await?;
+
+    let owner: (Uuid,) = sqlx::query_as("SELECT owner_id FROM servers WHERE id = $1")
+        .bind(server_id)
+        .fetch_one(&state.pool)
+        .await?;
+    if owner.0 == user_id {
+        return Err(AppError::Unauthorized);
+    }
+
+    let mut tx = state.pool.begin().await?;
+
+    sqlx::query(
+        "INSERT INTO server_bans (server_id, user_id, banned_by, reason) VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (server_id, user_id) DO UPDATE SET reason = EXCLUDED.reason",
+    )
+    .bind(server_id)
+    .bind(user_id)
+    .bind(session.user_id)
+    .bind(&payload.reason)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query("DELETE FROM server_members WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+
+    Ok(())
+}
+
+pub async fn unban_member(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((server_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<(), AppError> {
+    require_permission(&state.pool, server_id, session.user_id, BAN_MEMBERS).await?;
+
+    sqlx::query("DELETE FROM server_bans WHERE server_id = $1 AND user_id = $2")
+        .bind(server_id)
+        .bind(user_id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(())
 }
 
 fn generate_invite_code() -> String {
@@ -373,6 +501,17 @@ pub async fn join_server(
             .await?;
 
     let (server_id,) = server_id.ok_or(AppError::NotFound)?;
+
+    let banned: Option<(i32,)> = sqlx::query_as(
+        "SELECT 1 FROM server_bans WHERE server_id = $1 AND user_id = $2",
+    )
+    .bind(server_id)
+    .bind(session.user_id)
+    .fetch_optional(&state.pool)
+    .await?;
+    if banned.is_some() {
+        return Err(AppError::Unauthorized);
+    }
 
     sqlx::query(
         "INSERT INTO server_members (server_id, user_id) VALUES ($1, $2) \

@@ -587,13 +587,126 @@ export function prekeyCount(token: string) {
 	});
 }
 
+export type ApiRole = {
+	id: string;
+	server_id: string;
+	name: string;
+	color: string;
+	permissions: number;
+	position: number;
+};
+
 export type ApiMember = {
 	id: string;
 	username: string;
+	is_owner: boolean;
+	roles: ApiRole[];
 };
 
 export function listMembers(token: string, serverId: string) {
 	return request<ApiMember[]>(`/servers/${serverId}/members`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export const PERMISSIONS = {
+	MANAGE_CHANNELS: 1 << 0,
+	MANAGE_ROLES: 1 << 1,
+	MANAGE_SERVER: 1 << 2,
+	KICK_MEMBERS: 1 << 3,
+	BAN_MEMBERS: 1 << 4,
+	MANAGE_MESSAGES: 1 << 5,
+	CREATE_INVITE: 1 << 6
+} as const;
+
+export const PERMISSION_LABELS: { key: keyof typeof PERMISSIONS; label: string; description: string }[] = [
+	{ key: "MANAGE_CHANNELS", label: "Manage Channels", description: "Create channels and change slowmode" },
+	{ key: "MANAGE_ROLES", label: "Manage Roles", description: "Create roles and assign them to members" },
+	{ key: "MANAGE_SERVER", label: "Manage Server", description: "Rename the server" },
+	{ key: "KICK_MEMBERS", label: "Kick Members", description: "Remove members from the server" },
+	{ key: "BAN_MEMBERS", label: "Ban Members", description: "Ban and unban members" },
+	{ key: "MANAGE_MESSAGES", label: "Manage Messages", description: "Delete and pin others' messages" },
+	{ key: "CREATE_INVITE", label: "Create Invite", description: "Generate an invite link" }
+];
+
+export function listRoles(token: string, serverId: string) {
+	return request<ApiRole[]>(`/servers/${serverId}/roles`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function createRole(token: string, serverId: string, name: string, color: string, permissions: number) {
+	return request<ApiRole>(`/servers/${serverId}/roles`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ name, color, permissions })
+	});
+}
+
+export function updateRole(
+	token: string,
+	serverId: string,
+	roleId: string,
+	patch: { name?: string; color?: string; permissions?: number; position?: number }
+) {
+	return request<ApiRole>(`/servers/${serverId}/roles/${roleId}`, {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify(patch)
+	});
+}
+
+export function deleteRole(token: string, serverId: string, roleId: string) {
+	return request<void>(`/servers/${serverId}/roles/${roleId}`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function assignRole(token: string, serverId: string, userId: string, roleId: string) {
+	return request<void>(`/servers/${serverId}/members/${userId}/roles/${roleId}`, {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function unassignRole(token: string, serverId: string, userId: string, roleId: string) {
+	return request<void>(`/servers/${serverId}/members/${userId}/roles/${roleId}`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function kickMember(token: string, serverId: string, userId: string) {
+	return request<void>(`/servers/${serverId}/members/${userId}/kick`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type ApiBan = {
+	user_id: string;
+	username: string;
+	reason: string | null;
+};
+
+export function listBans(token: string, serverId: string) {
+	return request<ApiBan[]>(`/servers/${serverId}/bans`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function banMember(token: string, serverId: string, userId: string, reason?: string) {
+	return request<void>(`/servers/${serverId}/bans/${userId}`, {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ reason })
+	});
+}
+
+export function unbanMember(token: string, serverId: string, userId: string) {
+	return request<void>(`/servers/${serverId}/bans/${userId}`, {
+		method: "DELETE",
 		headers: { authorization: `Bearer ${token}` }
 	});
 }

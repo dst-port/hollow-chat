@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::permissions::{require_permission, MANAGE_MESSAGES};
 use crate::state::AppState;
 
 const DEFAULT_LIMIT: i64 = 50;
@@ -35,6 +36,14 @@ async fn require_channel_member(
     .await?;
 
     member.map(|_| ()).ok_or(AppError::Unauthorized)
+}
+
+async fn channel_server_id(pool: &sqlx::PgPool, channel_id: Uuid) -> Result<Uuid, AppError> {
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT server_id FROM channels WHERE id = $1")
+        .bind(channel_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.ok_or(AppError::NotFound)?.0)
 }
 
 async fn require_slowmode_clear(
@@ -521,7 +530,11 @@ pub async fn delete_message(
 ) -> Result<(), AppError> {
     require_channel_member(&state.pool, channel_id, session.user_id).await?;
     require_same_channel_message(&state.pool, channel_id, message_id).await?;
-    require_author(&state.pool, message_id, session.user_id).await?;
+
+    if require_author(&state.pool, message_id, session.user_id).await.is_err() {
+        let server_id = channel_server_id(&state.pool, channel_id).await?;
+        require_permission(&state.pool, server_id, session.user_id, MANAGE_MESSAGES).await?;
+    }
 
     sqlx::query("DELETE FROM messages WHERE id = $1")
         .bind(message_id)
@@ -539,6 +552,8 @@ pub async fn set_pinned(
 ) -> Result<(), AppError> {
     require_channel_member(&state.pool, channel_id, session.user_id).await?;
     require_same_channel_message(&state.pool, channel_id, message_id).await?;
+    let server_id = channel_server_id(&state.pool, channel_id).await?;
+    require_permission(&state.pool, server_id, session.user_id, MANAGE_MESSAGES).await?;
 
     sqlx::query("UPDATE messages SET pinned = $1 WHERE id = $2")
         .bind(pinned)

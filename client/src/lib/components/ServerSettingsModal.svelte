@@ -7,10 +7,32 @@
 	import ShieldAlert from "@lucide/svelte/icons/shield-alert";
 	import Hash from "@lucide/svelte/icons/hash";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
+	import ShieldCheck from "@lucide/svelte/icons/shield-check";
+	import Users from "@lucide/svelte/icons/users";
+	import UserX from "@lucide/svelte/icons/user-x";
+	import Plus from "@lucide/svelte/icons/plus";
 	import InviteModal from "$lib/components/InviteModal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
-	import { setSlowmode } from "$lib/api/client";
+	import {
+		setSlowmode,
+		listRoles,
+		createRole,
+		updateRole,
+		deleteRole,
+		assignRole,
+		unassignRole,
+		listMembers,
+		kickMember,
+		listBans,
+		banMember,
+		unbanMember,
+		PERMISSION_LABELS,
+		PERMISSIONS,
+		type ApiRole,
+		type ApiMember,
+		type ApiBan
+	} from "$lib/api/client";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { server, onClose, onLeave }: {
@@ -19,9 +41,166 @@
 		onLeave: () => void;
 	} = $props();
 
-	type Section = "overview" | "channels" | "invites" | "moderation";
+	type Section = "overview" | "channels" | "invites" | "roles" | "members" | "bans" | "moderation";
 	const initialName = server.name;
 	const isOwner = server.ownerId === session.userId;
+
+	let roles = $state<ApiRole[]>([]);
+	let members = $state<ApiMember[]>([]);
+	let bans = $state<ApiBan[]>([]);
+	let newRoleName = $state("");
+
+	async function loadRoles() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			roles = await listRoles(token, server.id);
+		} catch {
+			toast.push("Couldn't load roles");
+		}
+	}
+
+	async function loadMembers() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			members = await listMembers(token, server.id);
+		} catch {
+			toast.push("Couldn't load members");
+		}
+	}
+
+	async function loadBans() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			bans = await listBans(token, server.id);
+		} catch {
+			toast.push("Couldn't load bans");
+		}
+	}
+
+	$effect(() => {
+		if (section === "roles") loadRoles();
+		if (section === "members") {
+			loadRoles();
+			loadMembers();
+		}
+		if (section === "bans") loadBans();
+	});
+
+	async function addRole() {
+		const token = session.token;
+		const name = newRoleName.trim();
+		if (!token || !name) return;
+		try {
+			const role = await createRole(token, server.id, name, "#8a8f98", 0);
+			roles.push(role);
+			newRoleName = "";
+		} catch {
+			toast.push("Couldn't create role");
+		}
+	}
+
+	async function togglePermission(role: ApiRole, bit: number) {
+		const token = session.token;
+		if (!token) return;
+		const next = role.permissions ^ bit;
+		role.permissions = next;
+		try {
+			await updateRole(token, server.id, role.id, { permissions: next });
+		} catch {
+			role.permissions = next ^ bit;
+			toast.push("Couldn't update role");
+		}
+	}
+
+	async function renameRole(role: ApiRole, name: string) {
+		const token = session.token;
+		const trimmed = name.trim();
+		if (!token || !trimmed || trimmed === role.name) return;
+		try {
+			await updateRole(token, server.id, role.id, { name: trimmed });
+			role.name = trimmed;
+		} catch {
+			toast.push("Couldn't rename role");
+		}
+	}
+
+	async function recolorRole(role: ApiRole, color: string) {
+		const token = session.token;
+		if (!token) return;
+		role.color = color;
+		try {
+			await updateRole(token, server.id, role.id, { color });
+		} catch {
+			toast.push("Couldn't recolor role");
+		}
+	}
+
+	async function removeRole(role: ApiRole) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await deleteRole(token, server.id, role.id);
+			roles = roles.filter((r) => r.id !== role.id);
+			for (const member of members) member.roles = member.roles.filter((r) => r.id !== role.id);
+		} catch {
+			toast.push("Couldn't delete role");
+		}
+	}
+
+	async function toggleMemberRole(member: ApiMember, role: ApiRole) {
+		const token = session.token;
+		if (!token) return;
+		const has = member.roles.some((r) => r.id === role.id);
+		try {
+			if (has) {
+				await unassignRole(token, server.id, member.id, role.id);
+				member.roles = member.roles.filter((r) => r.id !== role.id);
+			} else {
+				await assignRole(token, server.id, member.id, role.id);
+				member.roles = [...member.roles, role];
+			}
+		} catch {
+			toast.push("Couldn't update member's roles");
+		}
+	}
+
+	async function kick(member: ApiMember) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await kickMember(token, server.id, member.id);
+			members = members.filter((m) => m.id !== member.id);
+			toast.push(`Kicked ${member.username}`);
+		} catch {
+			toast.push("Couldn't kick member");
+		}
+	}
+
+	async function ban(member: ApiMember) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await banMember(token, server.id, member.id);
+			members = members.filter((m) => m.id !== member.id);
+			toast.push(`Banned ${member.username}`);
+		} catch {
+			toast.push("Couldn't ban member");
+		}
+	}
+
+	async function unban(ban: ApiBan) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await unbanMember(token, server.id, ban.user_id);
+			bans = bans.filter((b) => b.user_id !== ban.user_id);
+		} catch {
+			toast.push("Couldn't unban member");
+		}
+	}
 
 	const SLOWMODE_OPTIONS = [
 		{ label: "Off", seconds: 0 },
@@ -95,6 +274,18 @@
 			<button class="nav-item" class:active={section === "invites"} onclick={() => (section = "invites")}>
 				<UserPlus size={16} strokeWidth={2} />
 				Invites
+			</button>
+			<button class="nav-item" class:active={section === "roles"} onclick={() => (section = "roles")}>
+				<ShieldCheck size={16} strokeWidth={2} />
+				Roles
+			</button>
+			<button class="nav-item" class:active={section === "members"} onclick={() => (section = "members")}>
+				<Users size={16} strokeWidth={2} />
+				Members
+			</button>
+			<button class="nav-item" class:active={section === "bans"} onclick={() => (section = "bans")}>
+				<UserX size={16} strokeWidth={2} />
+				Bans
 			</button>
 			<button class="nav-item" class:active={section === "moderation"} onclick={() => (section = "moderation")}>
 				<ShieldAlert size={16} strokeWidth={2} />
@@ -189,6 +380,105 @@
 					</p>
 					<button class="save" onclick={() => (inviteOpen = true)}>Show Invite Link</button>
 				</div>
+			{:else if section === "roles"}
+				<h2>Roles</h2>
+				<div class="card">
+					<div class="row-input" style="margin-bottom: 4px;">
+						<input type="text" placeholder="New role name" bind:value={newRoleName} maxlength="32" />
+						<button class="save" disabled={!newRoleName.trim()} onclick={addRole}>
+							<Plus size={14} strokeWidth={2.5} />
+							Create
+						</button>
+					</div>
+				</div>
+				{#each roles as role (role.id)}
+					<div class="card role-card">
+						<div class="role-header">
+							<span class="role-swatch" style:background={role.color}></span>
+							<input
+								class="role-name-input"
+								type="text"
+								value={role.name}
+								maxlength="32"
+								onblur={(e) => renameRole(role, e.currentTarget.value)}
+							/>
+							<input
+								class="role-color-input"
+								type="color"
+								value={role.color}
+								onchange={(e) => recolorRole(role, e.currentTarget.value)}
+							/>
+							<button class="icon-danger" title="Delete role" onclick={() => removeRole(role)}>
+								<Trash2 size={14} strokeWidth={2} />
+							</button>
+						</div>
+						<div class="permission-grid">
+							{#each PERMISSION_LABELS as perm (perm.key)}
+								<label class="permission-row">
+									<input
+										type="checkbox"
+										checked={(role.permissions & PERMISSIONS[perm.key]) !== 0}
+										onchange={() => togglePermission(role, PERMISSIONS[perm.key])}
+									/>
+									<span>
+										<span class="permission-label">{perm.label}</span>
+										<span class="permission-desc">{perm.description}</span>
+									</span>
+								</label>
+							{/each}
+						</div>
+					</div>
+				{/each}
+				{#if roles.length === 0}
+					<p class="row-value muted">No roles yet. Members without a role can only send messages and read channels.</p>
+				{/if}
+			{:else if section === "members"}
+				<h2>Members</h2>
+				{#each members as member (member.id)}
+					<div class="card member-card">
+						<div class="member-header">
+							<span class="member-name">
+								{member.username}
+								{#if member.is_owner}<span class="owner-badge">Owner</span>{/if}
+							</span>
+							{#if !member.is_owner}
+								<div class="member-actions">
+									<button class="ghost-small" onclick={() => kick(member)}>Kick</button>
+									<button class="ghost-small danger-text" onclick={() => ban(member)}>Ban</button>
+								</div>
+							{/if}
+						</div>
+						{#if !member.is_owner && roles.length > 0}
+							<div class="role-chips">
+								{#each roles as role (role.id)}
+									<button
+										class="role-chip-toggle"
+										class:active={member.roles.some((r) => r.id === role.id)}
+										style:border-color={role.color}
+										style:color={member.roles.some((r) => r.id === role.id) ? role.color : undefined}
+										onclick={() => toggleMemberRole(member, role)}
+									>
+										{role.name}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			{:else if section === "bans"}
+				<h2>Bans</h2>
+				{#if bans.length === 0}
+					<p class="row-value muted">No banned members.</p>
+				{/if}
+				{#each bans as b (b.user_id)}
+					<div class="card member-card">
+						<div class="member-header">
+							<span class="member-name">{b.username}</span>
+							<button class="ghost-small" onclick={() => unban(b)}>Unban</button>
+						</div>
+						{#if b.reason}<p class="row-value muted">{b.reason}</p>{/if}
+					</div>
+				{/each}
 			{:else}
 				<h2>Moderation</h2>
 				<div class="card">
@@ -475,6 +765,176 @@
 		color: var(--ink);
 		font-family: var(--font-body);
 		font-size: 13px;
+	}
+
+	.role-card {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.role-header {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.role-swatch {
+		width: 14px;
+		height: 14px;
+		border-radius: 4px;
+		flex-shrink: 0;
+	}
+
+	.role-name-input {
+		flex: 1;
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		padding: 8px 10px;
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.role-name-input:focus {
+		outline: none;
+		border-color: var(--ink-dim);
+	}
+
+	.role-color-input {
+		width: 32px;
+		height: 32px;
+		flex-shrink: 0;
+		padding: 0;
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		background: none;
+	}
+
+	.icon-danger {
+		flex-shrink: 0;
+		display: flex;
+		padding: 8px;
+		border-radius: 6px;
+		color: var(--ink-faint);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.icon-danger:hover {
+		background: rgba(216, 60, 62, 0.12);
+		color: var(--danger);
+	}
+
+	.permission-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.permission-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		font-size: 13px;
+	}
+
+	.permission-row input {
+		margin-top: 3px;
+		flex-shrink: 0;
+	}
+
+	.permission-label {
+		display: block;
+		font-weight: 600;
+		color: var(--ink);
+	}
+
+	.permission-desc {
+		display: block;
+		font-size: 12px;
+		color: var(--ink-faint);
+	}
+
+	.member-card {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.member-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+
+	.member-name {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--ink);
+	}
+
+	.owner-badge {
+		padding: 2px 8px;
+		border-radius: 999px;
+		background: var(--active);
+		color: var(--ink-faint);
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
+
+	.member-actions {
+		display: flex;
+		gap: 6px;
+	}
+
+	.ghost-small {
+		padding: 6px 10px;
+		border-radius: 6px;
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--ink-dim);
+	}
+
+	.ghost-small:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.ghost-small.danger-text {
+		color: var(--danger);
+	}
+
+	.ghost-small.danger-text:hover {
+		background: rgba(216, 60, 62, 0.12);
+		color: var(--danger);
+	}
+
+	.role-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.role-chip-toggle {
+		padding: 4px 10px;
+		border-radius: 999px;
+		border: 1px solid var(--hairline);
+		background: none;
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--ink-faint);
+		transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.role-chip-toggle.active {
+		background: var(--active);
 	}
 
 	.confirm-overlay {

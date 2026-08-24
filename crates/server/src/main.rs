@@ -11,7 +11,9 @@ mod friends;
 mod keys;
 mod messages;
 mod password;
+mod permissions;
 mod rate_limit;
+mod roles;
 mod servers;
 mod session;
 mod social;
@@ -76,6 +78,7 @@ async fn main() {
         .nest("/auth", auth::router(state.clone()))
         .nest("/emoji", emoji::router(state.clone()))
         .nest("/servers", servers::router(state.clone()))
+        .nest("/servers", roles::router(state.clone()))
         .nest("/channels", messages::router(state.clone()))
         .nest("/friends", friends::router(state.clone()))
         .nest("/dms", dms::router(state.clone()))
