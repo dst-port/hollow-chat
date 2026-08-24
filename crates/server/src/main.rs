@@ -15,6 +15,7 @@ mod keys;
 mod messages;
 mod password;
 mod permissions;
+mod profile;
 mod rate_limit;
 mod roles;
 mod sender_keys;
@@ -101,6 +102,7 @@ async fn main() {
         .nest("/dms", dms::router(state.clone()))
         .nest("/keys", keys::router(state.clone()))
         .nest("/badges", badges::router(state.clone()))
+        .nest("/profile", profile::router(state.clone()))
         .nest("/files", attachments::router(state.clone()))
         .nest("/billing", billing::router(state.clone()))
         .nest("/blocks", blocks::router(state.clone()))

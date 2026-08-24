@@ -6,6 +6,9 @@
 	import Settings from "@lucide/svelte/icons/settings";
 	import SettingsModal from "$lib/components/SettingsModal.svelte";
 	import OwnProfilePopover from "$lib/components/OwnProfilePopover.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
+	import * as api from "$lib/api/client";
 
 	let { username, onLogout }: {
 		username: string;
@@ -15,18 +18,33 @@
 	let muted = $state(false);
 	let deafened = $state(false);
 	let settingsOpen = $state(false);
+	let settingsInitialSection = $state<"account" | "profile">("account");
 	let profileAnchor = $state<HTMLElement | null>(null);
+
+	function openEditProfile() {
+		settingsInitialSection = "profile";
+		settingsOpen = true;
+	}
+
+	const profile = $derived(profileStore.forUser(username));
+
+	$effect(() => {
+		const token = session.token;
+		if (token) profileStore.load(token, username);
+	});
 </script>
 
 <div class="user-panel">
 	<button class="identity-trigger" onclick={(e) => (profileAnchor = profileAnchor ? null : (e.currentTarget as HTMLElement))}>
 		<div class="status-avatar">
-			<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
+			<div class="avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url)})` : undefined}>
+				{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+			</div>
 			<span class="status-dot on-void online"></span>
 		</div>
 		<div class="identity">
-			<p class="username">{username}</p>
-			<p class="status">online</p>
+			<p class="username" style:color={profile?.accent_color || undefined}>{username}</p>
+			<p class="status">{profile?.status_text || "online"}</p>
 		</div>
 	</button>
 	<div class="controls">
@@ -46,7 +64,7 @@
 		>
 			{#if deafened}<HeadphoneOff size={15} strokeWidth={2} />{:else}<Headphones size={15} strokeWidth={2} />{/if}
 		</button>
-		<button class="icon-button" title="User settings" onclick={() => (settingsOpen = true)}>
+		<button class="icon-button" title="User settings" onclick={() => { settingsInitialSection = "account"; settingsOpen = true; }}>
 			<Settings size={15} strokeWidth={2} />
 		</button>
 	</div>
@@ -56,13 +74,13 @@
 	<OwnProfilePopover
 		{username}
 		anchor={profileAnchor}
-		onEditProfile={() => (settingsOpen = true)}
+		onEditProfile={openEditProfile}
 		onClose={() => (profileAnchor = null)}
 	/>
 {/if}
 
 {#if settingsOpen}
-	<SettingsModal {username} onClose={() => (settingsOpen = false)} onLogout={onLogout} />
+	<SettingsModal {username} initialSection={settingsInitialSection} onClose={() => (settingsOpen = false)} onLogout={onLogout} />
 {/if}
 
 <style>
@@ -95,7 +113,7 @@
 		width: 36px;
 		height: 36px;
 		border-radius: 50%;
-		background: var(--accent-fill);
+		background: var(--accent-fill) center/cover;
 		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;

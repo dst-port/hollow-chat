@@ -6,7 +6,9 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
 	import Badges from "$lib/components/Badges.svelte";
+	import * as api from "$lib/api/client";
 
 	let { username, anchor, onEditProfile, onClose }: {
 		username: string;
@@ -17,8 +19,12 @@
 
 	$effect(() => {
 		const token = session.token;
-		if (token) badgeStore.loadForUser(token, username);
+		if (!token) return;
+		badgeStore.loadForUser(token, username);
+		profileStore.load(token, username);
 	});
+
+	const profile = $derived(profileStore.forUser(username));
 
 	const POPOVER_WIDTH = 260;
 
@@ -54,21 +60,27 @@
 	style:width={`${POPOVER_WIDTH}px`}
 	transition:fly={{ y: 6, duration: 140 }}
 >
-	<div class="banner"></div>
+	<div
+		class="banner"
+		style:background={profile?.banner_url ? `url(${api.resolveUrl(profile.banner_url)}) center/cover` : (profile?.banner_color ?? undefined)}
+	></div>
 	<div class="avatar-row status-avatar">
-		<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
+		<div class="avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url)})` : undefined}>
+			{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+		</div>
 		<span class="status-dot on-panel online"></span>
 	</div>
 	<div class="body">
 		<p class="name-row">
-			<span class="name">{username}</span>
+			<span class="name" style:color={profile?.accent_color || undefined}>{username}</span>
 			<Badges badges={badgeStore.forUser(username)} />
 		</p>
-		<p class="status">online</p>
+		{#if profile?.pronouns}<p class="pronouns">{profile.pronouns}</p>{/if}
+		<p class="status">{profile?.status_text || "online"}</p>
 
 		<div class="bio">
 			<p class="bio-label">About me</p>
-			<p class="bio-text">No bio yet.</p>
+			<p class="bio-text">{profile?.bio || "No bio yet."}</p>
 		</div>
 
 		<button class="action" onclick={editProfile}>
@@ -107,7 +119,7 @@
 		height: 56px;
 		border: 4px solid var(--panel);
 		border-radius: 50%;
-		background: var(--accent-fill);
+		background: var(--accent-fill) center/cover;
 		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;
@@ -115,6 +127,12 @@
 		font-family: var(--font-body);
 		font-weight: 700;
 		font-size: 16px;
+	}
+
+	.pronouns {
+		margin: 1px 0 0;
+		font-size: 11px;
+		color: var(--ink-faint);
 	}
 
 	.status-dot {

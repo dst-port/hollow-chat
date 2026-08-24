@@ -52,6 +52,10 @@ export function fileUrl(id: string, filename: string): string {
 	return `${BASE_URL}/files/${id}/${encodeURIComponent(filename)}`;
 }
 
+export function resolveUrl(path: string): string {
+	return `${BASE_URL}${path}`;
+}
+
 export async function uploadFile(token: string, file: File): Promise<ApiAttachment> {
 	const form = new FormData();
 	form.append("file", file, file.name);
@@ -855,6 +859,70 @@ export function badgeCatalog(token: string) {
 
 export function userBadges(token: string, username: string) {
 	return request<string[]>(`/badges/${encodeURIComponent(username)}`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type ApiProfile = {
+	username: string;
+	bio: string | null;
+	pronouns: string | null;
+	status_text: string | null;
+	accent_color: string | null;
+	banner_color: string | null;
+	avatar_url: string | null;
+	banner_url: string | null;
+	member_since: string;
+};
+
+export function fetchProfile(token: string, username: string) {
+	return request<ApiProfile>(`/profile/${encodeURIComponent(username)}`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type UpdateProfileBody = {
+	bio?: string;
+	pronouns?: string;
+	status_text?: string;
+	accent_color?: string;
+	banner_color?: string;
+};
+
+export function updateProfile(token: string, body: UpdateProfileBody) {
+	return request<ApiProfile>("/profile", {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify(body)
+	});
+}
+
+export function setAvatar(token: string, attachmentId: string) {
+	return request<ApiProfile>("/profile/avatar", {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ attachment_id: attachmentId })
+	});
+}
+
+export function clearAvatar(token: string) {
+	return request<ApiProfile>("/profile/avatar", {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function setBanner(token: string, attachmentId: string) {
+	return request<ApiProfile>("/profile/banner", {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ attachment_id: attachmentId })
+	});
+}
+
+export function clearBanner(token: string) {
+	return request<ApiProfile>("/profile/banner", {
+		method: "DELETE",
 		headers: { authorization: `Bearer ${token}` }
 	});
 }

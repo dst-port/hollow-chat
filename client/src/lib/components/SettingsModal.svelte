@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { fade, scale } from "svelte/transition";
+	import { fade, scale, fly } from "svelte/transition";
 	import { cubicOut } from "svelte/easing";
 	import X from "@lucide/svelte/icons/x";
 	import UserRound from "@lucide/svelte/icons/user-round";
+	import UserPen from "@lucide/svelte/icons/user-pen";
 	import ShieldCheck from "@lucide/svelte/icons/shield-check";
 	import Bell from "@lucide/svelte/icons/bell";
 	import Palette from "@lucide/svelte/icons/palette";
+	import Accessibility from "@lucide/svelte/icons/accessibility";
 	import Monitor from "@lucide/svelte/icons/monitor";
 	import LogOut from "@lucide/svelte/icons/log-out";
 	import CreditCard from "@lucide/svelte/icons/credit-card";
@@ -14,6 +16,8 @@
 	import Copy from "@lucide/svelte/icons/copy";
 	import ShieldPlus from "@lucide/svelte/icons/shield-plus";
 	import Smartphone from "@lucide/svelte/icons/smartphone";
+	import ImagePlus from "@lucide/svelte/icons/image-plus";
+	import Pencil from "@lucide/svelte/icons/pencil";
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import QRCode from "qrcode";
 	import { renameLocalIdentity } from "$lib/crypto/identity";
@@ -22,16 +26,28 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { deviceLink } from "$lib/devicelink/link.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
+	import { badgeStore } from "$lib/stores/badges.svelte";
+	import Badges from "$lib/components/Badges.svelte";
 	import * as api from "$lib/api/client";
 
-	let { username, onClose, onLogout }: {
+	let { username, onClose, onLogout, initialSection = "account" }: {
 		username: string;
 		onClose: () => void;
 		onLogout: () => void;
+		initialSection?: Section;
 	} = $props();
 
-	type Section = "account" | "privacy" | "notifications" | "appearance" | "sessions" | "billing";
-	let section = $state<Section>("account");
+	type Section =
+		| "profile"
+		| "account"
+		| "privacy"
+		| "notifications"
+		| "appearance"
+		| "accessibility"
+		| "sessions"
+		| "billing";
+	let section = $state<Section>(initialSection);
 
 	let billing = $state<api.BillingStatus | null>(null);
 	let checkoutLoading = $state(false);
@@ -208,10 +224,120 @@
 			.catch(() => toast.push("Couldn't unblock"));
 	}
 
+	let bioDraft = $state("");
+	let pronounsDraft = $state("");
+	let statusTextDraft = $state("");
+	let accentColorDraft = $state("#5b96c9");
+	let bannerColorDraft = $state("#2b2d31");
+	let profileSaving = $state(false);
+	let avatarUploading = $state(false);
+	let bannerUploading = $state(false);
+	let avatarInput: HTMLInputElement | undefined;
+	let bannerInput: HTMLInputElement | undefined;
+
+	function syncProfileDrafts() {
+		const profile = profileStore.forUser(username);
+		if (!profile) return;
+		bioDraft = profile.bio ?? "";
+		pronounsDraft = profile.pronouns ?? "";
+		statusTextDraft = profile.status_text ?? "";
+		accentColorDraft = profile.accent_color ?? "#5b96c9";
+		bannerColorDraft = profile.banner_color ?? "#2b2d31";
+	}
+
+	async function loadOwnProfile() {
+		const token = session.token;
+		if (!token) return;
+		await profileStore.load(token, username);
+		syncProfileDrafts();
+	}
+
+	async function saveProfile() {
+		const token = session.token;
+		if (!token) return;
+		profileSaving = true;
+		try {
+			const updated = await api.updateProfile(token, {
+				bio: bioDraft,
+				pronouns: pronounsDraft,
+				status_text: statusTextDraft,
+				accent_color: accentColorDraft,
+				banner_color: bannerColorDraft
+			});
+			profileStore.set(updated);
+			toast.push("Profile saved");
+		} catch {
+			toast.push("Couldn't save profile");
+		} finally {
+			profileSaving = false;
+		}
+	}
+
+	async function onAvatarChosen(event: Event) {
+		const token = session.token;
+		const file = (event.target as HTMLInputElement).files?.[0];
+		if (!token || !file) return;
+		avatarUploading = true;
+		try {
+			const attachment = await api.uploadFile(token, file);
+			const updated = await api.setAvatar(token, attachment.id);
+			profileStore.set(updated);
+		} catch {
+			toast.push("Couldn't update avatar");
+		} finally {
+			avatarUploading = false;
+			if (avatarInput) avatarInput.value = "";
+		}
+	}
+
+	async function removeAvatar() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			profileStore.set(await api.clearAvatar(token));
+		} catch {
+			toast.push("Couldn't remove avatar");
+		}
+	}
+
+	async function onBannerChosen(event: Event) {
+		const token = session.token;
+		const file = (event.target as HTMLInputElement).files?.[0];
+		if (!token || !file) return;
+		bannerUploading = true;
+		try {
+			const attachment = await api.uploadFile(token, file);
+			const updated = await api.setBanner(token, attachment.id);
+			profileStore.set(updated);
+		} catch {
+			toast.push("Couldn't update banner");
+		} finally {
+			bannerUploading = false;
+			if (bannerInput) bannerInput.value = "";
+		}
+	}
+
+	async function removeBanner() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			profileStore.set(await api.clearBanner(token));
+		} catch {
+			toast.push("Couldn't remove banner");
+		}
+	}
+
+	$effect(() => {
+		if (session.token) loadOwnProfile();
+	});
+
 	$effect(() => {
 		if (section === "sessions" && session.token) loadSessions();
 		if (section === "privacy" && session.token) loadBlocked();
 		if (section === "account" && session.token) loadTotpStatus();
+		if (section === "profile" && session.token) {
+			badgeStore.loadForUser(session.token, username);
+		}
 	});
 
 	$effect(() => {
@@ -330,7 +456,21 @@
 		transition:scale={{ duration: 180, start: 0.97, easing: cubicOut }}
 	>
 		<nav class="nav">
+			<button class="nav-identity" onclick={() => (section = "profile")}>
+				<div class="nav-avatar" style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!)})` : undefined}>
+					{#if !profileStore.forUser(username)?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+				</div>
+				<div class="nav-identity-text">
+					<p class="nav-identity-name">{username}</p>
+					<p class="nav-identity-edit"><Pencil size={10} strokeWidth={2.5} />Edit Profile</p>
+				</div>
+			</button>
+
 			<p class="nav-label">User Settings</p>
+			<button class="nav-item" class:active={section === "profile"} onclick={() => (section = "profile")}>
+				<UserPen size={16} strokeWidth={2} />
+				Profile
+			</button>
 			<button class="nav-item" class:active={section === "account"} onclick={() => (section = "account")}>
 				<UserRound size={16} strokeWidth={2} />
 				My Account
@@ -343,14 +483,22 @@
 				<Bell size={16} strokeWidth={2} />
 				Notifications
 			</button>
-			<button class="nav-item" class:active={section === "appearance"} onclick={() => (section = "appearance")}>
-				<Palette size={16} strokeWidth={2} />
-				Appearance
-			</button>
 			<button class="nav-item" class:active={section === "sessions"} onclick={() => (section = "sessions")}>
 				<Monitor size={16} strokeWidth={2} />
 				Devices
 			</button>
+
+			<p class="nav-label">Experience</p>
+			<button class="nav-item" class:active={section === "appearance"} onclick={() => (section = "appearance")}>
+				<Palette size={16} strokeWidth={2} />
+				Appearance
+			</button>
+			<button class="nav-item" class:active={section === "accessibility"} onclick={() => (section = "accessibility")}>
+				<Accessibility size={16} strokeWidth={2} />
+				Accessibility
+			</button>
+
+			<p class="nav-label">Billing</p>
 			<button class="nav-item" class:active={section === "billing"} onclick={() => (section = "billing")}>
 				<CreditCard size={16} strokeWidth={2} />
 				Billing
@@ -369,7 +517,95 @@
 				<X size={20} strokeWidth={2} />
 			</button>
 
-			{#if section === "account"}
+			{#if section === "profile"}
+				{@const ownBadges = badgeStore.forUser(username)}
+				<h2>Profile</h2>
+
+				<div class="card no-pad" in:fade={{ duration: 140 }}>
+					<div
+						class="preview-banner"
+						style:background={profileStore.forUser(username)?.banner_url
+							? `url(${api.resolveUrl(profileStore.forUser(username)!.banner_url!)}) center/cover`
+							: bannerColorDraft}
+					></div>
+					<div class="preview-body">
+						<div class="preview-avatar-row">
+							<div
+								class="preview-avatar"
+								style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!)})` : undefined}
+							>
+								{#if !profileStore.forUser(username)?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+							</div>
+							<div class="preview-image-actions">
+								<input bind:this={avatarInput} type="file" accept="image/*" hidden onchange={onAvatarChosen} />
+								<button class="ghost small" onclick={() => avatarInput?.click()} disabled={avatarUploading}>
+									<ImagePlus size={13} strokeWidth={2} />
+									{avatarUploading ? "Uploading…" : "Change Avatar"}
+								</button>
+								{#if profileStore.forUser(username)?.avatar_url}
+									<button class="ghost small danger-text" onclick={removeAvatar}>Remove</button>
+								{/if}
+							</div>
+						</div>
+
+						<p class="preview-name">
+							{username}
+							{#if ownBadges.length > 0}<Badges badges={ownBadges} />{/if}
+						</p>
+						{#if pronounsDraft}<p class="preview-pronouns">{pronounsDraft}</p>{/if}
+						{#if statusTextDraft}<p class="preview-status">{statusTextDraft}</p>{/if}
+
+						<div class="preview-image-actions" style="margin-top: 10px;">
+							<input bind:this={bannerInput} type="file" accept="image/*" hidden onchange={onBannerChosen} />
+							<button class="ghost small" onclick={() => bannerInput?.click()} disabled={bannerUploading}>
+								<ImagePlus size={13} strokeWidth={2} />
+								{bannerUploading ? "Uploading…" : "Change Banner"}
+							</button>
+							{#if profileStore.forUser(username)?.banner_url}
+								<button class="ghost small danger-text" onclick={removeBanner}>Remove</button>
+							{/if}
+						</div>
+					</div>
+				</div>
+
+				<div class="card">
+					<label class="field">
+						About Me
+						<textarea class="inline-textarea" bind:value={bioDraft} maxlength="190" rows="3" placeholder="Tell people a bit about yourself"></textarea>
+					</label>
+					<label class="field" style="margin-top: 14px;">
+						Pronouns
+						<input class="inline-input" type="text" bind:value={pronounsDraft} maxlength="40" placeholder="they/them" />
+					</label>
+					<label class="field" style="margin-top: 14px;">
+						Custom Status
+						<input class="inline-input" type="text" bind:value={statusTextDraft} maxlength="128" placeholder="What's happening?" />
+					</label>
+				</div>
+
+				<div class="card">
+					<div class="row">
+						<div>
+							<p class="row-label">Accent Color</p>
+							<p class="row-value muted">Colors your name in profiles and popovers.</p>
+						</div>
+						<input class="color-swatch" type="color" bind:value={accentColorDraft} />
+					</div>
+					<div class="row">
+						<div>
+							<p class="row-label">Banner Color</p>
+							<p class="row-value muted">Used when you don't have a banner image.</p>
+						</div>
+						<input class="color-swatch" type="color" bind:value={bannerColorDraft} />
+					</div>
+				</div>
+
+				<div class="row-actions" style="justify-content: flex-end;">
+					<button class="primary" onclick={saveProfile} disabled={profileSaving}>
+						{profileSaving ? "Saving…" : "Save Changes"}
+					</button>
+				</div>
+			{:else if section === "account"}
 				<h2>My Account</h2>
 
 				<div class="card">
@@ -705,6 +941,16 @@
 							<span class="track"><span class="thumb"></span></span>
 						</label>
 					</div>
+				</div>
+
+				<div class="card">
+					<p class="row-label">Theme</p>
+					<p class="row-value muted">HollowChat ships with one neutral theme. More are on the way.</p>
+				</div>
+			{:else if section === "accessibility"}
+				<h2>Accessibility</h2>
+
+				<div class="card">
 					<div class="switch-row">
 						<div>
 							<p class="row-label">Reduce motion</p>
@@ -715,11 +961,6 @@
 							<span class="track"><span class="thumb"></span></span>
 						</label>
 					</div>
-				</div>
-
-				<div class="card">
-					<p class="row-label">Theme</p>
-					<p class="row-value muted">HollowChat ships with one neutral theme. More are on the way.</p>
 				</div>
 			{:else if section === "sessions"}
 				<h2>Devices</h2>
@@ -1209,5 +1450,165 @@
 	.switch input:checked + .track .thumb {
 		transform: translateX(18px);
 		background: var(--ink);
+	}
+
+	.nav-identity {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 6px;
+		margin-bottom: 16px;
+		border-radius: 8px;
+		text-align: left;
+		transition: background-color 0.15s ease;
+	}
+
+	.nav-identity:hover {
+		background: var(--hover);
+	}
+
+	.nav-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: var(--accent-fill) center/cover;
+		color: var(--accent-fill-ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-body);
+		font-weight: 700;
+		font-size: 12px;
+		flex-shrink: 0;
+	}
+
+	.nav-identity-text {
+		min-width: 0;
+	}
+
+	.nav-identity-name {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--ink);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.nav-identity-edit {
+		margin: 1px 0 0;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 11px;
+		color: var(--ink-faint);
+	}
+
+	.card.no-pad {
+		padding: 0;
+		overflow: hidden;
+	}
+
+	.preview-banner {
+		height: 80px;
+		background: var(--accent-soft);
+	}
+
+	.preview-body {
+		padding: 0 20px 20px;
+	}
+
+	.preview-avatar-row {
+		display: flex;
+		align-items: flex-end;
+		gap: 12px;
+		margin-top: -28px;
+	}
+
+	.preview-avatar {
+		width: 68px;
+		height: 68px;
+		border-radius: 50%;
+		border: 4px solid var(--sidebar);
+		background: var(--accent-fill) center/cover;
+		color: var(--accent-fill-ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-body);
+		font-weight: 700;
+		font-size: 20px;
+		flex-shrink: 0;
+	}
+
+	.preview-image-actions {
+		display: flex;
+		gap: 6px;
+		margin-bottom: 6px;
+		flex-wrap: wrap;
+	}
+
+	.ghost.small {
+		padding: 6px 10px;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 11px;
+		background: var(--panel);
+	}
+
+	.ghost.danger-text {
+		color: var(--danger);
+	}
+
+	.preview-name {
+		margin: 12px 0 0;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--font-mono);
+		font-weight: 700;
+		font-size: 16px;
+		color: var(--ink);
+	}
+
+	.preview-pronouns {
+		margin: 2px 0 0;
+		font-size: 12px;
+		color: var(--ink-faint);
+	}
+
+	.preview-status {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: var(--ink-dim);
+	}
+
+	.inline-textarea {
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		padding: 10px;
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 13px;
+		resize: vertical;
+		min-height: 60px;
+	}
+
+	.inline-textarea:focus {
+		outline: none;
+		border-color: var(--ink-dim);
+	}
+
+	.color-swatch {
+		width: 40px;
+		height: 32px;
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		background: none;
+		padding: 2px;
+		flex-shrink: 0;
 	}
 </style>

@@ -137,6 +137,9 @@ pub async fn download(
              JOIN dm_channels ON dm_channels.id = dm_messages.dm_channel_id \
              WHERE dm_messages.attachment_id = $1 \
                AND (dm_channels.user_a = $2 OR dm_channels.user_b = $2) \
+             UNION \
+             SELECT 1 FROM users \
+             WHERE users.avatar_attachment_id = $1 OR users.banner_attachment_id = $1 \
              LIMIT 1",
         )
         .bind(id)

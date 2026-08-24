@@ -39,6 +39,8 @@ pub enum AppError {
     InvalidAttachment,
     #[error("attachment not found")]
     AttachmentNotFound,
+    #[error("invalid profile field")]
+    InvalidProfileField,
     #[error("billing is not configured on this server")]
     BillingNotConfigured,
     #[error("billing provider error")]
@@ -81,6 +83,7 @@ impl IntoResponse for AppError {
             AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::InvalidAttachment => StatusCode::BAD_REQUEST,
             AppError::AttachmentNotFound => StatusCode::NOT_FOUND,
+            AppError::InvalidProfileField => StatusCode::BAD_REQUEST,
             AppError::BillingNotConfigured => StatusCode::SERVICE_UNAVAILABLE,
             AppError::BillingProvider => StatusCode::BAD_GATEWAY,
             AppError::InviteGenerationFailed => StatusCode::INTERNAL_SERVER_ERROR,
