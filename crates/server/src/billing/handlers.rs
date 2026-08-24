@@ -6,8 +6,11 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::auth::AuthSession;
+use crate::badges;
 use crate::error::AppError;
 use crate::state::AppState;
+
+const SUPPORTER_BADGE: &str = "supporter";
 
 const LAVA_API_BASE: &str = "https://gate.lava.top";
 
@@ -179,6 +182,12 @@ pub async fn webhook(
         .bind(user_id)
         .execute(&state.pool)
         .await?;
+
+    if tier == "premium" {
+        badges::award(&state.pool, user_id, SUPPORTER_BADGE).await?;
+    } else {
+        badges::revoke(&state.pool, user_id, SUPPORTER_BADGE).await?;
+    }
 
     Ok(())
 }

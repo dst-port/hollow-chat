@@ -1,5 +1,6 @@
 mod attachments;
 mod auth;
+mod badges;
 mod billing;
 mod blocks;
 mod calls;
@@ -99,6 +100,7 @@ async fn main() {
         .nest("/friends", friends::router(state.clone()))
         .nest("/dms", dms::router(state.clone()))
         .nest("/keys", keys::router(state.clone()))
+        .nest("/badges", badges::router(state.clone()))
         .nest("/files", attachments::router(state.clone()))
         .nest("/billing", billing::router(state.clone()))
         .nest("/blocks", blocks::router(state.clone()))

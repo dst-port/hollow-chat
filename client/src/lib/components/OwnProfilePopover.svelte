@@ -4,6 +4,9 @@
 	import IdCard from "@lucide/svelte/icons/id-card";
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import { badgeStore } from "$lib/stores/badges.svelte";
+	import Badges from "$lib/components/Badges.svelte";
 
 	let { username, anchor, onEditProfile, onClose }: {
 		username: string;
@@ -11,6 +14,11 @@
 		onEditProfile: () => void;
 		onClose: () => void;
 	} = $props();
+
+	$effect(() => {
+		const token = session.token;
+		if (token) badgeStore.loadForUser(token, username);
+	});
 
 	const POPOVER_WIDTH = 260;
 
@@ -52,7 +60,10 @@
 		<span class="status-dot on-panel online"></span>
 	</div>
 	<div class="body">
-		<p class="name">{username}</p>
+		<p class="name-row">
+			<span class="name">{username}</span>
+			<Badges badges={badgeStore.forUser(username)} />
+		</p>
 		<p class="status">online</p>
 
 		<div class="bio">
@@ -115,8 +126,15 @@
 		padding: 12px 16px 16px;
 	}
 
-	.name {
+	.name-row {
 		margin: 0;
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.name {
 		font-family: var(--font-mono);
 		font-weight: 700;
 		font-size: 15px;

@@ -840,3 +840,21 @@ export function sendMessage(
 		body: JSON.stringify({ content, attachment_id: attachmentId, reply_to_id: replyToId })
 	});
 }
+
+export type ApiBadge = {
+	slug: string;
+	label: string;
+	description: string;
+};
+
+export function badgeCatalog(token: string) {
+	return request<ApiBadge[]>("/badges", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function userBadges(token: string, username: string) {
+	return request<string[]>(`/badges/${encodeURIComponent(username)}`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
