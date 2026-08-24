@@ -5,9 +5,12 @@
 	import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 	import UserPlus from "@lucide/svelte/icons/user-plus";
 	import ShieldAlert from "@lucide/svelte/icons/shield-alert";
+	import Hash from "@lucide/svelte/icons/hash";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import InviteModal from "$lib/components/InviteModal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import { setSlowmode } from "$lib/api/client";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { server, onClose, onLeave }: {
@@ -16,13 +19,37 @@
 		onLeave: () => void;
 	} = $props();
 
-	type Section = "overview" | "invites" | "moderation";
+	type Section = "overview" | "channels" | "invites" | "moderation";
 	const initialName = server.name;
+	const isOwner = server.ownerId === session.userId;
+
+	const SLOWMODE_OPTIONS = [
+		{ label: "Off", seconds: 0 },
+		{ label: "5s", seconds: 5 },
+		{ label: "10s", seconds: 10 },
+		{ label: "30s", seconds: 30 },
+		{ label: "1m", seconds: 60 },
+		{ label: "5m", seconds: 300 },
+		{ label: "15m", seconds: 900 },
+		{ label: "1h", seconds: 3600 }
+	];
 
 	let section = $state<Section>("overview");
 	let name = $state(initialName);
 	let inviteOpen = $state(false);
 	let confirmDelete = $state(false);
+
+	async function changeSlowmode(channelId: string, seconds: number) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await setSlowmode(token, server.id, channelId, seconds);
+			const channel = server.channels.find((c) => c.id === channelId);
+			if (channel) channel.slowmodeSeconds = seconds;
+		} catch {
+			toast.push("Couldn't update slowmode");
+		}
+	}
 
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key === "Escape") onClose();
@@ -60,6 +87,10 @@
 			<button class="nav-item" class:active={section === "overview"} onclick={() => (section = "overview")}>
 				<LayoutGrid size={16} strokeWidth={2} />
 				Overview
+			</button>
+			<button class="nav-item" class:active={section === "channels"} onclick={() => (section = "channels")}>
+				<Hash size={16} strokeWidth={2} />
+				Channels
 			</button>
 			<button class="nav-item" class:active={section === "invites"} onclick={() => (section = "invites")}>
 				<UserPlus size={16} strokeWidth={2} />
@@ -118,6 +149,36 @@
 							<p class="row-value muted">{server.channels.length} total</p>
 						</div>
 					</div>
+				</div>
+			{:else if section === "channels"}
+				<h2>Channels</h2>
+				<div class="card">
+					<p class="row-label">Slowmode</p>
+					<p class="row-value muted" style="margin-bottom: 12px;">
+						Limit how often each member can send a message in a text channel.
+					</p>
+					{#each server.channels.filter((c) => c.type === "text") as channel (channel.id)}
+						<div class="row slowmode-row">
+							<span class="channel-name">
+								<Hash size={14} strokeWidth={2} />
+								{channel.name}
+							</span>
+							{#if isOwner}
+								<select
+									value={channel.slowmodeSeconds ?? 0}
+									onchange={(e) => changeSlowmode(channel.id, Number(e.currentTarget.value))}
+								>
+									{#each SLOWMODE_OPTIONS as opt (opt.seconds)}
+										<option value={opt.seconds}>{opt.label}</option>
+									{/each}
+								</select>
+							{:else}
+								<span class="row-value muted">
+									{SLOWMODE_OPTIONS.find((o) => o.seconds === (channel.slowmodeSeconds ?? 0))?.label ?? "Off"}
+								</span>
+							{/if}
+						</div>
+					{/each}
 				</div>
 			{:else if section === "invites"}
 				<h2>Invites</h2>
@@ -388,6 +449,32 @@
 	.row-value.muted {
 		color: var(--ink-dim);
 		line-height: 1.5;
+	}
+
+	.slowmode-row {
+		padding: 10px 0;
+	}
+
+	.channel-name {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 14px;
+		color: var(--ink);
+	}
+
+	.channel-name :global(svg) {
+		color: var(--ink-faint);
+	}
+
+	.slowmode-row select {
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 6px;
+		padding: 6px 8px;
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 13px;
 	}
 
 	.confirm-overlay {

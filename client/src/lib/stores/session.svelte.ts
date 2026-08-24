@@ -11,6 +11,7 @@ type StoredSession = {
 class SessionStore {
 	token = $state<string | null>(null);
 	username = $state<string | null>(null);
+	userId = $state<string | null>(null);
 	ready = $state(false);
 
 	constructor() {
@@ -26,9 +27,10 @@ class SessionStore {
 
 		try {
 			const stored: StoredSession = JSON.parse(raw);
-			await me(stored.token);
+			const info = await me(stored.token);
 			this.token = stored.token;
 			this.username = stored.username;
+			this.userId = info.id;
 			ensureIdentity(stored.token, stored.username).catch(() => {});
 		} catch {
 			localStorage.removeItem(STORAGE_KEY);
@@ -42,11 +44,17 @@ class SessionStore {
 		this.username = username;
 		localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, username }));
 		ensureIdentity(token, username).catch(() => {});
+		me(token)
+			.then((info) => {
+				this.userId = info.id;
+			})
+			.catch(() => {});
 	}
 
 	clear() {
 		this.token = null;
 		this.username = null;
+		this.userId = null;
 		localStorage.removeItem(STORAGE_KEY);
 	}
 

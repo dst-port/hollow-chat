@@ -6,6 +6,7 @@ export type Channel = {
 	type: ChannelType;
 	unread?: boolean;
 	category?: string;
+	slowmodeSeconds?: number;
 };
 
 export type ServerEntry = {
@@ -14,6 +15,7 @@ export type ServerEntry = {
 	initials: string;
 	channels: Channel[];
 	unread?: number;
+	ownerId?: string;
 };
 
 export type Reaction = {

@@ -18,11 +18,13 @@
 			id: server.id,
 			name: server.name,
 			initials: server.name.slice(0, 2).toUpperCase(),
+			ownerId: server.owner_id,
 			channels: server.channels.map((c) => ({
 				id: c.id,
 				name: c.name,
 				type: c.type,
-				category: c.category ?? undefined
+				category: c.category ?? undefined,
+				slowmodeSeconds: c.slowmode_seconds
 			}))
 		};
 	}
@@ -147,7 +149,8 @@
 					id: channel.id,
 					name: channel.name,
 					type: channel.type,
-					category: channel.category ?? undefined
+					category: channel.category ?? undefined,
+					slowmodeSeconds: channel.slowmode_seconds
 				});
 			})
 			.catch(() => toast.push("Couldn't create channel"));

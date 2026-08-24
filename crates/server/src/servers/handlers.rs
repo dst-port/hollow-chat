@@ -50,6 +50,7 @@ pub struct ChannelDto {
     #[serde(rename = "type")]
     pub kind: String,
     pub category: Option<String>,
+    pub slowmode_seconds: i32,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -68,7 +69,7 @@ pub struct ServerWithChannels {
 
 async fn load_channels(pool: &sqlx::PgPool, server_id: Uuid) -> Result<Vec<ChannelDto>, AppError> {
     let channels = sqlx::query_as::<_, ChannelDto>(
-        "SELECT id, name, channel_type, category FROM channels \
+        "SELECT id, name, channel_type, category, slowmode_seconds FROM channels \
          WHERE server_id = $1 ORDER BY position, created_at",
     )
     .bind(server_id)
@@ -238,7 +239,7 @@ pub async fn create_channel(
     let channel: ChannelDto = sqlx::query_as(
         "INSERT INTO channels (name, server_id, channel_type, category, position) \
          VALUES ($1, $2, $3, $4, $5) \
-         RETURNING id, name, channel_type, category",
+         RETURNING id, name, channel_type, category, slowmode_seconds",
     )
     .bind(&name)
     .bind(id)
@@ -247,6 +248,34 @@ pub async fn create_channel(
     .bind(position.0 as i32)
     .fetch_one(&state.pool)
     .await?;
+
+    Ok(Json(channel))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetSlowmodeRequest {
+    pub seconds: i32,
+}
+
+pub async fn set_slowmode(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((server_id, channel_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<SetSlowmodeRequest>,
+) -> Result<Json<ChannelDto>, AppError> {
+    require_owner(&state.pool, server_id, session.user_id).await?;
+    let seconds = payload.seconds.clamp(0, 21600);
+
+    let channel: ChannelDto = sqlx::query_as(
+        "UPDATE channels SET slowmode_seconds = $1 WHERE id = $2 AND server_id = $3 \
+         RETURNING id, name, channel_type, category, slowmode_seconds",
+    )
+    .bind(seconds)
+    .bind(channel_id)
+    .bind(server_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     Ok(Json(channel))
 }

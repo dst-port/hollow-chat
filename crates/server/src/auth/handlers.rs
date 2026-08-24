@@ -127,11 +127,13 @@ pub async fn login(
 
 #[derive(Debug, Serialize)]
 pub struct MeResponse {
+    pub id: Uuid,
     pub username: String,
 }
 
 pub async fn me(session: AuthSession) -> Json<MeResponse> {
     Json(MeResponse {
+        id: session.user_id,
         username: session.username,
     })
 }

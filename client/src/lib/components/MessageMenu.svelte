@@ -5,9 +5,10 @@
 	import PinOff from "@lucide/svelte/icons/pin-off";
 	import SquarePen from "@lucide/svelte/icons/square-pen";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
+	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import { clickOutside } from "$lib/actions/clickOutside";
 
-	let { pinned, canManage, onClose, onCopy, onTogglePin, onEdit, onDelete }: {
+	let { pinned, canManage, onClose, onCopy, onTogglePin, onEdit, onDelete, onCreateThread }: {
 		pinned: boolean;
 		canManage: boolean;
 		onClose: () => void;
@@ -15,6 +16,7 @@
 		onTogglePin: () => void;
 		onEdit?: () => void;
 		onDelete?: () => void;
+		onCreateThread?: () => void;
 	} = $props();
 </script>
 
@@ -39,6 +41,18 @@
 		{#if pinned}<PinOff size={14} strokeWidth={2} />{:else}<Pin size={14} strokeWidth={2} />{/if}
 		{pinned ? "Unpin Message" : "Pin Message"}
 	</button>
+	{#if onCreateThread}
+		<button
+			class="item"
+			onclick={() => {
+				onCreateThread?.();
+				onClose();
+			}}
+		>
+			<MessagesSquare size={14} strokeWidth={2} />
+			Create Thread
+		</button>
+	{/if}
 	{#if canManage && onEdit}
 		<button
 			class="item"

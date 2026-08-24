@@ -14,10 +14,12 @@
 	import X from "@lucide/svelte/icons/x";
 	import FileIcon from "@lucide/svelte/icons/file";
 	import Download from "@lucide/svelte/icons/download";
+	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
 	import EmojiPicker from "$lib/components/EmojiPicker.svelte";
+	import ThreadPanel from "$lib/components/ThreadPanel.svelte";
 	import { emojify } from "$lib/actions/emojify";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
@@ -38,6 +40,7 @@
 		listPinned as apiListPinned,
 		addReaction as apiAddReaction,
 		removeReaction as apiRemoveReaction,
+		createThread as apiCreateThread,
 		ApiError,
 		type ApiMessage,
 		type ApiReplyPreview,
@@ -303,7 +306,7 @@
 			if (err instanceof ApiError && err.status === 413) {
 				toast.push("File is too large for your plan (50MB free / 2GB premium)");
 			} else if (err instanceof ApiError && err.status === 429) {
-				toast.push("You're sending messages too fast — slow down");
+				toast.push(err.message || "You're sending messages too fast — slow down");
 			} else {
 				toast.push("Message failed to send");
 			}
@@ -434,6 +437,26 @@
 		}
 	}
 
+	let threadsOpen = $state(false);
+	let openThreadId = $state<string | undefined>(undefined);
+
+	function openThreads() {
+		openThreadId = undefined;
+		threadsOpen = true;
+	}
+
+	async function createThread(message: Message) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			const thread = await apiCreateThread(token, channel.id, message.id, `Thread: ${message.content.slice(0, 40)}`);
+			openThreadId = thread.id;
+			threadsOpen = true;
+		} catch {
+			toast.push("Couldn't create thread");
+		}
+	}
+
 	let pinnedMessages = $state<Message[]>([]);
 
 	async function openPinned() {
@@ -452,6 +475,7 @@
 	}
 </script>
 
+<div class="chat-row">
 <section class="chat">
 	<header class="header">
 		{#if isDm}
@@ -491,6 +515,9 @@
 				{/if}
 			</div>
 			{#if !isDm}
+				<button class="icon-button" class:active={threadsOpen} title="Threads" onclick={openThreads}>
+					<MessagesSquare size={17} strokeWidth={2} />
+				</button>
 				<button class="icon-button" title="Members" onclick={onToggleMembers}>
 					<Users size={17} strokeWidth={2} />
 				</button>
@@ -637,6 +664,7 @@
 									onTogglePin={() => togglePin(message)}
 									onEdit={() => startEdit(message)}
 									onDelete={() => deleteMessage(message)}
+									onCreateThread={isDm ? undefined : () => createThread(message)}
 								/>
 							{/if}
 						</div>
@@ -695,8 +723,19 @@
 		</button>
 	</form>
 </section>
+{#if threadsOpen && !isDm}
+	<ThreadPanel channelId={channel.id} initialThreadId={openThreadId} onClose={() => (threadsOpen = false)} />
+{/if}
+</div>
 
 <style>
+	.chat-row {
+		flex: 1;
+		display: flex;
+		height: 100%;
+		min-width: 0;
+	}
+
 	.chat {
 		flex: 1;
 		display: flex;

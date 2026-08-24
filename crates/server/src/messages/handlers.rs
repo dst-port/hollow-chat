@@ -37,6 +37,42 @@ async fn require_channel_member(
     member.map(|_| ()).ok_or(AppError::Unauthorized)
 }
 
+async fn require_slowmode_clear(
+    pool: &sqlx::PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let row: Option<(i32,)> =
+        sqlx::query_as("SELECT slowmode_seconds FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(pool)
+            .await?;
+
+    let slowmode_seconds = row.ok_or(AppError::NotFound)?.0;
+    if slowmode_seconds <= 0 {
+        return Ok(());
+    }
+
+    let last: Option<(DateTime<Utc>,)> = sqlx::query_as(
+        "SELECT \"timestamp\" FROM messages \
+         WHERE channel_id = $1 AND author_id = $2 AND thread_id IS NULL \
+         ORDER BY \"timestamp\" DESC LIMIT 1",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some((last_ts,)) = last {
+        let elapsed = Utc::now().signed_duration_since(last_ts).num_seconds();
+        if elapsed < slowmode_seconds as i64 {
+            return Err(AppError::SlowModeActive);
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_emoji(emoji: &str) -> Result<(), AppError> {
     let len_ok = (1..=MAX_EMOJI_LEN).contains(&emoji.chars().count());
     let no_whitespace = !emoji.chars().any(|c| c.is_whitespace() || c.is_control());
@@ -271,6 +307,7 @@ pub async fn list_messages(
         sqlx::query_as(&format!(
             "{SELECT_MESSAGE_ROW} \
              WHERE messages.channel_id = $1 \
+               AND messages.thread_id IS NULL \
                AND messages.\"timestamp\" > $2 \
              ORDER BY messages.\"timestamp\" ASC \
              LIMIT $3"
@@ -284,6 +321,7 @@ pub async fn list_messages(
         let mut rows: Vec<MessageRow> = sqlx::query_as(&format!(
             "{SELECT_MESSAGE_ROW} \
              WHERE messages.channel_id = $1 \
+               AND messages.thread_id IS NULL \
                AND ($2::timestamptz IS NULL OR messages.\"timestamp\" < $2) \
              ORDER BY messages.\"timestamp\" DESC \
              LIMIT $3"
@@ -372,6 +410,7 @@ pub async fn send_message(
     Json(payload): Json<SendMessageRequest>,
 ) -> Result<Json<MessageDto>, AppError> {
     require_channel_member(&state.pool, channel_id, session.user_id).await?;
+    require_slowmode_clear(&state.pool, channel_id, session.user_id).await?;
 
     if !state.message_limiter.check(session.user_id) {
         return Err(AppError::RateLimited);
@@ -546,6 +585,212 @@ pub async fn add_reaction(
     .await?;
 
     Ok(())
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ThreadDto {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub parent_message_id: Option<Uuid>,
+    pub name: String,
+    pub created_by: Option<Uuid>,
+    pub created_by_username: Option<String>,
+    pub archived: bool,
+    pub created_at: DateTime<Utc>,
+    pub message_count: i64,
+    pub last_message_at: Option<DateTime<Utc>>,
+}
+
+const SELECT_THREAD_ROW: &str = "SELECT threads.id, threads.channel_id, threads.parent_message_id, \
+     threads.name, threads.created_by, users.username AS created_by_username, threads.archived, \
+     threads.created_at, \
+     COUNT(messages.id) AS message_count, \
+     MAX(messages.\"timestamp\") AS last_message_at \
+     FROM threads \
+     LEFT JOIN users ON users.id = threads.created_by \
+     LEFT JOIN messages ON messages.thread_id = threads.id \
+     GROUP BY threads.id, users.username";
+
+pub async fn list_threads(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(channel_id): Path<Uuid>,
+) -> Result<Json<Vec<ThreadDto>>, AppError> {
+    require_channel_member(&state.pool, channel_id, session.user_id).await?;
+
+    let threads: Vec<ThreadDto> = sqlx::query_as(&format!(
+        "{SELECT_THREAD_ROW} HAVING threads.channel_id = $1 \
+         ORDER BY MAX(messages.\"timestamp\") DESC NULLS LAST, threads.created_at DESC"
+    ))
+    .bind(channel_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(threads))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateThreadRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+pub async fn create_thread(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<CreateThreadRequest>,
+) -> Result<Json<ThreadDto>, AppError> {
+    require_channel_member(&state.pool, channel_id, session.user_id).await?;
+    require_same_channel_message(&state.pool, channel_id, message_id).await?;
+
+    let name = payload
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .unwrap_or("Thread")
+        .chars()
+        .take(48)
+        .collect::<String>();
+
+    let thread_id: (Uuid,) = sqlx::query_as(
+        "INSERT INTO threads (channel_id, parent_message_id, name, created_by) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
+    )
+    .bind(channel_id)
+    .bind(message_id)
+    .bind(&name)
+    .bind(session.user_id)
+    .fetch_one(&state.pool)
+    .await?;
+
+    let thread: ThreadDto = sqlx::query_as(&format!("{SELECT_THREAD_ROW} HAVING threads.id = $1"))
+        .bind(thread_id.0)
+        .fetch_one(&state.pool)
+        .await?;
+
+    Ok(Json(thread))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetThreadArchivedRequest {
+    pub archived: bool,
+}
+
+pub async fn set_thread_archived(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((channel_id, thread_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<SetThreadArchivedRequest>,
+) -> Result<Json<ThreadDto>, AppError> {
+    require_channel_member(&state.pool, channel_id, session.user_id).await?;
+
+    sqlx::query("UPDATE threads SET archived = $1 WHERE id = $2 AND channel_id = $3")
+        .bind(payload.archived)
+        .bind(thread_id)
+        .bind(channel_id)
+        .execute(&state.pool)
+        .await?;
+
+    let thread: ThreadDto = sqlx::query_as(&format!("{SELECT_THREAD_ROW} HAVING threads.id = $1"))
+        .bind(thread_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+    Ok(Json(thread))
+}
+
+async fn require_same_channel_thread(
+    pool: &sqlx::PgPool,
+    channel_id: Uuid,
+    thread_id: Uuid,
+) -> Result<(), AppError> {
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT channel_id FROM threads WHERE id = $1")
+        .bind(thread_id)
+        .fetch_optional(pool)
+        .await?;
+    match row {
+        Some((cid,)) if cid == channel_id => Ok(()),
+        Some(_) => Err(AppError::NotFound),
+        None => Err(AppError::NotFound),
+    }
+}
+
+pub async fn list_thread_messages(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((channel_id, thread_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Vec<MessageDto>>, AppError> {
+    require_channel_member(&state.pool, channel_id, session.user_id).await?;
+    require_same_channel_thread(&state.pool, channel_id, thread_id).await?;
+
+    let rows: Vec<MessageRow> = sqlx::query_as(&format!(
+        "{SELECT_MESSAGE_ROW} WHERE messages.thread_id = $1 ORDER BY messages.\"timestamp\" ASC"
+    ))
+    .bind(thread_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    let messages = assemble_messages(&state.pool, rows, session.user_id).await?;
+    Ok(Json(messages))
+}
+
+pub async fn send_thread_message(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((channel_id, thread_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<SendMessageRequest>,
+) -> Result<Json<MessageDto>, AppError> {
+    require_channel_member(&state.pool, channel_id, session.user_id).await?;
+    require_same_channel_thread(&state.pool, channel_id, thread_id).await?;
+
+    if !state.message_limiter.check(session.user_id) {
+        return Err(AppError::RateLimited);
+    }
+
+    let content = payload.content.as_deref().map(str::trim).filter(|c| !c.is_empty());
+
+    if content.is_none() && payload.attachment_id.is_none() {
+        return Err(AppError::InvalidMessage);
+    }
+    if let Some(content) = content {
+        if content.chars().count() > MAX_CONTENT_LEN {
+            return Err(AppError::InvalidMessage);
+        }
+    }
+    if let Some(attachment_id) = payload.attachment_id {
+        require_owned_attachment(&state.pool, attachment_id, session.user_id).await?;
+    }
+    if let Some(reply_to_id) = payload.reply_to_id {
+        require_same_channel_message(&state.pool, channel_id, reply_to_id).await?;
+    }
+
+    let row: MessageRow = sqlx::query_as(&format!(
+        "WITH inserted AS ( \
+            INSERT INTO messages (channel_id, thread_id, author_id, encrypted_blob, attachment_id, reply_to_id) \
+            VALUES ($1, $2, $3, $4, $5, $6) \
+            RETURNING * \
+         ) \
+         SELECT inserted.id, inserted.author_id, $7 AS author, \
+                inserted.encrypted_blob, inserted.attachment_id, attachments.filename AS attachment_filename, \
+                attachments.mime_type AS attachment_mime_type, attachments.size_bytes AS attachment_size_bytes, \
+                inserted.reply_to_id, inserted.pinned, inserted.\"timestamp\", inserted.edited_at \
+         FROM inserted \
+         LEFT JOIN attachments ON attachments.id = inserted.attachment_id"
+    ))
+    .bind(channel_id)
+    .bind(thread_id)
+    .bind(session.user_id)
+    .bind(content.map(|c| c.as_bytes()))
+    .bind(payload.attachment_id)
+    .bind(payload.reply_to_id)
+    .bind(&session.username)
+    .fetch_one(&state.pool)
+    .await?;
+
+    let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
+    Ok(Json(messages.remove(0)))
 }
 
 pub async fn remove_reaction(

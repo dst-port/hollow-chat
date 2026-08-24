@@ -12,6 +12,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/{id}", patch(handlers::rename_server))
         .route("/{id}/leave", delete(handlers::leave_server))
         .route("/{id}/channels", post(handlers::create_channel))
+        .route(
+            "/{id}/channels/{channel_id}/slowmode",
+            patch(handlers::set_slowmode),
+        )
         .route("/{id}/members", get(handlers::list_members))
         .route("/{id}/invite", get(handlers::get_invite))
         .route("/join", post(handlers::join_server))

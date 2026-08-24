@@ -29,6 +29,8 @@ pub enum AppError {
     NoKeyBundle,
     #[error("you're sending messages too fast, slow down")]
     RateLimited,
+    #[error("this channel is in slowmode, wait before sending again")]
+    SlowModeActive,
     #[error("file too large for your plan")]
     FileTooLarge,
     #[error("unsupported or missing attachment")]
@@ -68,6 +70,7 @@ impl IntoResponse for AppError {
             AppError::InvalidKeyMaterial => StatusCode::BAD_REQUEST,
             AppError::NoKeyBundle => StatusCode::NOT_FOUND,
             AppError::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+            AppError::SlowModeActive => StatusCode::TOO_MANY_REQUESTS,
             AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::InvalidAttachment => StatusCode::BAD_REQUEST,
             AppError::AttachmentNotFound => StatusCode::NOT_FOUND,

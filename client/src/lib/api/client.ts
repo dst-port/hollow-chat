@@ -85,6 +85,7 @@ export type LoginResponse = {
 };
 
 export type MeResponse = {
+	id: string;
 	username: string;
 };
 
@@ -168,6 +169,7 @@ export type ApiChannel = {
 	name: string;
 	type: "text" | "voice";
 	category: string | null;
+	slowmode_seconds: number;
 };
 
 export type ApiServer = {
@@ -250,6 +252,14 @@ export function createChannel(
 		method: "POST",
 		headers: { authorization: `Bearer ${token}` },
 		body: JSON.stringify({ name, type, category })
+	});
+}
+
+export function setSlowmode(token: string, serverId: string, channelId: string, seconds: number) {
+	return request<ApiChannel>(`/servers/${serverId}/channels/${channelId}/slowmode`, {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ seconds })
 	});
 }
 
@@ -448,6 +458,72 @@ export function removeReaction(
 		`${messagesBase(scope, id)}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
 		{ method: "DELETE", headers: { authorization: `Bearer ${token}` } }
 	);
+}
+
+export type ApiThread = {
+	id: string;
+	channel_id: string;
+	parent_message_id: string | null;
+	name: string;
+	created_by: string | null;
+	created_by_username: string | null;
+	archived: boolean;
+	created_at: string;
+	message_count: number;
+	last_message_at: string | null;
+};
+
+export function listThreads(token: string, channelId: string) {
+	return request<ApiThread[]>(`/channels/${channelId}/threads`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function createThread(
+	token: string,
+	channelId: string,
+	messageId: string,
+	name?: string
+) {
+	return request<ApiThread>(`/channels/${channelId}/messages/${messageId}/threads`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ name })
+	});
+}
+
+export function setThreadArchived(
+	token: string,
+	channelId: string,
+	threadId: string,
+	archived: boolean
+) {
+	return request<ApiThread>(`/channels/${channelId}/threads/${threadId}`, {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ archived })
+	});
+}
+
+export function listThreadMessages(token: string, channelId: string, threadId: string) {
+	return request<ApiMessage[]>(`/channels/${channelId}/threads/${threadId}/messages`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function sendThreadMessage(
+	token: string,
+	channelId: string,
+	threadId: string,
+	content: string | null,
+	attachmentId?: string,
+	replyToId?: string
+) {
+	return request<ApiMessage>(`/channels/${channelId}/threads/${threadId}/messages`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ content, attachment_id: attachmentId, reply_to_id: replyToId })
+	});
 }
 
 export type BillingStatus = {

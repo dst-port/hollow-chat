@@ -22,5 +22,22 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/{channel_id}/messages/{message_id}/reactions/{emoji}",
             delete(handlers::remove_reaction),
         )
+        .route("/{channel_id}/threads", get(handlers::list_threads))
+        .route(
+            "/{channel_id}/messages/{message_id}/threads",
+            post(handlers::create_thread),
+        )
+        .route(
+            "/{channel_id}/threads/{thread_id}",
+            patch(handlers::set_thread_archived),
+        )
+        .route(
+            "/{channel_id}/threads/{thread_id}/messages",
+            get(handlers::list_thread_messages),
+        )
+        .route(
+            "/{channel_id}/threads/{thread_id}/messages",
+            post(handlers::send_thread_message),
+        )
         .with_state(state)
 }
