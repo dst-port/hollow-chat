@@ -99,6 +99,7 @@ enum ClientMsg {
     Offer { to: Uuid, sdp: String },
     Answer { to: Uuid, sdp: String },
     IceCandidate { to: Uuid, candidate: String },
+    TrackMeta { to: Uuid, mid: String, kind: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -110,6 +111,7 @@ enum ServerMsg {
     Offer { from: Uuid, from_username: String, sdp: String },
     Answer { from: Uuid, sdp: String },
     IceCandidate { from: Uuid, candidate: String },
+    TrackMeta { from: Uuid, mid: String, kind: String },
 }
 
 fn send_to(state: &AppState, room_id: Uuid, target: Uuid, msg: &ServerMsg) {
@@ -191,6 +193,9 @@ async fn handle_socket(socket: WebSocket, state: AppState, room_id: Uuid, sessio
             ClientMsg::Answer { to, sdp } => (to, ServerMsg::Answer { from: session.user_id, sdp }),
             ClientMsg::IceCandidate { to, candidate } => {
                 (to, ServerMsg::IceCandidate { from: session.user_id, candidate })
+            }
+            ClientMsg::TrackMeta { to, mid, kind } => {
+                (to, ServerMsg::TrackMeta { from: session.user_id, mid, kind })
             }
         };
 

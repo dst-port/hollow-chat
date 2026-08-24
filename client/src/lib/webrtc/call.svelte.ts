@@ -8,12 +8,14 @@ type ServerMsg =
 	| { type: "peer-left"; user_id: string }
 	| { type: "offer"; from: string; from_username: string; sdp: string }
 	| { type: "answer"; from: string; sdp: string }
-	| { type: "ice-candidate"; from: string; candidate: string };
+	| { type: "ice-candidate"; from: string; candidate: string }
+	| { type: "track-meta"; from: string; mid: string; kind: string };
 
 type ClientMsg =
 	| { type: "offer"; to: string; sdp: string }
 	| { type: "answer"; to: string; sdp: string }
-	| { type: "ice-candidate"; to: string; candidate: string };
+	| { type: "ice-candidate"; to: string; candidate: string }
+	| { type: "track-meta"; to: string; mid: string; kind: string };
 
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302"] }];
 
@@ -23,13 +25,17 @@ class CallStore {
 	status = $state<"idle" | "connecting" | "connected">("idle");
 	muted = $state(false);
 	cameraEnabled = $state(false);
+	screenSharing = $state(false);
 	participants = $state<Participant[]>([]);
 
 	private ws: WebSocket | null = null;
 	private pcs = new Map<string, RTCPeerConnection>();
 	private remoteStreams = new Map<string, MediaStream>();
+	private remoteScreenStreams = new Map<string, MediaStream>();
+	private screenMids = new Set<string>();
 	private pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
 	private localStream: MediaStream | null = null;
+	private localScreenStream: MediaStream | null = null;
 	private iceServers: RTCIceServer[] = FALLBACK_ICE_SERVERS;
 	private listeners = new Set<() => void>();
 
@@ -46,8 +52,16 @@ class CallStore {
 		return this.remoteStreams.get(userId) ?? null;
 	}
 
+	getRemoteScreenStream(userId: string): MediaStream | null {
+		return this.remoteScreenStreams.get(userId) ?? null;
+	}
+
 	getLocalStream(): MediaStream | null {
 		return this.localStream;
+	}
+
+	getLocalScreenStream(): MediaStream | null {
+		return this.localScreenStream;
 	}
 
 	async join(token: string, roomId: string, label: string): Promise<void> {
@@ -146,6 +160,48 @@ class CallStore {
 		}
 	}
 
+	async toggleScreenShare(): Promise<void> {
+		if (this.screenSharing) {
+			this.stopScreenShareInternal();
+			return;
+		}
+
+		try {
+			const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+			const track = screenStream.getVideoTracks()[0];
+			this.localScreenStream = screenStream;
+			track.onended = () => this.stopScreenShareInternal();
+
+			for (const [peerId, pc] of this.pcs.entries()) {
+				const sender = pc.addTrack(track, screenStream);
+				await this.renegotiate(peerId, pc);
+				const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
+				if (transceiver?.mid) {
+					this.send({ type: "track-meta", to: peerId, mid: transceiver.mid, kind: "screen" });
+				}
+			}
+
+			this.screenSharing = true;
+			this.notify();
+		} catch {
+			return;
+		}
+	}
+
+	private stopScreenShareInternal() {
+		const track = this.localScreenStream?.getVideoTracks()[0];
+		if (track) {
+			track.stop();
+			for (const pc of this.pcs.values()) {
+				const sender = pc.getSenders().find((s) => s.track === track);
+				if (sender) pc.removeTrack(sender);
+			}
+		}
+		this.localScreenStream = null;
+		this.screenSharing = false;
+		this.notify();
+	}
+
 	private async renegotiate(peerId: string, pc: RTCPeerConnection) {
 		const offer = await pc.createOffer();
 		await pc.setLocalDescription(offer);
@@ -168,7 +224,12 @@ class CallStore {
 		}
 
 		pc.ontrack = (event) => {
-			this.remoteStreams.set(userId, event.streams[0]);
+			const mid = event.transceiver?.mid;
+			if (mid && this.screenMids.has(`${userId}::${mid}`)) {
+				this.remoteScreenStreams.set(userId, event.streams[0]);
+			} else {
+				this.remoteStreams.set(userId, event.streams[0]);
+			}
 			this.notify();
 		};
 
@@ -198,6 +259,7 @@ class CallStore {
 		this.pcs.get(userId)?.close();
 		this.pcs.delete(userId);
 		this.remoteStreams.delete(userId);
+		this.remoteScreenStreams.delete(userId);
 		this.pendingCandidates.delete(userId);
 		this.participants = this.participants.filter((p) => p.userId !== userId);
 		this.notify();
@@ -255,6 +317,12 @@ class CallStore {
 				}
 				break;
 			}
+			case "track-meta": {
+				if (msg.kind === "screen") {
+					this.screenMids.add(`${msg.from}::${msg.mid}`);
+				}
+				break;
+			}
 		}
 	}
 
@@ -262,15 +330,20 @@ class CallStore {
 		for (const pc of this.pcs.values()) pc.close();
 		this.pcs.clear();
 		this.remoteStreams.clear();
+		this.remoteScreenStreams.clear();
+		this.screenMids.clear();
 		this.pendingCandidates.clear();
 		this.localStream?.getTracks().forEach((track) => track.stop());
 		this.localStream = null;
+		this.localScreenStream?.getTracks().forEach((track) => track.stop());
+		this.localScreenStream = null;
 		this.roomId = null;
 		this.label = "";
 		this.status = "idle";
 		this.participants = [];
 		this.muted = false;
 		this.cameraEnabled = false;
+		this.screenSharing = false;
 		this.notify();
 	}
 }
