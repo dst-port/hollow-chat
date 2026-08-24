@@ -5,6 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::calls::PeerHandle;
+use crate::devicelink::LinkPeer;
 use crate::rate_limit::UserRateLimiter;
 
 #[derive(Clone)]
@@ -34,4 +35,5 @@ pub struct AppState {
     pub billing: BillingConfig,
     pub ice: IceConfig,
     pub call_rooms: Arc<DashMap<Uuid, Vec<PeerHandle>>>,
+    pub link_rooms: Arc<DashMap<Uuid, Vec<LinkPeer>>>,
 }

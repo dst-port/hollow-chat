@@ -5,6 +5,7 @@ mod blocks;
 mod calls;
 mod config;
 mod db;
+mod devicelink;
 mod dms;
 mod emoji;
 mod error;
@@ -83,6 +84,7 @@ async fn main() {
             turn_credential: config.ice_turn_credential.map(|s| Arc::from(s.into_boxed_str())),
         },
         call_rooms: Arc::new(DashMap::new()),
+        link_rooms: Arc::new(DashMap::new()),
     };
 
     let app = Router::new()
@@ -100,6 +102,7 @@ async fn main() {
         .nest("/billing", billing::router(state.clone()))
         .nest("/blocks", blocks::router(state.clone()))
         .nest("/calls", calls::router(state.clone()))
+        .nest("/devicelink", devicelink::router(state.clone()))
         .with_state(state)
         .layer(CorsLayer::permissive());
 

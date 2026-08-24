@@ -13,6 +13,7 @@
 	import Check from "@lucide/svelte/icons/check";
 	import Copy from "@lucide/svelte/icons/copy";
 	import ShieldPlus from "@lucide/svelte/icons/shield-plus";
+	import Smartphone from "@lucide/svelte/icons/smartphone";
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import QRCode from "qrcode";
 	import { renameLocalIdentity } from "$lib/crypto/identity";
@@ -20,6 +21,7 @@
 	import { renameAllGroupKeys } from "$lib/crypto/group-key-store";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
+	import { deviceLink } from "$lib/devicelink/link.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, onClose, onLogout }: {
@@ -211,6 +213,24 @@
 		if (section === "privacy" && session.token) loadBlocked();
 		if (section === "account" && session.token) loadTotpStatus();
 	});
+
+	$effect(() => {
+		return () => deviceLink.reset();
+	});
+
+	function beginDeviceLink() {
+		const token = session.token;
+		if (!token) return;
+		deviceLink.start(token);
+	}
+
+	function confirmDeviceLink() {
+		deviceLink.confirmAndSend(username);
+	}
+
+	function cancelDeviceLink() {
+		deviceLink.reset();
+	}
 
 	function describeSession(s: api.ApiSession): string {
 		const ua = s.user_agent ?? "";
@@ -534,6 +554,52 @@
 							</button>
 							<button class="edit danger-text" onclick={() => { totpCodeInput = ""; totpError = ""; totpStage = "disabling"; }}>
 								Disable
+							</button>
+						</div>
+					{/if}
+				</div>
+
+				<div class="card">
+					{#if deviceLink.phase === "idle" || deviceLink.phase === "error"}
+						<div class="row">
+							<div>
+								<p class="row-label">Linked devices</p>
+								<p class="row-value muted">Move your encryption keys to a new device without losing your conversations.</p>
+							</div>
+							<button class="edit" onclick={beginDeviceLink}>
+								<Smartphone size={14} strokeWidth={2} />
+								Link a Device
+							</button>
+						</div>
+						{#if deviceLink.phase === "error" && deviceLink.error}
+							<p class="error-text" style="margin-top: 8px;">{deviceLink.error}</p>
+						{/if}
+					{:else if deviceLink.phase === "connecting" || deviceLink.phase === "waiting-for-peer"}
+						<p class="row-label">Waiting for the new device…</p>
+						<p class="hint" style="margin-bottom: 12px;">
+							On the new device, sign in with this account, then choose "Link with another device" when asked.
+						</p>
+						<div class="row-actions">
+							<button class="ghost" onclick={cancelDeviceLink}>Cancel</button>
+						</div>
+					{:else if deviceLink.phase === "confirm"}
+						<p class="row-label">Confirm this code matches on both devices</p>
+						<p class="row-value totp-secret">{deviceLink.fingerprint}</p>
+						<div class="row-actions" style="margin-top: 12px;">
+							<button class="ghost" onclick={cancelDeviceLink}>Cancel</button>
+							<button class="primary" onclick={confirmDeviceLink}>Codes Match — Send Keys</button>
+						</div>
+					{:else if deviceLink.phase === "sending"}
+						<p class="row-label">Sending your encryption keys…</p>
+					{:else if deviceLink.phase === "done"}
+						<div class="row">
+							<div>
+								<p class="row-label">Linked devices</p>
+								<p class="row-value muted">Keys sent. The new device can now read your conversations.</p>
+							</div>
+							<button class="edit" onclick={() => deviceLink.reset()}>
+								<Smartphone size={14} strokeWidth={2} />
+								Link Another
 							</button>
 						</div>
 					{/if}

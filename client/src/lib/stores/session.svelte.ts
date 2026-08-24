@@ -1,5 +1,5 @@
 import { me } from "$lib/api/client";
-import { ensureIdentity } from "$lib/crypto/identity";
+import { ensureIdentity, hasLocalIdentity } from "$lib/crypto/identity";
 
 const STORAGE_KEY = "hollowchat_session";
 
@@ -13,9 +13,18 @@ class SessionStore {
 	username = $state<string | null>(null);
 	userId = $state<string | null>(null);
 	ready = $state(false);
+	needsDeviceSetup = $state(false);
 
 	constructor() {
 		this.restore();
+	}
+
+	private bootstrapIdentity(token: string, username: string) {
+		if (hasLocalIdentity(username)) {
+			ensureIdentity(token, username).catch(() => {});
+		} else {
+			this.needsDeviceSetup = true;
+		}
 	}
 
 	async restore() {
@@ -31,7 +40,7 @@ class SessionStore {
 			this.token = stored.token;
 			this.username = stored.username;
 			this.userId = info.id;
-			ensureIdentity(stored.token, stored.username).catch(() => {});
+			this.bootstrapIdentity(stored.token, stored.username);
 		} catch {
 			localStorage.removeItem(STORAGE_KEY);
 		}
@@ -39,11 +48,15 @@ class SessionStore {
 		this.ready = true;
 	}
 
-	set(token: string, username: string) {
+	set(token: string, username: string, isNewAccount = false) {
 		this.token = token;
 		this.username = username;
 		localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, username }));
-		ensureIdentity(token, username).catch(() => {});
+		if (isNewAccount) {
+			ensureIdentity(token, username).catch(() => {});
+		} else {
+			this.bootstrapIdentity(token, username);
+		}
 		me(token)
 			.then((info) => {
 				this.userId = info.id;
@@ -51,10 +64,15 @@ class SessionStore {
 			.catch(() => {});
 	}
 
+	completeDeviceSetup() {
+		this.needsDeviceSetup = false;
+	}
+
 	clear() {
 		this.token = null;
 		this.username = null;
 		this.userId = null;
+		this.needsDeviceSetup = false;
 		localStorage.removeItem(STORAGE_KEY);
 	}
 

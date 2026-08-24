@@ -91,7 +91,7 @@
 				totpCode = "";
 				mode = "totp";
 			} else if (result.token) {
-				session.set(result.token, revealedUsername);
+				session.set(result.token, revealedUsername, true);
 			}
 		} catch (err) {
 			error = err instanceof ApiError ? err.message : "something went wrong";

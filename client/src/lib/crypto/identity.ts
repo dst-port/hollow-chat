@@ -118,6 +118,16 @@ export async function ensureIdentity(token: string, username: string): Promise<v
 	}
 }
 
+export function hasLocalIdentity(username: string): boolean {
+	return load(username) !== null;
+}
+
+export async function syncIdentityToServer(token: string, username: string): Promise<void> {
+	const identity = load(username);
+	if (!identity) return;
+	await api.uploadKeyBundle(token, bundleUploadPayload(identity));
+}
+
 export function getIdentityX25519(username: string): KeyPair {
 	const identity = load(username);
 	if (!identity) throw new Error("no local identity for " + username);
