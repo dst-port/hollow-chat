@@ -1,10 +1,17 @@
 mod auth;
 mod config;
 mod db;
+mod dms;
+mod emoji;
 mod error;
+mod friends;
+mod keys;
+mod messages;
 mod password;
 mod rate_limit;
+mod servers;
 mod session;
+mod social;
 mod state;
 
 use axum::routing::get;
@@ -44,6 +51,12 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(health))
         .nest("/auth", auth::router(state.clone()))
+        .nest("/emoji", emoji::router(state.clone()))
+        .nest("/servers", servers::router(state.clone()))
+        .nest("/channels", messages::router(state.clone()))
+        .nest("/friends", friends::router(state.clone()))
+        .nest("/dms", dms::router(state.clone()))
+        .nest("/keys", keys::router(state.clone()))
         .with_state(state)
         .layer(CorsLayer::permissive());
 
