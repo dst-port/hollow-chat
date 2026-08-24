@@ -28,6 +28,13 @@
 
 	const profile = $derived(profileStore.forUser(username));
 
+	const PRESENCE_LABELS: Record<string, string> = {
+		online: "Online",
+		idle: "Idle",
+		dnd: "Do Not Disturb",
+		invisible: "Invisible"
+	};
+
 	$effect(() => {
 		const token = session.token;
 		if (token) profileStore.load(token, username);
@@ -40,11 +47,11 @@
 			<div class="avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url)})` : undefined}>
 				{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 			</div>
-			<span class="status-dot on-void online"></span>
+			<span class="status-dot on-void {profile?.presence ?? 'online'}"></span>
 		</div>
 		<div class="identity">
 			<p class="username" style:color={profile?.accent_color || undefined}>{profile?.display_name || username}</p>
-			<p class="status">{profile?.status_text || "online"}</p>
+			<p class="status">{profile?.status_text || PRESENCE_LABELS[profile?.presence ?? "online"]}</p>
 		</div>
 	</button>
 	<div class="controls">

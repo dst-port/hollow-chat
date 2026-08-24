@@ -24,6 +24,8 @@ fn file_url(attachment_id: Uuid, filename: &str) -> String {
     format!("/files/{attachment_id}/{filename}")
 }
 
+const PRESENCE_VALUES: &[&str] = &["online", "idle", "dnd", "invisible"];
+
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct ProfileDto {
     pub username: String,
@@ -31,6 +33,7 @@ pub struct ProfileDto {
     pub bio: Option<String>,
     pub pronouns: Option<String>,
     pub status_text: Option<String>,
+    pub presence: String,
     pub accent_color: Option<String>,
     pub banner_color: Option<String>,
     #[sqlx(skip)]
@@ -47,6 +50,7 @@ struct ProfileRow {
     bio: Option<String>,
     pronouns: Option<String>,
     status_text: Option<String>,
+    presence: String,
     accent_color: Option<String>,
     banner_color: Option<String>,
     member_since: DateTime<Utc>,
@@ -56,12 +60,16 @@ struct ProfileRow {
     banner_filename: Option<String>,
 }
 
-async fn load_profile(pool: &sqlx::PgPool, user_id: Uuid) -> Result<ProfileDto, AppError> {
+async fn load_profile(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    viewer_id: Uuid,
+) -> Result<ProfileDto, AppError> {
     let row: ProfileRow = sqlx::query_as(
         "SELECT users.username, users.display_name, users.bio, users.pronouns, \
                 CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
                      THEN NULL ELSE users.status_text END AS status_text, \
-                users.accent_color, users.banner_color, users.created_at AS member_since, \
+                users.presence, users.accent_color, users.banner_color, users.created_at AS member_since, \
                 users.avatar_attachment_id, avatar.filename AS avatar_filename, \
                 users.banner_attachment_id, banner.filename AS banner_filename \
          FROM users \
@@ -80,6 +88,11 @@ async fn load_profile(pool: &sqlx::PgPool, user_id: Uuid) -> Result<ProfileDto, 
         bio: row.bio,
         pronouns: row.pronouns,
         status_text: row.status_text,
+        presence: if row.presence == "invisible" && viewer_id != user_id {
+            "offline".to_string()
+        } else {
+            row.presence
+        },
         accent_color: row.accent_color,
         banner_color: row.banner_color,
         avatar_url: row
@@ -96,11 +109,11 @@ async fn load_profile(pool: &sqlx::PgPool, user_id: Uuid) -> Result<ProfileDto, 
 
 pub async fn get_profile(
     State(state): State<AppState>,
-    _session: AuthSession,
+    session: AuthSession,
     Path(username): Path<String>,
 ) -> Result<Json<ProfileDto>, AppError> {
     let user_id = user_id_by_username(&state.pool, &username).await?;
-    Ok(Json(load_profile(&state.pool, user_id).await?))
+    Ok(Json(load_profile(&state.pool, user_id, session.user_id).await?))
 }
 
 #[derive(Debug, Deserialize)]
@@ -183,7 +196,30 @@ pub async fn update_profile(
     .execute(&state.pool)
     .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id).await?))
+    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetPresenceRequest {
+    pub presence: String,
+}
+
+pub async fn set_presence(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<SetPresenceRequest>,
+) -> Result<Json<ProfileDto>, AppError> {
+    if !PRESENCE_VALUES.contains(&payload.presence.as_str()) {
+        return Err(AppError::InvalidProfileField);
+    }
+
+    sqlx::query("UPDATE users SET presence = $1 WHERE id = $2")
+        .bind(&payload.presence)
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
 }
 
 #[derive(Debug, Deserialize)]
@@ -222,7 +258,7 @@ pub async fn set_avatar(
         .execute(&state.pool)
         .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id).await?))
+    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
 }
 
 pub async fn clear_avatar(
@@ -234,7 +270,7 @@ pub async fn clear_avatar(
         .execute(&state.pool)
         .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id).await?))
+    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
 }
 
 pub async fn set_banner(
@@ -250,7 +286,7 @@ pub async fn set_banner(
         .execute(&state.pool)
         .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id).await?))
+    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
 }
 
 pub async fn clear_banner(
@@ -262,5 +298,5 @@ pub async fn clear_banner(
         .execute(&state.pool)
         .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id).await?))
+    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
 }

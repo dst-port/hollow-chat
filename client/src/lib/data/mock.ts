@@ -145,7 +145,7 @@ export type Member = {
 	id: string;
 	name: string;
 	color: string;
-	status?: "online" | "idle" | "offline";
+	status?: "online" | "idle" | "dnd" | "offline";
 	roles?: Role[];
 	badges?: BadgeId[];
 	activity?: string;

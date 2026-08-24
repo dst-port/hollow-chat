@@ -30,6 +30,25 @@
 	const profile = $derived(profileStore.forUser(username));
 
 	let statusModalOpen = $state(false);
+	let presenceMenuOpen = $state(false);
+
+	const PRESENCE_OPTIONS: { value: api.PresenceState; label: string }[] = [
+		{ value: "online", label: "Online" },
+		{ value: "idle", label: "Idle" },
+		{ value: "dnd", label: "Do Not Disturb" },
+		{ value: "invisible", label: "Invisible" }
+	];
+
+	async function pickPresence(value: api.PresenceState) {
+		const token = session.token;
+		presenceMenuOpen = false;
+		if (!token) return;
+		try {
+			profileStore.set(await api.setPresence(token, value));
+		} catch {
+			toast.push("Couldn't change status");
+		}
+	}
 
 	async function quickClearStatus() {
 		const token = session.token;
@@ -84,7 +103,21 @@
 		<div class="avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url)})` : undefined}>
 			{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 		</div>
-		<span class="status-dot on-panel online"></span>
+		<button
+			class="status-dot on-panel {profile?.presence ?? 'online'} status-dot-trigger"
+			title="Set status"
+			onclick={() => (presenceMenuOpen = !presenceMenuOpen)}
+		></button>
+		{#if presenceMenuOpen}
+			<div class="presence-menu" use:clickOutside={() => (presenceMenuOpen = false)} transition:fly={{ y: -4, duration: 120 }}>
+				{#each PRESENCE_OPTIONS as option (option.value)}
+					<button class="presence-option" onclick={() => pickPresence(option.value)}>
+						<span class="status-dot static {option.value}"></span>
+						{option.label}
+					</button>
+				{/each}
+			</div>
+		{/if}
 		{#if profile?.status_text}
 			<div class="status-bubble" transition:fly={{ y: 4, duration: 140 }}>
 				{profile.status_text}
@@ -215,6 +248,53 @@
 	.status-dot {
 		width: 13px;
 		height: 13px;
+	}
+
+	.status-dot-trigger {
+		padding: 0;
+		cursor: pointer;
+		transition: transform 0.1s ease;
+	}
+
+	.status-dot-trigger:hover {
+		transform: scale(1.15);
+	}
+
+	.status-dot.static {
+		position: static;
+		width: 9px;
+		height: 9px;
+		border: none;
+		flex-shrink: 0;
+	}
+
+	.presence-menu {
+		position: absolute;
+		left: 40px;
+		top: 40px;
+		background: var(--panel);
+		border-radius: 8px;
+		padding: 6px;
+		min-width: 170px;
+		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+		z-index: 20;
+	}
+
+	.presence-option {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 10px;
+		border-radius: 6px;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--ink-dim);
+	}
+
+	.presence-option:hover {
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.body {

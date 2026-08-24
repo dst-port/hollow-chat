@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN presence TEXT NOT NULL DEFAULT 'online';

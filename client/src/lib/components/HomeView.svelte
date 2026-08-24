@@ -29,7 +29,13 @@
 	let activeDmId = $state<string | null>(null);
 
 	function toMember(f: api.ApiFriend): Member {
-		return { id: f.id, name: f.username, color: colorForName(f.username) };
+		return {
+			id: f.id,
+			name: f.username,
+			color: colorForName(f.username),
+			status: f.presence,
+			activity: f.status_text ?? undefined
+		};
 	}
 
 	function refreshFriends() {

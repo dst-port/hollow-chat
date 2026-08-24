@@ -323,6 +323,9 @@ export function setSlowmode(token: string, serverId: string, channelId: string, 
 export type ApiFriend = {
 	id: string;
 	username: string;
+	display_name: string | null;
+	presence: "online" | "idle" | "dnd" | "offline";
+	status_text: string | null;
 };
 
 export type ApiFriendRequest = {
@@ -863,12 +866,15 @@ export function userBadges(token: string, username: string) {
 	});
 }
 
+export type PresenceState = "online" | "idle" | "dnd" | "invisible";
+
 export type ApiProfile = {
 	username: string;
 	display_name: string | null;
 	bio: string | null;
 	pronouns: string | null;
 	status_text: string | null;
+	presence: PresenceState;
 	accent_color: string | null;
 	banner_color: string | null;
 	avatar_url: string | null;
@@ -912,6 +918,14 @@ export function clearAvatar(token: string) {
 	return request<ApiProfile>("/profile/avatar", {
 		method: "DELETE",
 		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function setPresence(token: string, presence: PresenceState) {
+	return request<ApiProfile>("/profile/presence", {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ presence })
 	});
 }
 

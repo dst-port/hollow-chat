@@ -12,6 +12,9 @@ use crate::state::AppState;
 pub struct FriendDto {
     pub id: Uuid,
     pub username: String,
+    pub display_name: Option<String>,
+    pub presence: String,
+    pub status_text: Option<String>,
 }
 
 pub async fn list_friends(
@@ -19,7 +22,11 @@ pub async fn list_friends(
     session: AuthSession,
 ) -> Result<Json<Vec<FriendDto>>, AppError> {
     let friends: Vec<FriendDto> = sqlx::query_as(
-        "SELECT users.id, users.username FROM friendships \
+        "SELECT users.id, users.username, users.display_name, \
+                CASE WHEN users.presence = 'invisible' THEN 'offline' ELSE users.presence END AS presence, \
+                CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
+                     THEN NULL ELSE users.status_text END AS status_text \
+         FROM friendships \
          JOIN users ON users.id = CASE WHEN friendships.user_a = $1 THEN friendships.user_b ELSE friendships.user_a END \
          WHERE friendships.user_a = $1 OR friendships.user_b = $1 \
          ORDER BY users.username",
