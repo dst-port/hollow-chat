@@ -63,7 +63,7 @@
 		packageDistribution,
 		absorbSenderKeyFor
 	} from "$lib/crypto/group";
-	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
+	import { rememberDecrypted, recallDecrypted } from "$lib/crypto/sent-cache";
 	import { call } from "$lib/webrtc/call.svelte";
 	import { loadAttachmentBlobUrl, triggerDownload } from "$lib/utils/attachment";
 	import { renderMarkdown } from "$lib/utils/markdown";
@@ -101,34 +101,50 @@
 			: sendMessage(token, id, content, attachmentId, replyToId);
 	}
 
-	async function decryptStoredContent(
-		authorUsername: string,
-		messageId: string,
-		blob: string
-	): Promise<string> {
+	const decryptedContentCache = new Map<string, Promise<string>>();
+
+	async function decryptOnce(authorUsername: string, messageId: string, blob: string): Promise<string> {
+		const persisted = recallDecrypted(messageId);
+		if (persisted !== null) return persisted;
+
 		const myUsername = session.username;
 		if (!myUsername) return blob;
 		if (authorUsername === myUsername) {
-			return recallSent(messageId) ?? "[sent from another device]";
+			return "[sent from another device]";
 		}
+
 		try {
-			return isDm
+			const content = isDm
 				? await decryptFromPeer(myUsername, channel.name, blob)
 				: await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
+			rememberDecrypted(messageId, content);
+			return content;
 		} catch {
 			const token = session.token;
+			let absorbed = false;
 			if (!isDm && token) {
-				const absorbed = await absorbSenderKeyFor(token, myUsername, channel.id, authorUsername);
-				if (absorbed) {
-					try {
-						return await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
-					} catch {
-						return "[unable to decrypt message]";
-					}
+				absorbed = await absorbSenderKeyFor(token, myUsername, channel.id, authorUsername);
+			}
+			if (absorbed) {
+				try {
+					const content = await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
+					rememberDecrypted(messageId, content);
+					return content;
+				} catch {
+					return "[unable to decrypt message]";
 				}
 			}
 			return "[unable to decrypt message]";
 		}
+	}
+
+	function decryptStoredContent(authorUsername: string, messageId: string, blob: string): Promise<string> {
+		const cached = decryptedContentCache.get(messageId);
+		if (cached) return cached;
+
+		const promise = decryptOnce(authorUsername, messageId, blob);
+		decryptedContentCache.set(messageId, promise);
+		return promise;
 	}
 
 	async function encryptOutgoing(myUsername: string, token: string, content: string): Promise<string> {
@@ -150,14 +166,14 @@
 			const others = members.filter((m) => m.username !== myUsername);
 			const memberIds = others.map((m) => m.id);
 			if (needsRedistribution(myUsername, channel.id, memberIds)) {
-				const state = getOrCreateSendState(myUsername, channel.id);
+				const state = await getOrCreateSendState(myUsername, channel.id);
 				const entries = [];
 				for (const member of others) {
 					const ciphertext = await packageDistribution(token, myUsername, channel.id, state, member.username);
 					entries.push({ recipient_id: member.id, ciphertext });
 				}
 				if (entries.length > 0) await publishSenderKeys(token, channel.id, entries);
-				markDistributedTo(myUsername, channel.id, memberIds);
+				await markDistributedTo(myUsername, channel.id, memberIds);
 			}
 		} catch {
 			return;
@@ -260,8 +276,10 @@
 			})
 			.catch(() => {});
 
+		let polling = false;
 		const interval = setInterval(() => {
-			if (!lastId) return;
+			if (!lastId || polling) return;
+			polling = true;
 			fetcher(token, channelId, { after: lastId })
 				.then(async (rows) => {
 					if (cancelled || rows.length === 0) return;
@@ -272,7 +290,10 @@
 					}
 					lastId = rows.at(-1)!.id;
 				})
-				.catch(() => {});
+				.catch(() => {})
+				.finally(() => {
+					polling = false;
+				});
 		}, POLL_INTERVAL_MS);
 
 		return () => {
@@ -393,7 +414,7 @@
 			}
 
 			const apiMsg = await postMessage(token, channel.id, payload, attachmentId, replyToId);
-			if (content) rememberSent(apiMsg.id, content);
+			if (content) rememberDecrypted(apiMsg.id, content);
 			messages.push(await toMessage(apiMsg));
 			lastId = apiMsg.id;
 		} catch (err) {
@@ -521,7 +542,7 @@
 				payload = await encryptOutgoing(session.username, token, content);
 			}
 			await apiEditMessage(token, scope, channel.id, message.id, payload);
-			rememberSent(message.id, content);
+			rememberDecrypted(message.id, content);
 			message.content = content;
 			message.edited = true;
 			editingId = null;

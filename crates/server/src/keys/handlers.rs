@@ -4,10 +4,14 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 
+use std::time::{Duration, Instant};
+
 use crate::auth::AuthSession;
 use crate::error::AppError;
 use crate::social::user_id_by_username;
 use crate::state::AppState;
+
+const BUNDLE_FETCH_LOCK_WINDOW: Duration = Duration::from_secs(3);
 
 fn decode(field: &str) -> Result<Vec<u8>, AppError> {
     STANDARD.decode(field).map_err(|_| AppError::InvalidKeyMaterial)
@@ -136,10 +140,28 @@ struct IdentityRow {
 
 pub async fn fetch_bundle(
     State(state): State<AppState>,
-    _session: AuthSession,
+    session: AuthSession,
     Path(username): Path<String>,
 ) -> Result<Json<PrekeyBundleResponse>, AppError> {
     let user_id = user_id_by_username(&state.pool, &username).await?;
+
+    let lock_key = (session.user_id, user_id);
+    let now = Instant::now();
+    let mut in_progress = false;
+    state
+        .bundle_fetch_locks
+        .entry(lock_key)
+        .and_modify(|last| {
+            if now.duration_since(*last) < BUNDLE_FETCH_LOCK_WINDOW {
+                in_progress = true;
+            } else {
+                *last = now;
+            }
+        })
+        .or_insert(now);
+    if in_progress {
+        return Err(AppError::BundleFetchInProgress);
+    }
 
     let identity: Option<IdentityRow> = sqlx::query_as(
         "SELECT ed25519_public, x25519_public, signed_prekey_id, signed_prekey_public, signed_prekey_signature \

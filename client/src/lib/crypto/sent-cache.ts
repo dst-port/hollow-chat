@@ -1,5 +1,5 @@
 const STORAGE_KEY = "hollowchat_sent_cache";
-const MAX_ENTRIES = 500;
+const MAX_ENTRIES = 5000;
 
 type Cache = { entries: Record<string, string>; order: string[] };
 
@@ -17,7 +17,7 @@ function save(cache: Cache) {
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
 }
 
-export function rememberSent(messageId: string, plaintext: string) {
+export function rememberDecrypted(messageId: string, plaintext: string) {
 	const cache = load();
 	if (!(messageId in cache.entries)) cache.order.push(messageId);
 	cache.entries[messageId] = plaintext;
@@ -28,6 +28,6 @@ export function rememberSent(messageId: string, plaintext: string) {
 	save(cache);
 }
 
-export function recallSent(messageId: string): string | null {
+export function recallDecrypted(messageId: string): string | null {
 	return load().entries[messageId] ?? null;
 }

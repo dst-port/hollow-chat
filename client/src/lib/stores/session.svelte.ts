@@ -1,5 +1,6 @@
 import { me } from "$lib/api/client";
 import { ensureIdentity, hasLocalIdentity } from "$lib/crypto/identity";
+import { deviceSync, hasSyncKey } from "$lib/devicelink/sync";
 
 const STORAGE_KEY = "hollowchat_session";
 
@@ -22,6 +23,7 @@ class SessionStore {
 	private bootstrapIdentity(token: string, username: string) {
 		if (hasLocalIdentity(username)) {
 			ensureIdentity(token, username).catch(() => {});
+			if (hasSyncKey(username)) deviceSync.connect(token, username);
 		} else {
 			this.needsDeviceSetup = true;
 		}
@@ -73,6 +75,7 @@ class SessionStore {
 		this.username = null;
 		this.userId = null;
 		this.needsDeviceSetup = false;
+		deviceSync.disconnect();
 		localStorage.removeItem(STORAGE_KEY);
 	}
 

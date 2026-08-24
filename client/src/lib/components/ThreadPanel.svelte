@@ -20,7 +20,7 @@
 		type ApiMessage
 	} from "$lib/api/client";
 	import { encryptForChannel, decryptFromChannel, absorbSenderKeyFor } from "$lib/crypto/group";
-	import { rememberSent, recallSent } from "$lib/crypto/sent-cache";
+	import { rememberDecrypted, recallDecrypted } from "$lib/crypto/sent-cache";
 
 	let { channelId, initialThreadId, onClose }: {
 		channelId: string;
@@ -36,20 +36,28 @@
 
 	async function decryptThreadMessage(msg: ApiMessage): Promise<string> {
 		if (!msg.content) return "";
+
+		const persisted = recallDecrypted(msg.id);
+		if (persisted !== null) return persisted;
+
 		const myUsername = session.username;
 		if (!myUsername) return msg.content;
 		if (msg.author === myUsername) {
-			return recallSent(msg.id) ?? "[sent from another device]";
+			return "[sent from another device]";
 		}
 		try {
-			return await decryptFromChannel(myUsername, channelId, msg.author, msg.content);
+			const content = await decryptFromChannel(myUsername, channelId, msg.author, msg.content);
+			rememberDecrypted(msg.id, content);
+			return content;
 		} catch {
 			const token = session.token;
 			if (token) {
 				const absorbed = await absorbSenderKeyFor(token, myUsername, channelId, msg.author);
 				if (absorbed) {
 					try {
-						return await decryptFromChannel(myUsername, channelId, msg.author, msg.content);
+						const content = await decryptFromChannel(myUsername, channelId, msg.author, msg.content);
+						rememberDecrypted(msg.id, content);
+						return content;
 					} catch {
 						return "[unable to decrypt message]";
 					}
@@ -124,7 +132,7 @@
 		try {
 			const payload = await encryptForChannel(myUsername, channelId, content);
 			const msg = await sendThreadMessage(token, channelId, activeThread.id, payload);
-			rememberSent(msg.id, content);
+			rememberDecrypted(msg.id, content);
 			threadMessages.push({ id: msg.id, author: msg.author, content, timestamp: msg.timestamp });
 		} catch {
 			toast.push("Reply failed to send");

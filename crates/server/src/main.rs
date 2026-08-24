@@ -85,6 +85,7 @@ async fn main() {
         },
         call_rooms: Arc::new(DashMap::new()),
         link_rooms: Arc::new(DashMap::new()),
+        bundle_fetch_locks: Arc::new(DashMap::new()),
     };
 
     let app = Router::new()

@@ -8,8 +8,10 @@ import {
 	saveSendState,
 	loadReceiveState,
 	saveReceiveState,
+	sendKey,
 	type ChainState
 } from "./group-key-store";
+import { deviceSync } from "$lib/devicelink/sync";
 
 export const GROUP_ENVELOPE_PREFIX = "hcGE2EE1:";
 
@@ -42,11 +44,20 @@ export function isGroupEnvelope(content: string): boolean {
 	return content.startsWith(GROUP_ENVELOPE_PREFIX);
 }
 
-export function getOrCreateSendState(myUsername: string, channelId: string): ChainState {
+export async function getOrCreateSendState(myUsername: string, channelId: string): Promise<ChainState> {
 	const existing = loadSendState(myUsername, channelId);
 	if (existing) return existing;
+
+	const decision = await deviceSync.claimNewSession(myUsername, `channel:${channelId}`);
+	if (decision === "wait-for-sync") {
+		await deviceSync.waitForSync(myUsername, sendKey(myUsername, channelId));
+		const synced = loadSendState(myUsername, channelId);
+		if (synced) return synced;
+	}
+
 	const fresh: ChainState = { chainKey: toBase64(randomChainKey()), iteration: 0 };
 	saveSendState(myUsername, channelId, fresh);
+	deviceSync.broadcastChange(myUsername, sendKey(myUsername, channelId), JSON.stringify(fresh));
 	return fresh;
 }
 
@@ -79,7 +90,7 @@ export async function encryptForChannel(
 	channelId: string,
 	plaintext: string
 ): Promise<string> {
-	const state = getOrCreateSendState(myUsername, channelId);
+	const state = await getOrCreateSendState(myUsername, channelId);
 	const chainKeyBytes = fromBase64(state.chainKey);
 	const messageKey = deriveMessageKey(chainKeyBytes);
 	const associatedData = utf8Encode(`${channelId}:${state.iteration}`);
@@ -94,6 +105,7 @@ export async function encryptForChannel(
 
 	const nextState: ChainState = { chainKey: toBase64(advanceChain(chainKeyBytes)), iteration: state.iteration + 1 };
 	saveSendState(myUsername, channelId, nextState);
+	deviceSync.broadcastChange(myUsername, sendKey(myUsername, channelId), JSON.stringify(nextState));
 
 	return GROUP_ENVELOPE_PREFIX + JSON.stringify(envelope);
 }
@@ -156,11 +168,13 @@ export async function absorbSenderKeyFor(
 	}
 }
 
-export function markDistributedTo(myUsername: string, channelId: string, memberIds: string[]) {
-	saveSendState(myUsername, channelId, {
-		...getOrCreateSendState(myUsername, channelId),
+export async function markDistributedTo(myUsername: string, channelId: string, memberIds: string[]) {
+	const state: ChainState = {
+		...(await getOrCreateSendState(myUsername, channelId)),
 		distributedTo: [...memberIds].sort()
-	});
+	};
+	saveSendState(myUsername, channelId, state);
+	deviceSync.broadcastChange(myUsername, sendKey(myUsername, channelId), JSON.stringify(state));
 }
 
 export function needsRedistribution(myUsername: string, channelId: string, currentMemberIds: string[]): boolean {

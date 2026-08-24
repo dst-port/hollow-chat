@@ -221,7 +221,7 @@
 	function beginDeviceLink() {
 		const token = session.token;
 		if (!token) return;
-		deviceLink.start(token);
+		deviceLink.start(token, username);
 	}
 
 	function confirmDeviceLink() {

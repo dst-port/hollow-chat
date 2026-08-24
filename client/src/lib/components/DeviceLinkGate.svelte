@@ -11,9 +11,10 @@
 
 	function startLinking() {
 		const token = session.token;
-		if (!token) return;
+		const username = session.username;
+		if (!token || !username) return;
 		step = "linking";
-		deviceLink.start(token);
+		deviceLink.start(token, username);
 	}
 
 	async function startFresh() {

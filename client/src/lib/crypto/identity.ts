@@ -6,6 +6,7 @@ import {
 } from "./primitives";
 import { toBase64, fromBase64 } from "./encoding";
 import * as api from "$lib/api/client";
+import { deviceSync } from "$lib/devicelink/sync";
 
 const PREKEY_BATCH_SIZE = 20;
 const REPLENISH_THRESHOLD = 5;
@@ -22,9 +23,10 @@ type StoredIdentity = {
 	nextPrekeyId: number;
 };
 
-function storageKey(username: string): string {
+export function identityStorageKey(username: string): string {
 	return `hollowchat_identity_${username}`;
 }
+const storageKey = identityStorageKey;
 
 function toStored(pair: KeyPair): StoredKeyPair {
 	return { priv: toBase64(pair.privateKey), pub: toBase64(pair.publicKey) };
@@ -111,6 +113,7 @@ export async function ensureIdentity(token: string, username: string): Promise<v
 			identity.oneTimePrekeys = { ...identity.oneTimePrekeys, ...fresh };
 			identity.nextPrekeyId += PREKEY_BATCH_SIZE;
 			save(username, identity);
+			deviceSync.broadcastChange(username, storageKey(username), JSON.stringify(identity));
 			await api.uploadKeyBundle(token, bundleUploadPayload(identity, fresh));
 		}
 	} catch {

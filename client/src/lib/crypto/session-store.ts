@@ -1,8 +1,9 @@
 import type { RatchetState } from "./ratchet";
 
-function storageKey(myUsername: string, peerUsername: string): string {
+export function sessionStorageKey(myUsername: string, peerUsername: string): string {
 	return `hollowchat_session_${myUsername}_${peerUsername}`;
 }
+const storageKey = sessionStorageKey;
 
 export function loadSession(myUsername: string, peerUsername: string): RatchetState | null {
 	const raw = localStorage.getItem(storageKey(myUsername, peerUsername));

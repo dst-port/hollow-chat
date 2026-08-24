@@ -27,6 +27,8 @@ pub enum AppError {
     InvalidKeyMaterial,
     #[error("no key bundle for this user")]
     NoKeyBundle,
+    #[error("another of your devices just started a session with this user, retry shortly")]
+    BundleFetchInProgress,
     #[error("you're sending messages too fast, slow down")]
     RateLimited,
     #[error("this channel is in slowmode, wait before sending again")]
@@ -73,6 +75,7 @@ impl IntoResponse for AppError {
             AppError::RequestAlreadySent => StatusCode::CONFLICT,
             AppError::InvalidKeyMaterial => StatusCode::BAD_REQUEST,
             AppError::NoKeyBundle => StatusCode::NOT_FOUND,
+            AppError::BundleFetchInProgress => StatusCode::CONFLICT,
             AppError::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             AppError::SlowModeActive => StatusCode::TOO_MANY_REQUESTS,
             AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,

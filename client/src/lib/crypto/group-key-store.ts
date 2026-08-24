@@ -4,7 +4,7 @@ export type ChainState = {
 	distributedTo?: string[];
 };
 
-function sendKey(username: string, channelId: string): string {
+export function sendKey(username: string, channelId: string): string {
 	return `hollowchat_groupsend_${username}_${channelId}`;
 }
 

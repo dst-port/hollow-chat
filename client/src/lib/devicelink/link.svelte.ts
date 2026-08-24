@@ -3,6 +3,7 @@ import { generateX25519KeyPair, dh, kdf, type KeyPair } from "$lib/crypto/primit
 import { encrypt, decrypt } from "$lib/crypto/aead";
 import { toBase64, fromBase64, utf8Encode, utf8Decode } from "$lib/crypto/encoding";
 import { exportLocalCryptoState, importLocalCryptoState } from "$lib/crypto/devicestate";
+import { persistSyncKey, deviceSync } from "./sync";
 
 type ServerMsg =
 	| { type: "peer-joined" }
@@ -33,11 +34,15 @@ class DeviceLinkStore {
 	private ws: WebSocket | null = null;
 	private ephemeral: KeyPair | null = null;
 	private sharedKey: Uint8Array | null = null;
+	private token: string | null = null;
+	private username: string | null = null;
 
-	start(token: string) {
+	start(token: string, username: string) {
 		this.reset();
 		this.phase = "connecting";
 		this.ephemeral = generateX25519KeyPair();
+		this.token = token;
+		this.username = username;
 
 		const ws = new WebSocket(`${WS_BASE_URL}/devicelink?token=${encodeURIComponent(token)}`);
 		this.ws = ws;
@@ -109,6 +114,8 @@ class DeviceLinkStore {
 			const blob = exportLocalCryptoState(username);
 			const { nonce, ciphertext } = await encrypt(this.sharedKey, utf8Encode(blob), new Uint8Array(0));
 			this.sendWire({ step: "state", nonce: toBase64(nonce), ciphertext: toBase64(ciphertext) });
+			persistSyncKey(username, this.sharedKey);
+			if (this.token) deviceSync.connect(this.token, username);
 			this.phase = "done";
 		} catch {
 			this.phase = "error";
@@ -117,11 +124,13 @@ class DeviceLinkStore {
 	}
 
 	private async onEncryptedState(nonceB64: string, ciphertextB64: string) {
-		if (!this.sharedKey) return;
+		if (!this.sharedKey || !this.username) return;
 		this.phase = "receiving";
 		try {
 			const plaintext = await decrypt(this.sharedKey, fromBase64(nonceB64), fromBase64(ciphertextB64), new Uint8Array(0));
 			importLocalCryptoState(utf8Decode(plaintext));
+			persistSyncKey(this.username, this.sharedKey);
+			if (this.token) deviceSync.connect(this.token, this.username);
 			this.phase = "done";
 		} catch {
 			this.phase = "error";
@@ -144,6 +153,8 @@ class DeviceLinkStore {
 		this.ws = null;
 		this.ephemeral = null;
 		this.sharedKey = null;
+		this.token = null;
+		this.username = null;
 		this.phase = "idle";
 		this.fingerprint = null;
 		this.error = null;

@@ -2,8 +2,9 @@ import * as api from "$lib/api/client";
 import * as x3dh from "./x3dh";
 import * as ratchet from "./ratchet";
 import { getIdentityX25519, getSignedPrekey, takeOneTimePrekey } from "./identity";
-import { loadSession, saveSession } from "./session-store";
+import { loadSession, saveSession, sessionStorageKey } from "./session-store";
 import { toBase64, fromBase64, utf8Encode, utf8Decode } from "./encoding";
+import { deviceSync } from "$lib/devicelink/sync";
 
 type X3dhHeader = {
 	ik: string;
@@ -39,6 +40,21 @@ async function fetchBundle(token: string, peerUsername: string): Promise<x3dh.Pr
 	};
 }
 
+async function fetchBundleAfterCoordination(
+	token: string,
+	myUsername: string,
+	peerUsername: string
+): Promise<x3dh.PrekeyBundle | null> {
+	try {
+		return await fetchBundle(token, peerUsername);
+	} catch (err) {
+		if (!(err instanceof api.ApiError) || err.status !== 409) throw err;
+		await deviceSync.waitForSync(myUsername, sessionStorageKey(myUsername, peerUsername));
+		if (loadSession(myUsername, peerUsername)) return null;
+		return fetchBundle(token, peerUsername);
+	}
+}
+
 export async function encryptForPeer(
 	token: string,
 	myUsername: string,
@@ -49,20 +65,35 @@ export async function encryptForPeer(
 	let x3dhHeader: X3dhHeader | undefined;
 
 	if (!session) {
-		const myIdentityX = getIdentityX25519(myUsername);
-		const bundle = await fetchBundle(token, peerUsername);
-		const result = x3dh.initiate(myIdentityX, bundle);
-		session = ratchet.initAsSender(result.sharedSecret, bundle.signedPrekeyPublic);
-		x3dhHeader = {
-			ik: toBase64(myIdentityX.publicKey),
-			ek: toBase64(result.ephemeralPublic),
-			spkId: result.usedSignedPrekeyId,
-			opkId: result.usedOneTimePrekeyId
-		};
+		const decision = await deviceSync.claimNewSession(myUsername, peerUsername);
+		if (decision === "wait-for-sync") {
+			await deviceSync.waitForSync(myUsername, sessionStorageKey(myUsername, peerUsername));
+			session = loadSession(myUsername, peerUsername);
+		}
 	}
+
+	if (!session) {
+		const bundle = await fetchBundleAfterCoordination(token, myUsername, peerUsername);
+		if (bundle) {
+			const myIdentityX = getIdentityX25519(myUsername);
+			const result = x3dh.initiate(myIdentityX, bundle);
+			session = ratchet.initAsSender(result.sharedSecret, bundle.signedPrekeyPublic);
+			x3dhHeader = {
+				ik: toBase64(myIdentityX.publicKey),
+				ek: toBase64(result.ephemeralPublic),
+				spkId: result.usedSignedPrekeyId,
+				opkId: result.usedOneTimePrekeyId
+			};
+		} else {
+			session = loadSession(myUsername, peerUsername);
+		}
+	}
+
+	if (!session) throw new Error("could not establish a session with " + peerUsername);
 
 	const { header, nonce, ciphertext } = await ratchet.ratchetEncrypt(session, utf8Encode(plaintext));
 	saveSession(myUsername, peerUsername, session);
+	deviceSync.broadcastChange(myUsername, sessionStorageKey(myUsername, peerUsername), JSON.stringify(session));
 
 	const envelope: Envelope = { v: 1, x3dh: x3dhHeader, header, nonce, ciphertext };
 	return ENVELOPE_PREFIX + JSON.stringify(envelope);

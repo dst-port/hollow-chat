@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use dashmap::DashMap;
 use sqlx::PgPool;
@@ -36,4 +37,5 @@ pub struct AppState {
     pub ice: IceConfig,
     pub call_rooms: Arc<DashMap<Uuid, Vec<PeerHandle>>>,
     pub link_rooms: Arc<DashMap<Uuid, Vec<LinkPeer>>>,
+    pub bundle_fetch_locks: Arc<DashMap<(Uuid, Uuid), Instant>>,
 }

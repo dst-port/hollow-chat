@@ -12,7 +12,7 @@ use crate::state::AppState;
 
 use super::LinkPeer;
 
-const MAX_ROOM_SIZE: usize = 2;
+const MAX_ROOM_SIZE: usize = 8;
 
 #[derive(Debug, Deserialize)]
 pub struct JoinLinkQuery {
