@@ -15,6 +15,11 @@
 		attachLocalScreenStream
 	} from "$lib/actions/attachStream";
 	import { colorForName } from "$lib/utils/color";
+
+	const sharingUserIds = $derived.by(() => {
+		call.streamsVersion;
+		return new Set(call.participants.filter((p) => call.getRemoteScreenStream(p.userId)).map((p) => p.userId));
+	});
 </script>
 
 {#if call.status !== "idle"}
@@ -32,7 +37,7 @@
 			</div>
 		{/if}
 		{#each call.participants as participant (participant.userId)}
-			{#if call.getRemoteScreenStream(participant.userId)}
+			{#if sharingUserIds.has(participant.userId)}
 				<div class="screen-tile">
 					<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline></video>
 					<span class="tile-name">{participant.username}'s screen</span>

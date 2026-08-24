@@ -27,6 +27,7 @@ class CallStore {
 	cameraEnabled = $state(false);
 	screenSharing = $state(false);
 	participants = $state<Participant[]>([]);
+	streamsVersion = $state(0);
 
 	private ws: WebSocket | null = null;
 	private pcs = new Map<string, RTCPeerConnection>();
@@ -45,6 +46,7 @@ class CallStore {
 	}
 
 	private notify() {
+		this.streamsVersion++;
 		for (const cb of this.listeners) cb();
 	}
 
@@ -174,11 +176,15 @@ class CallStore {
 
 			for (const [peerId, pc] of this.pcs.entries()) {
 				const sender = pc.addTrack(track, screenStream);
-				await this.renegotiate(peerId, pc);
+				const offer = await pc.createOffer();
+				await pc.setLocalDescription(offer);
+
 				const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
 				if (transceiver?.mid) {
 					this.send({ type: "track-meta", to: peerId, mid: transceiver.mid, kind: "screen" });
 				}
+
+				this.send({ type: "offer", to: peerId, sdp: offer.sdp ?? "" });
 			}
 
 			this.screenSharing = true;
