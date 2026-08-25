@@ -69,8 +69,10 @@
 		absorbSenderKeyFor
 	} from "$lib/crypto/group";
 	import { rememberDecrypted, recallDecrypted } from "$lib/crypto/sent-cache";
+	import { encryptFile, genericUploadName } from "$lib/crypto/attachment";
+	import { packPayload, unpackPayload } from "$lib/crypto/messagePayload";
 	import { call } from "$lib/webrtc/call.svelte";
-	import { loadAttachmentBlobUrl, triggerDownload } from "$lib/utils/attachment";
+	import { loadAttachmentBlobUrl, loadEncryptedAttachmentBlobUrl, triggerDownload } from "$lib/utils/attachment";
 	import { renderMarkdown } from "$lib/utils/markdown";
 	import type { Channel, Message, MessageAttachment } from "$lib/data/mock";
 
@@ -211,31 +213,33 @@
 
 	async function toReplyPreview(reply: ApiReplyPreview | null) {
 		if (!reply) return undefined;
-		const content = reply.content
-			? await decryptStoredContent(reply.author, reply.id, reply.content)
-			: reply.has_attachment
-				? "📎 Attachment"
-				: "";
+		const text = reply.content
+			? unpackPayload(await decryptStoredContent(reply.author, reply.id, reply.content)).text
+			: "";
+		const content = text || (reply.has_attachment ? "📎 Attachment" : "");
 		return { id: reply.id, author: reply.author, content, hasAttachment: reply.has_attachment };
 	}
 
 	async function toMessage(apiMsg: ApiMessage): Promise<Message> {
-		const content = apiMsg.content
+		const decrypted = apiMsg.content
 			? await decryptStoredContent(apiMsg.author, apiMsg.id, apiMsg.content)
 			: "";
+		const payload = unpackPayload(decrypted);
 		ensureProfileLoaded(apiMsg.author);
 
 		return {
 			id: apiMsg.id,
 			author: apiMsg.author,
 			color: colorForName(apiMsg.author),
-			content,
+			content: payload.text,
 			attachment: apiMsg.attachment
 				? {
 						id: apiMsg.attachment.id,
-						filename: apiMsg.attachment.filename,
-						mimeType: apiMsg.attachment.mime_type,
-						sizeBytes: apiMsg.attachment.size_bytes
+						filename: payload.attachment?.filename ?? apiMsg.attachment.filename,
+						mimeType: payload.attachment?.mimeType ?? apiMsg.attachment.mime_type,
+						sizeBytes: payload.attachment?.sizeBytes ?? apiMsg.attachment.size_bytes,
+						key: payload.attachment?.key,
+						nonce: payload.attachment?.nonce
 					}
 				: undefined,
 			reactions: apiMsg.reactions.map((r) => ({ emoji: r.emoji, count: r.count, reacted: r.reacted })),
@@ -377,7 +381,11 @@
 		for (const message of messages) {
 			const attachment = message.attachment;
 			if (attachment && attachment.mimeType.startsWith("image/") && !imageUrls[attachment.id]) {
-				loadAttachmentBlobUrl(token, attachment.id, attachment.filename)
+				const loader =
+					attachment.key && attachment.nonce
+						? loadEncryptedAttachmentBlobUrl(token, attachment.id, attachment.key, attachment.nonce, attachment.mimeType)
+						: loadAttachmentBlobUrl(token, attachment.id, attachment.filename);
+				loader
 					.then((url) => {
 						imageUrls[attachment.id] = url;
 					})
@@ -420,7 +428,10 @@
 		const token = session.token;
 		if (!token) return;
 		try {
-			const url = await loadAttachmentBlobUrl(token, attachment.id, attachment.filename);
+			const url =
+				attachment.key && attachment.nonce
+					? await loadEncryptedAttachmentBlobUrl(token, attachment.id, attachment.key, attachment.nonce, attachment.mimeType)
+					: await loadAttachmentBlobUrl(token, attachment.id, attachment.filename);
 			triggerDownload(url, attachment.filename);
 		} catch {
 			toast.push("Couldn't download file");
@@ -517,19 +528,23 @@
 
 		try {
 			let attachmentId: string | undefined;
+			let attachmentMeta: Awaited<ReturnType<typeof encryptFile>>["meta"] | undefined;
 			if (file) {
 				uploading = true;
-				const uploaded = await uploadFile(token, file);
+				const { blob, meta } = await encryptFile(file);
+				const uploaded = await uploadFile(token, new File([blob], genericUploadName(), { type: blob.type }));
 				attachmentId = uploaded.id;
+				attachmentMeta = meta;
 			}
 
-			let payload: string | null = content || null;
-			if (myUsername && content) {
-				payload = await encryptOutgoing(myUsername, token, content);
+			let payload: string | null = null;
+			if (myUsername && (content || attachmentMeta)) {
+				const packed = packPayload(content, attachmentMeta);
+				payload = await encryptOutgoing(myUsername, token, packed);
 			}
 
 			const apiMsg = await postMessage(token, channel.id, payload, attachmentId, replyToId);
-			if (content) rememberDecrypted(apiMsg.id, content);
+			if (content || attachmentMeta) rememberDecrypted(apiMsg.id, packPayload(content, attachmentMeta));
 			messages.push(await toMessage(apiMsg));
 			lastId = apiMsg.id;
 		} catch (err) {
@@ -657,12 +672,23 @@
 		if (!token || !content) return;
 
 		try {
-			let payload = content;
+			const attachmentMeta =
+				message.attachment?.key && message.attachment.nonce
+					? {
+							key: message.attachment.key,
+							nonce: message.attachment.nonce,
+							filename: message.attachment.filename,
+							mimeType: message.attachment.mimeType,
+							sizeBytes: message.attachment.sizeBytes
+						}
+					: undefined;
+			const packed = packPayload(content, attachmentMeta);
+			let payload = packed;
 			if (session.username) {
-				payload = await encryptOutgoing(session.username, token, content);
+				payload = await encryptOutgoing(session.username, token, packed);
 			}
 			await apiEditMessage(token, scope, channel.id, message.id, payload);
-			rememberDecrypted(message.id, content);
+			rememberDecrypted(message.id, packed);
 			message.content = content;
 			message.edited = true;
 			editingId = null;

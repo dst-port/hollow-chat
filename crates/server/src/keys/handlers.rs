@@ -13,6 +13,17 @@ use crate::state::AppState;
 
 const BUNDLE_FETCH_LOCK_WINDOW: Duration = Duration::from_secs(3);
 
+pub(crate) fn spawn_lock_pruner(state: &AppState) {
+    let locks = state.bundle_fetch_locks.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(BUNDLE_FETCH_LOCK_WINDOW * 20);
+        loop {
+            interval.tick().await;
+            locks.retain(|_, last| last.elapsed() < BUNDLE_FETCH_LOCK_WINDOW);
+        }
+    });
+}
+
 fn decode(field: &str) -> Result<Vec<u8>, AppError> {
     STANDARD.decode(field).map_err(|_| AppError::InvalidKeyMaterial)
 }

@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -9,6 +10,19 @@ use axum::response::Response;
 use dashmap::DashMap;
 use uuid::Uuid;
 
+fn spawn_pruner<K>(hits: Arc<DashMap<K, (u32, Instant)>>, window: Duration)
+where
+    K: Eq + Hash + Send + Sync + 'static,
+{
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(window.max(Duration::from_secs(1)) * 2);
+        loop {
+            interval.tick().await;
+            hits.retain(|_, (_, last)| last.elapsed() < window);
+        }
+    });
+}
+
 #[derive(Clone)]
 pub struct RateLimiter {
     hits: Arc<DashMap<IpAddr, (u32, Instant)>>,
@@ -18,8 +32,10 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new(max_attempts: u32, window: Duration) -> Self {
+        let hits = Arc::new(DashMap::new());
+        spawn_pruner(hits.clone(), window);
         Self {
-            hits: Arc::new(DashMap::new()),
+            hits,
             max_attempts,
             window,
         }
@@ -47,8 +63,10 @@ pub struct UserRateLimiter {
 
 impl UserRateLimiter {
     pub fn new(max_attempts: u32, window: Duration) -> Self {
+        let hits = Arc::new(DashMap::new());
+        spawn_pruner(hits.clone(), window);
         Self {
-            hits: Arc::new(DashMap::new()),
+            hits,
             max_attempts,
             window,
         }

@@ -957,10 +957,10 @@
 						<div>
 							<p class="row-label">Server channel storage</p>
 							<p class="row-value muted">
-								Message text is end-to-end encrypted with a per-channel sender key, shared directly
-								between members — the server only ever sees ciphertext. Attachments in server
-								channels aren't encrypted yet. A member removed from the server can still read
-								messages sent with a key they already received until the channel is next re-keyed.
+								Message text and file attachments are end-to-end encrypted with a per-channel
+								sender key, shared directly between members — the server only ever sees
+								ciphertext. A member removed from the server can still read messages sent with a
+								key they already received until the channel is next re-keyed.
 							</p>
 						</div>
 					</div>

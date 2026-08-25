@@ -29,6 +29,8 @@ export type MessageAttachment = {
 	filename: string;
 	mimeType: string;
 	sizeBytes: number;
+	key?: string;
+	nonce?: string;
 };
 
 export type ReplyPreview = {

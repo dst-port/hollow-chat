@@ -8,7 +8,6 @@
 	import ScreenShareOff from "@lucide/svelte/icons/screen-share-off";
 	import PhoneOff from "@lucide/svelte/icons/phone-off";
 	import Users from "@lucide/svelte/icons/users";
-	import Sparkles from "@lucide/svelte/icons/sparkles";
 	import { call } from "$lib/webrtc/call.svelte";
 	import {
 		attachRemoteStream,
@@ -18,6 +17,7 @@
 	} from "$lib/actions/attachStream";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import * as api from "$lib/api/client";
 
 	$effect(() => {
 		const token = session.token;
@@ -73,15 +73,52 @@
 				{#if call.screenSharing}<ScreenShareOff size={14} strokeWidth={2} />{:else}<ScreenShare size={14} strokeWidth={2} />{/if}
 				<span class="tooltip">{call.screenSharing ? "Stop Sharing" : "Share Your Screen"}</span>
 			</button>
-			<button class="feature-btn" aria-label="Participants">
+			<button
+				class="feature-btn"
+				class:active={showParticipants}
+				aria-label="Participants"
+				onclick={() => (showParticipants = !showParticipants)}
+			>
 				<Users size={14} strokeWidth={2} />
 				<span class="tooltip">Participants</span>
 			</button>
-			<button class="feature-btn" aria-label="Effects">
-				<Sparkles size={14} strokeWidth={2} />
-				<span class="tooltip">Effects</span>
-			</button>
 		</div>
+
+		{#if showParticipants}
+			{@const ownProfile = profileStore.forUser(session.username ?? "")}
+			<div class="participants-panel" transition:fly={{ y: -6, duration: 120 }}>
+				<div class="participant-row">
+					<div
+						class="participant-avatar"
+						class:speaking={call.selfSpeaking && !call.muted}
+						style:background={ownProfile?.avatar_url ? undefined : "var(--accent-fill)"}
+						style:background-image={ownProfile?.avatar_url
+							? `url(${api.resolveUrl(ownProfile.avatar_url, session.token)})`
+							: undefined}
+					>
+						{#if !ownProfile?.avatar_url}{(session.username ?? "").slice(0, 2).toUpperCase()}{/if}
+					</div>
+					<span class="participant-name">{ownProfile?.display_name || session.username} (you)</span>
+					{#if call.muted}<MicOff size={13} strokeWidth={2} class="participant-muted" />{/if}
+				</div>
+				{#each call.participants as participant (participant.userId)}
+					{@const remoteProfile = profileStore.forUser(participant.username)}
+					<div class="participant-row">
+						<div
+							class="participant-avatar"
+							class:speaking={call.speakingUserIds.has(participant.userId)}
+							style:background={remoteProfile?.avatar_url ? undefined : "var(--accent-fill)"}
+							style:background-image={remoteProfile?.avatar_url
+								? `url(${api.resolveUrl(remoteProfile.avatar_url, session.token)})`
+								: undefined}
+						>
+							{#if !remoteProfile?.avatar_url}{participant.username.slice(0, 2).toUpperCase()}{/if}
+						</div>
+						<span class="participant-name">{remoteProfile?.display_name || participant.username}</span>
+					</div>
+				{/each}
+			</div>
+		{/if}
 
 		{#if call.screenSharing}
 			<div class="screen-tile">
@@ -265,6 +302,56 @@
 	.feature-btn.active {
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
+	}
+
+	.participants-panel {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 6px;
+		border-radius: 8px;
+		background: var(--active);
+	}
+
+	.participant-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 4px;
+	}
+
+	.participant-avatar {
+		flex-shrink: 0;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 9px;
+		font-weight: 700;
+		color: var(--accent-fill-ink);
+	}
+
+	.participant-avatar.speaking {
+		box-shadow: 0 0 0 2px var(--active), 0 0 0 4px var(--online);
+	}
+
+	.participant-name {
+		flex: 1;
+		min-width: 0;
+		font-size: 12px;
+		color: var(--ink);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.participant-row :global(.participant-muted) {
+		color: var(--danger);
+		flex-shrink: 0;
 	}
 
 	.screen-tile {

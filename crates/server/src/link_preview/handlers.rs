@@ -15,6 +15,17 @@ use super::ssrf::fetch_html;
 
 const CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 
+pub(crate) fn spawn_cache_pruner(state: &AppState) {
+    let cache = state.link_preview_cache.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(CACHE_TTL);
+        loop {
+            interval.tick().await;
+            cache.retain(|_, (inserted, _)| inserted.elapsed() < CACHE_TTL);
+        }
+    });
+}
+
 #[derive(Debug, Deserialize)]
 pub struct PreviewRequest {
     pub url: String,

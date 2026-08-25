@@ -6,6 +6,7 @@ use axum::Router;
 use crate::state::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
+    handlers::spawn_lock_pruner(&state);
     Router::new()
         .route("/bundle", put(handlers::upload_bundle))
         .route("/bundle/{username}", get(handlers::fetch_bundle))

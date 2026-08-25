@@ -9,5 +9,6 @@ use crate::state::AppState;
 pub use handlers::LinkPreviewDto;
 
 pub fn router(state: AppState) -> Router<AppState> {
+    handlers::spawn_cache_pruner(&state);
     Router::new().route("/", post(handlers::preview)).with_state(state)
 }
