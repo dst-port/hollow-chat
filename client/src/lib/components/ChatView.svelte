@@ -796,10 +796,13 @@
 				</button>
 				{#if notificationsOpen}
 					<InfoPopover title="Notifications" onClose={() => (notificationsOpen = false)}>
-						<label class="toggle-row">
+						<div class="toggle-row">
 							<span>Mute channel</span>
-							<input type="checkbox" bind:checked={muted} />
-						</label>
+							<label class="switch">
+								<input type="checkbox" bind:checked={muted} />
+								<span class="track"><span class="thumb"></span></span>
+							</label>
+						</div>
 					</InfoPopover>
 				{/if}
 			</div>
@@ -1178,6 +1181,51 @@
 		justify-content: space-between;
 		font-size: 13px;
 		color: var(--ink);
+	}
+
+	.switch {
+		position: relative;
+		flex-shrink: 0;
+		width: 40px;
+		height: 22px;
+	}
+
+	.switch input {
+		position: absolute;
+		opacity: 0;
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		cursor: pointer;
+	}
+
+	.track {
+		display: block;
+		width: 100%;
+		height: 100%;
+		border-radius: 999px;
+		background: var(--active);
+		transition: background-color 0.15s ease;
+	}
+
+	.thumb {
+		position: absolute;
+		top: 3px;
+		left: 3px;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: var(--ink-faint);
+		transition: transform 0.15s ease, background-color 0.15s ease;
+	}
+
+	.switch input:checked + .track {
+		background: var(--accent-soft);
+	}
+
+	.switch input:checked + .track .thumb {
+		transform: translateX(18px);
+		background: var(--ink);
 	}
 
 	.inbox-empty {

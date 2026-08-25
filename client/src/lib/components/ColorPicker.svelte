@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { clickOutside } from "$lib/actions/clickOutside";
 
-	let { value = $bindable() }: {
+	let { value = $bindable(), onCommit }: {
 		value: string;
+		onCommit?: (hex: string) => void;
 	} = $props();
 
 	const PRESETS = [
@@ -147,6 +148,7 @@
 
 	function onPointerUp() {
 		dragging = false;
+		onCommit?.(value);
 	}
 
 	function onLightChange() {
@@ -161,6 +163,7 @@
 		hexDraft = color;
 		syncFromHex(color);
 		drawWheel();
+		onCommit?.(color);
 	}
 
 	function applyHex() {
@@ -169,6 +172,7 @@
 			value = trimmed;
 			syncFromHex(trimmed);
 			drawWheel();
+			onCommit?.(trimmed);
 		}
 	}
 
@@ -210,6 +214,7 @@
 				max="100"
 				value={Math.round(light * 100)}
 				oninput={(e) => { light = Number((e.target as HTMLInputElement).value) / 100; onLightChange(); }}
+				onchange={() => onCommit?.(value)}
 			/>
 
 			<div class="grid">

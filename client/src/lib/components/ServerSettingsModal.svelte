@@ -11,7 +11,9 @@
 	import Users from "@lucide/svelte/icons/users";
 	import UserX from "@lucide/svelte/icons/user-x";
 	import Plus from "@lucide/svelte/icons/plus";
+	import Check from "@lucide/svelte/icons/check";
 	import InviteModal from "$lib/components/InviteModal.svelte";
+	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import {
@@ -409,12 +411,7 @@
 								maxlength="32"
 								onblur={(e) => renameRole(role, e.currentTarget.value)}
 							/>
-							<input
-								class="role-color-input"
-								type="color"
-								value={role.color}
-								onchange={(e) => recolorRole(role, e.currentTarget.value)}
-							/>
+							<ColorPicker bind:value={role.color} onCommit={(hex) => recolorRole(role, hex)} />
 							<button class="icon-danger" title="Delete role" onclick={() => removeRole(role)}>
 								<Trash2 size={14} strokeWidth={2} />
 							</button>
@@ -427,6 +424,11 @@
 										checked={(role.permissions & PERMISSIONS[perm.key]) !== 0}
 										onchange={() => togglePermission(role, PERMISSIONS[perm.key])}
 									/>
+									<span class="permission-check">
+										{#if (role.permissions & PERMISSIONS[perm.key]) !== 0}
+											<Check size={12} strokeWidth={3} />
+										{/if}
+									</span>
 									<span>
 										<span class="permission-label">{perm.label}</span>
 										<span class="permission-desc">{perm.description}</span>
@@ -810,16 +812,6 @@
 		border-color: var(--ink-dim);
 	}
 
-	.role-color-input {
-		width: 32px;
-		height: 32px;
-		flex-shrink: 0;
-		padding: 0;
-		border: 1px solid var(--hairline);
-		border-radius: 6px;
-		background: none;
-	}
-
 	.icon-danger {
 		flex-shrink: 0;
 		display: flex;
@@ -845,11 +837,38 @@
 		align-items: flex-start;
 		gap: 10px;
 		font-size: 13px;
+		cursor: pointer;
 	}
 
 	.permission-row input {
-		margin-top: 3px;
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+	}
+
+	.permission-check {
 		flex-shrink: 0;
+		margin-top: 2px;
+		width: 18px;
+		height: 18px;
+		border-radius: 5px;
+		border: 1px solid var(--ink-faint);
+		background: var(--panel);
+		color: var(--void);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background-color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.permission-row input:checked + .permission-check {
+		background: var(--accent-fill);
+		border-color: var(--accent-fill);
+	}
+
+	.permission-row input:focus-visible + .permission-check {
+		box-shadow: 0 0 0 3px var(--accent-soft);
 	}
 
 	.permission-label {
