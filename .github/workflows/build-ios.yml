@@ -36,7 +36,7 @@ jobs:
           cache-dependency-path: client/pnpm-lock.yaml
 
       - name: Disable pnpm's interactive modules-purge prompt
-        run: pnpm config set confirm-modules-purge false --global
+        run: echo "confirm-modules-purge=false" >> ~/.npmrc
 
       - name: Install frontend dependencies
         working-directory: client
