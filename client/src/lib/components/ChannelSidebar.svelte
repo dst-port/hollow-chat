@@ -4,25 +4,28 @@
 	import Hash from "@lucide/svelte/icons/hash";
 	import Volume2 from "@lucide/svelte/icons/volume-2";
 	import Search from "@lucide/svelte/icons/search";
-	import UserBar from "$lib/components/UserBar.svelte";
-	import CallBar from "$lib/components/CallBar.svelte";
 	import ServerMenu from "$lib/components/ServerMenu.svelte";
 	import InviteModal from "$lib/components/InviteModal.svelte";
 	import CreateChannelModal from "$lib/components/CreateChannelModal.svelte";
 	import ServerSettingsModal from "$lib/components/ServerSettingsModal.svelte";
+	import Mic from "@lucide/svelte/icons/mic";
+	import MicOff from "@lucide/svelte/icons/mic-off";
+	import UserPlus from "@lucide/svelte/icons/user-plus";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { call } from "$lib/webrtc/call.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
+	import { badgeStore } from "$lib/stores/badges.svelte";
+	import * as api from "$lib/api/client";
 	import type { Channel, ChannelType, ServerEntry } from "$lib/data/mock";
 
-	let { server, activeChannelId, onSelectChannel, onCreateChannel, onLeaveServer, username, onLogout }: {
+	let { server, activeChannelId, onSelectChannel, onCreateChannel, onLeaveServer, username }: {
 		server: ServerEntry;
 		activeChannelId: string;
 		onSelectChannel: (id: string) => void;
 		onCreateChannel: (name: string, type: ChannelType) => void;
 		onLeaveServer: () => void;
 		username: string;
-		onLogout: () => void;
 	} = $props();
 
 	let search = $state("");
@@ -31,6 +34,17 @@
 	let inviteOpen = $state(false);
 	let createChannelOpen = $state(false);
 	let serverSettingsOpen = $state(false);
+
+	$effect(() => {
+		const token = session.token;
+		if (!token || !call.roomId) return;
+		profileStore.load(token, username);
+		badgeStore.loadForUser(token, username);
+		for (const participant of call.participants) {
+			profileStore.load(token, participant.username);
+			badgeStore.loadForUser(token, participant.username);
+		}
+	});
 
 	const categories = $derived.by(() => {
 		const groups = new Map<string, typeof server.channels>();
@@ -129,15 +143,53 @@
 								<span class="name" class:unread={channel.unread}>{channel.name}</span>
 								{#if channel.unread}<span class="unread-dot"></span>{/if}
 							</button>
+							{#if channel.type === "voice" && call.roomId === channel.id}
+								{@const ownProfile = profileStore.forUser(username)}
+								<div class="voice-participants" transition:slide={{ duration: 140 }}>
+									<div class="voice-row">
+										<div
+											class="voice-avatar"
+											class:speaking={call.selfSpeaking && !call.muted}
+											style:background={ownProfile?.avatar_url ? undefined : "var(--accent-fill)"}
+											style:background-image={ownProfile?.avatar_url ? `url(${api.resolveUrl(ownProfile.avatar_url, session.token)})` : undefined}
+										>
+											{#if !ownProfile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+										</div>
+										<span class="voice-name" style:color={ownProfile?.accent_color || undefined}>
+											{ownProfile?.display_name || username}
+										</span>
+										<span class="voice-mic-state">
+											{#if call.muted}<MicOff size={13} strokeWidth={2} class="muted" />{:else}<Mic size={13} strokeWidth={2} />{/if}
+										</span>
+									</div>
+									{#each call.participants as participant (participant.userId)}
+										{@const remoteProfile = profileStore.forUser(participant.username)}
+										<div class="voice-row">
+											<div
+												class="voice-avatar"
+												class:speaking={call.speakingUserIds.has(participant.userId)}
+												style:background={remoteProfile?.avatar_url ? undefined : "var(--accent-fill)"}
+												style:background-image={remoteProfile?.avatar_url ? `url(${api.resolveUrl(remoteProfile.avatar_url, session.token)})` : undefined}
+											>
+												{#if !remoteProfile?.avatar_url}{participant.username.slice(0, 2).toUpperCase()}{/if}
+											</div>
+											<span class="voice-name" style:color={remoteProfile?.accent_color || undefined}>
+												{remoteProfile?.display_name || participant.username}
+											</span>
+										</div>
+									{/each}
+									<button class="invite-to-voice" onclick={() => (inviteOpen = true)}>
+										<UserPlus size={14} strokeWidth={2} />
+										Invite to Voice
+									</button>
+								</div>
+							{/if}
 						{/each}
 					</div>
 				{/if}
 			</div>
 		{/each}
 	</div>
-
-	<CallBar />
-	<UserBar {username} {onLogout} />
 </aside>
 
 {#if inviteOpen}
@@ -304,5 +356,75 @@
 		border-radius: 50%;
 		background: var(--ink);
 		margin-left: auto;
+	}
+
+	.voice-participants {
+		padding: 2px 8px 6px 28px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.voice-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.voice-avatar {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background-position: center;
+		background-size: cover;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 9px;
+		font-weight: 700;
+		color: var(--void);
+		transition: box-shadow 0.1s ease;
+	}
+
+	.voice-avatar.speaking {
+		box-shadow: 0 0 0 2px var(--sidebar), 0 0 0 4px var(--online);
+	}
+
+	.voice-name {
+		flex: 1;
+		min-width: 0;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--ink-dim);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.voice-mic-state {
+		display: flex;
+		color: var(--ink-faint);
+		flex-shrink: 0;
+	}
+
+	.voice-mic-state :global(.muted) {
+		color: var(--danger);
+	}
+
+	.invite-to-voice {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 4px;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--ink-faint);
+		transition: color 0.15s ease;
+	}
+
+	.invite-to-voice:hover {
+		color: var(--ink);
 	}
 </style>

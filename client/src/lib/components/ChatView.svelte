@@ -13,6 +13,7 @@
 	import Smile from "@lucide/svelte/icons/smile";
 	import X from "@lucide/svelte/icons/x";
 	import FileIcon from "@lucide/svelte/icons/file";
+	import UploadCloud from "@lucide/svelte/icons/upload-cloud";
 	import Download from "@lucide/svelte/icons/download";
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import Phone from "@lucide/svelte/icons/phone";
@@ -47,11 +48,13 @@
 		listMembers as apiListMembers,
 		publishSenderKeys,
 		listSenderKeys,
+		fetchLinkPreview,
 		PERMISSIONS,
 		ApiError,
 		type ApiMessage,
 		type ApiReplyPreview,
-		type MessageScope
+		type MessageScope,
+		type LinkPreview
 	} from "$lib/api/client";
 	import { colorForName } from "$lib/utils/color";
 	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
@@ -191,6 +194,21 @@
 		return profileStore.forUser(username)?.display_name || username;
 	}
 
+	function colorFor(username: string): string {
+		return profileStore.forUser(username)?.accent_color || colorForName(username);
+	}
+
+	function formatMessageTime(message: Message): string {
+		const date = new Date(message.timestampMs);
+		const now = new Date();
+		const isToday =
+			date.getFullYear() === now.getFullYear() &&
+			date.getMonth() === now.getMonth() &&
+			date.getDate() === now.getDate();
+		if (isToday) return message.time;
+		return `${date.toLocaleDateString([], { month: "numeric", day: "numeric", year: "2-digit" })}, ${message.time}`;
+	}
+
 	async function toReplyPreview(reply: ApiReplyPreview | null) {
 		if (!reply) return undefined;
 		const content = reply.content
@@ -224,7 +242,8 @@
 			pinned: apiMsg.pinned,
 			replyTo: await toReplyPreview(apiMsg.reply_to),
 			edited: !!apiMsg.edited_at,
-			time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+			time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+			timestampMs: new Date(apiMsg.timestamp).getTime()
 		};
 	}
 
@@ -367,6 +386,36 @@
 		}
 	});
 
+	const URL_RE = /https?:\/\/[^\s<>"']+/i;
+
+	function firstUrl(content: string): string | null {
+		const match = content.match(URL_RE);
+		if (!match) return null;
+		return match[0].replace(/[.,;:!?)\]]+$/, "");
+	}
+
+	let linkPreviews = $state<Record<string, LinkPreview | null>>({});
+	let dismissedPreviews = $state<Set<string>>(new Set());
+	const attemptedPreviewUrls = new Set<string>();
+
+	$effect(() => {
+		const token = session.token;
+		if (!token) return;
+		for (const message of messages) {
+			if (!message.content) continue;
+			const url = firstUrl(message.content);
+			if (!url || attemptedPreviewUrls.has(url)) continue;
+			attemptedPreviewUrls.add(url);
+			fetchLinkPreview(token, url)
+				.then((preview) => {
+					linkPreviews[url] = preview;
+				})
+				.catch(() => {
+					linkPreviews[url] = null;
+				});
+		}
+	});
+
 	async function downloadAttachment(attachment: MessageAttachment) {
 		const token = session.token;
 		if (!token) return;
@@ -390,6 +439,60 @@
 
 	function clearPendingFile() {
 		pendingFile = null;
+	}
+
+	let pendingFilePreviewUrl = $state<string | null>(null);
+	$effect(() => {
+		if (pendingFile && pendingFile.type.startsWith("image/")) {
+			const url = URL.createObjectURL(pendingFile);
+			pendingFilePreviewUrl = url;
+			return () => URL.revokeObjectURL(url);
+		}
+		pendingFilePreviewUrl = null;
+	});
+
+	function onComposerPaste(event: ClipboardEvent) {
+		const items = event.clipboardData?.items;
+		if (!items) return;
+		for (const item of items) {
+			if (item.kind === "file") {
+				const file = item.getAsFile();
+				if (file) {
+					pendingFile = file;
+					event.preventDefault();
+					return;
+				}
+			}
+		}
+	}
+
+	let dragActive = $state(false);
+	let dragDepth = 0;
+
+	function onChatDragOver(event: DragEvent) {
+		if (!event.dataTransfer?.types.includes("Files")) return;
+		event.preventDefault();
+	}
+
+	function onChatDragEnter(event: DragEvent) {
+		if (!event.dataTransfer?.types.includes("Files")) return;
+		event.preventDefault();
+		dragDepth++;
+		dragActive = true;
+	}
+
+	function onChatDragLeave(event: DragEvent) {
+		if (!event.dataTransfer?.types.includes("Files")) return;
+		dragDepth = Math.max(0, dragDepth - 1);
+		if (dragDepth === 0) dragActive = false;
+	}
+
+	function onChatDrop(event: DragEvent) {
+		event.preventDefault();
+		dragDepth = 0;
+		dragActive = false;
+		const file = event.dataTransfer?.files?.[0];
+		if (file) pendingFile = file;
 	}
 
 	function formatSize(bytes: number): string {
@@ -442,11 +545,16 @@
 		}
 	}
 
+	const GROUP_WINDOW_MS = 10 * 60 * 1000;
+
 	function isGrouped(index: number) {
 		if (index === 0) return false;
+		const prev = messages[index - 1];
+		const current = messages[index];
 		return (
-			messages[index - 1].author === messages[index].author &&
-			!messages[index].replyTo
+			prev.author === current.author &&
+			!current.replyTo &&
+			current.timestampMs - prev.timestampMs <= GROUP_WINDOW_MS
 		);
 	}
 
@@ -613,7 +721,20 @@
 </script>
 
 <div class="chat-row">
-<section class="chat">
+<section
+	class="chat"
+	aria-label="Message area"
+	ondragenter={onChatDragEnter}
+	ondragover={onChatDragOver}
+	ondragleave={onChatDragLeave}
+	ondrop={onChatDrop}
+>
+	{#if dragActive}
+		<div class="drop-overlay">
+			<UploadCloud size={32} strokeWidth={1.75} />
+			<span>Drop to upload</span>
+		</div>
+	{/if}
 	<header class="header">
 		{#if isDm}
 			<UserRound size={18} strokeWidth={2.5} class="hash" />
@@ -707,8 +828,8 @@
 						{@const authorAvatarUrl = profileStore.forUser(message.author)?.avatar_url}
 						<div
 							class="avatar"
-							style:background={authorAvatarUrl ? undefined : message.color}
-							style:background-image={authorAvatarUrl ? `url(${resolveUrl(authorAvatarUrl)})` : undefined}
+							style:background={authorAvatarUrl ? undefined : colorFor(message.author)}
+							style:background-image={authorAvatarUrl ? `url(${resolveUrl(authorAvatarUrl, session.token)})` : undefined}
 						>
 							{#if !authorAvatarUrl}{message.author.slice(0, 2).toUpperCase()}{/if}
 						</div>
@@ -728,8 +849,8 @@
 						{/if}
 						{#if !isGrouped(index)}
 							<p class="meta">
-								<span class="author" style:color={message.color}>{displayNameFor(message.author)}</span>
-								<span class="time">{message.time}</span>
+								<span class="author" style:color={colorFor(message.author)}>{displayNameFor(message.author)}</span>
+								<span class="time">{formatMessageTime(message)}</span>
 								{#if message.edited}<span class="edited-flag">(edited)</span>{/if}
 								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
 							</p>
@@ -747,6 +868,25 @@
 								{@html renderMarkdown(message.content)}
 								{#if message.edited && isGrouped(index)}<span class="edited-flag">(edited)</span>{/if}
 							</p>
+							{@const previewUrl = firstUrl(message.content)}
+							{#if previewUrl && linkPreviews[previewUrl] && !dismissedPreviews.has(message.id)}
+								{@const preview = linkPreviews[previewUrl]}
+								<div class="link-preview">
+									<button class="link-preview-close" onclick={() => dismissedPreviews.add(message.id)} title="Dismiss preview">
+										<X size={12} strokeWidth={2} />
+									</button>
+									<div class="link-preview-body">
+										{#if preview.site_name}<span class="link-preview-site">{preview.site_name}</span>{/if}
+										{#if preview.title}
+											<a class="link-preview-title" href={preview.url} target="_blank" rel="noreferrer">{preview.title}</a>
+										{/if}
+										{#if preview.description}<p class="link-preview-desc">{preview.description}</p>{/if}
+									</div>
+									{#if preview.image}
+										<img class="link-preview-image" src={preview.image} alt="" />
+									{/if}
+								</div>
+							{/if}
 						{/if}
 						{#if message.attachment}
 							{#if message.attachment.mimeType.startsWith("image/") && imageUrls[message.attachment.id]}
@@ -834,7 +974,11 @@
 
 	{#if pendingFile}
 		<div class="pending-file" transition:fly={{ y: 8, duration: 140 }}>
-			<FileIcon size={16} strokeWidth={2} />
+			{#if pendingFilePreviewUrl}
+				<img class="pending-thumb" src={pendingFilePreviewUrl} alt="" />
+			{:else}
+				<FileIcon size={16} strokeWidth={2} />
+			{/if}
 			<span class="pending-name">{pendingFile.name}</span>
 			<span class="pending-size">{formatSize(pendingFile.size)}</span>
 			<button type="button" class="cancel-reply" onclick={clearPendingFile} title="Remove file">
@@ -857,6 +1001,7 @@
 			type="text"
 			placeholder={isDm ? `Message ${channel.name}` : `Message #${channel.name}`}
 			bind:value={draft}
+			onpaste={onComposerPaste}
 		/>
 		<div class="anchor">
 			<button type="button" class="emoji-toggle" title="Emoji" onclick={() => (composerEmojiOpen = !composerEmojiOpen)}>
@@ -885,12 +1030,30 @@
 	}
 
 	.chat {
+		position: relative;
 		flex: 1;
 		display: flex;
 		flex-direction: column;
 		height: 100%;
 		min-width: 0;
 		background: var(--panel);
+	}
+
+	.drop-overlay {
+		position: absolute;
+		inset: 0;
+		z-index: 50;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		background: rgba(0, 0, 0, 0.55);
+		border: 2px dashed var(--accent-fill);
+		color: var(--ink);
+		font-size: 14px;
+		font-weight: 700;
+		pointer-events: none;
 	}
 
 	.header {
@@ -909,6 +1072,13 @@
 
 	.header :global(.hash) {
 		color: var(--ink-faint);
+	}
+
+	.name {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
 	}
 
 	.spacer {
@@ -1313,6 +1483,82 @@
 		color: var(--ink-faint);
 	}
 
+	.link-preview {
+		position: relative;
+		display: flex;
+		gap: 12px;
+		margin-top: 6px;
+		padding: 10px 28px 10px 12px;
+		max-width: 420px;
+		background: var(--sidebar);
+		border-left: 3px solid var(--accent-fill);
+		border-radius: 4px;
+	}
+
+	.link-preview-close {
+		position: absolute;
+		top: 6px;
+		right: 6px;
+		padding: 3px;
+		border-radius: 999px;
+		color: var(--ink-faint);
+		opacity: 0;
+		transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.link-preview:hover .link-preview-close {
+		opacity: 1;
+	}
+
+	.link-preview-close:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.link-preview-body {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.link-preview-site {
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--ink-faint);
+	}
+
+	.link-preview-title {
+		font-size: 14px;
+		font-weight: 700;
+		color: var(--accent-fill);
+	}
+
+	.link-preview-title:hover {
+		text-decoration: underline;
+	}
+
+	.link-preview-desc {
+		margin: 0;
+		font-size: 12px;
+		line-height: 1.4;
+		color: var(--ink-dim);
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.link-preview-image {
+		flex-shrink: 0;
+		width: 64px;
+		height: 64px;
+		border-radius: 4px;
+		object-fit: cover;
+	}
+
 	.pending-file {
 		flex-shrink: 0;
 		display: flex;
@@ -1324,6 +1570,14 @@
 		border-radius: 8px 8px 0 0;
 		font-size: 12px;
 		color: var(--ink-dim);
+	}
+
+	.pending-thumb {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 4px;
+		object-fit: cover;
 	}
 
 	.pending-name {

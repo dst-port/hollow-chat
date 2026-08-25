@@ -12,6 +12,8 @@
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
+	import { badgeStore } from "$lib/stores/badges.svelte";
 	import * as api from "$lib/api/client";
 	import type { Member } from "$lib/data/mock";
 
@@ -25,7 +27,19 @@
 
 	const POPOVER_WIDTH = 280;
 	const NOTE_KEY = `hollowchat_note_${member.id}`;
-	const accent = member.roles?.[0]?.color ?? member.color;
+
+	$effect(() => {
+		const token = session.token;
+		if (!token) return;
+		badgeStore.loadForUser(token, member.name);
+		profileStore.load(token, member.name);
+	});
+
+	const profile = $derived(profileStore.forUser(member.name));
+	const presence = $derived(profile?.presence ?? "online");
+	const accent = $derived(profile?.accent_color || member.roles?.[0]?.color || member.color);
+	const displayName = $derived(profile?.display_name || member.name);
+	const isSelf = $derived(member.name === session.username);
 
 	function computePosition() {
 		const frame = document.querySelector(".window-frame");
@@ -100,13 +114,16 @@
 	style:width={`${POPOVER_WIDTH}px`}
 	transition:fly={{ x: 6, duration: 140 }}
 >
-	<div class="banner" style:background={`linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 40%, black))`}></div>
+	<div class="banner" style:background={api.bannerBackground(profile, session.token)}></div>
 	<div class="header-row">
 		<div class="status-avatar">
-			<div class="avatar" style:background={member.color} style="box-shadow: 0 0 0 2px {accent};">
-				{member.name.slice(0, 2).toUpperCase()}
+			<div
+				class="avatar avatar-ring on-panel {presence}"
+				style:background={profile?.avatar_url ? undefined : member.color}
+				style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+			>
+				{#if !profile?.avatar_url}{member.name.slice(0, 2).toUpperCase()}{/if}
 			</div>
-			{#if member.status}<span class="status-dot on-panel {member.status}"></span>{/if}
 		</div>
 		<div class="header-actions">
 			<div class="anchor">
@@ -119,39 +136,53 @@
 							<IdCard size={14} strokeWidth={2} />
 							Copy User ID
 						</button>
-						<button class="menu-item danger" onclick={removeFriend}>
-							<UserMinus size={14} strokeWidth={2} />
-							Remove Friend
-						</button>
-						<button class="menu-item danger" onclick={blockUser}>
-							<ShieldOff size={14} strokeWidth={2} />
-							Block User
-						</button>
+						{#if !isSelf}
+							<button class="menu-item danger" onclick={removeFriend}>
+								<UserMinus size={14} strokeWidth={2} />
+								Remove Friend
+							</button>
+							<button class="menu-item danger" onclick={blockUser}>
+								<ShieldOff size={14} strokeWidth={2} />
+								Block User
+							</button>
+						{/if}
 					</div>
 				{/if}
 			</div>
-			<button class="icon-action primary" title="Message" onclick={message}>
-				<MessageSquare size={16} strokeWidth={2} />
-			</button>
+			{#if !isSelf}
+				<button class="icon-action primary" title="Message" onclick={message}>
+					<MessageSquare size={16} strokeWidth={2} />
+				</button>
+			{/if}
 		</div>
 	</div>
 
 	<div class="body">
 		<p class="name-row">
-			<span class="name" style:color={accent}>{member.name}</span>
-			{#if member.badges}<Badges badges={member.badges} />{/if}
+			<span class="name" style:color={accent}>{displayName}</span>
+			<Badges badges={badgeStore.forUser(member.name)} />
 		</p>
-		{#if member.activity ?? member.status}<p class="status">{member.activity ?? member.status}</p>{/if}
+		<p class="handle">{member.name}{#if profile?.pronouns} · {profile.pronouns}{/if}</p>
+		{#if profile?.status_text}<p class="status">{profile.status_text}</p>{:else if member.activity}<p class="status">{member.activity}</p>{/if}
+		{#if profile?.activity_application || profile?.activity_details}
+			<p class="activity-line">
+				{#if profile.activity_application}Playing <strong>{profile.activity_application}</strong>{/if}
+				{#if profile.activity_details}<br />{profile.activity_details}{/if}
+				{#if profile.activity_state}<br />{profile.activity_state}{/if}
+			</p>
+		{/if}
 
-		<p class="mutual">
-			<Users size={12} strokeWidth={2} />
-			1 Mutual Server — {serverName}
-		</p>
+		{#if !isSelf}
+			<p class="mutual">
+				<Users size={12} strokeWidth={2} />
+				1 Mutual Server — {serverName}
+			</p>
+		{/if}
 
-		{#if member.bio}
+		{#if profile?.bio || member.bio}
 			<div class="section">
 				<p class="section-label">About Me</p>
-				<p class="bio">{member.bio}</p>
+				<p class="bio">{profile?.bio || member.bio}</p>
 			</div>
 		{/if}
 
@@ -223,8 +254,9 @@
 	.avatar {
 		width: 56px;
 		height: 56px;
-		border: 3px solid var(--panel);
 		border-radius: 50%;
+		background-position: center;
+		background-size: cover;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -232,13 +264,6 @@
 		font-weight: 700;
 		font-size: 16px;
 		color: var(--void);
-	}
-
-	.status-dot {
-		width: 13px;
-		height: 13px;
-		right: 1px;
-		bottom: 1px;
 	}
 
 	.header-actions {
@@ -270,11 +295,11 @@
 	.more-menu {
 		position: absolute;
 		top: calc(100% + 4px);
-		left: 0;
+		right: 0;
 		background: var(--panel);
 		border-radius: 8px;
 		padding: 6px;
-		min-width: 170px;
+		width: 180px;
 		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 		z-index: 60;
 	}
@@ -289,6 +314,7 @@
 		font-size: 13px;
 		font-weight: 500;
 		color: var(--ink-dim);
+		white-space: nowrap;
 		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
@@ -330,6 +356,12 @@
 		color: var(--ink);
 	}
 
+	.handle {
+		margin: 1px 0 0;
+		font-size: 11px;
+		color: var(--ink-faint);
+	}
+
 	.status {
 		margin: 2px 0 8px;
 		font-size: 12px;
@@ -338,6 +370,17 @@
 
 	.status:first-letter {
 		text-transform: uppercase;
+	}
+
+	.activity-line {
+		margin: 2px 0 8px;
+		font-size: 12px;
+		line-height: 1.4;
+		color: var(--ink-dim);
+	}
+
+	.activity-line strong {
+		color: var(--ink);
 	}
 
 	.mutual {

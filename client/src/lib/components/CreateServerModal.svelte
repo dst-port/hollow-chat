@@ -4,6 +4,7 @@
 	import Compass from "@lucide/svelte/icons/compass";
 	import Sparkles from "@lucide/svelte/icons/sparkles";
 	import DoorOpen from "@lucide/svelte/icons/door-open";
+	import Camera from "@lucide/svelte/icons/camera";
 	import Modal from "$lib/components/Modal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
@@ -20,6 +21,15 @@
 	let name = $state("");
 	let inviteLink = $state("");
 	let joining = $state(false);
+	let iconPreview = $state<string | null>(null);
+	let iconInput = $state<HTMLInputElement | null>(null);
+
+	function pickIcon(event: Event) {
+		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+		if (!file) return;
+		if (iconPreview) URL.revokeObjectURL(iconPreview);
+		iconPreview = URL.createObjectURL(file);
+	}
 
 	function submitCreate(event: SubmitEvent) {
 		event.preventDefault();
@@ -80,11 +90,21 @@
 			Back
 		</button>
 		<form onsubmit={submitCreate}>
-			<p class="hint">Give your server a name. You can invite people once it exists.</p>
-			<label>
-				Server name
-				<input type="text" bind:value={name} required maxlength="48" placeholder="Void Raiders" />
-			</label>
+			<p class="hint">Give your server an icon and a name. You can invite people once it exists.</p>
+			<div class="icon-row">
+				<button type="button" class="icon-drop" onclick={() => iconInput?.click()} aria-label="Upload server icon">
+					{#if iconPreview}
+						<img src={iconPreview} alt="" />
+					{:else}
+						<Camera size={22} strokeWidth={2} />
+					{/if}
+				</button>
+				<input bind:this={iconInput} type="file" accept="image/*" hidden onchange={pickIcon} />
+				<label class="name-field">
+					Server name
+					<input type="text" bind:value={name} required maxlength="48" placeholder="Void Raiders" />
+				</label>
+			</div>
 			<button type="submit" disabled={!name.trim()}>Create</button>
 		</form>
 	{:else}
@@ -141,7 +161,7 @@
 		padding: 12px 14px;
 		border-radius: 8px;
 		background: var(--sidebar);
-		border: 1px solid transparent;
+		border: 1px solid var(--hairline);
 		color: var(--ink);
 		font-weight: 600;
 		font-size: 14px;
@@ -206,6 +226,42 @@
 		color: var(--ink-dim);
 	}
 
+	.icon-row {
+		display: flex;
+		align-items: flex-end;
+		gap: 14px;
+	}
+
+	.icon-drop {
+		flex-shrink: 0;
+		width: 80px;
+		height: 80px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--panel);
+		border: 1px dashed var(--ink-faint);
+		color: var(--ink-faint);
+		overflow: hidden;
+		transition: border-color 0.15s ease, color 0.15s ease;
+	}
+
+	.icon-drop:hover {
+		border-color: var(--ink-dim);
+		color: var(--ink-dim);
+	}
+
+	.icon-drop img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.name-field {
+		flex: 1;
+	}
+
 	label {
 		display: flex;
 		flex-direction: column;
@@ -254,7 +310,8 @@
 		margin-top: 16px;
 		padding: 14px;
 		border-radius: 8px;
-		background: var(--sidebar);
+		background: var(--panel);
+		border: 1px solid var(--hairline);
 		color: var(--ink-faint);
 	}
 

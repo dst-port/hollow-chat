@@ -1,5 +1,8 @@
 <script lang="ts">
 	import ProfilePopover from "$lib/components/ProfilePopover.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
+	import * as api from "$lib/api/client";
 	import type { Member } from "$lib/data/mock";
 
 	let { members, serverName, onMessage }: {
@@ -10,12 +13,30 @@
 
 	let openMember = $state<{ id: string; anchor: HTMLElement } | null>(null);
 
+	$effect(() => {
+		const token = session.token;
+		if (!token) return;
+		for (const member of members) {
+			profileStore.load(token, member.name);
+		}
+	});
+
+	const PRESENCE_GROUP_LABEL: Record<string, string> = {
+		online: "Online",
+		idle: "Idle",
+		dnd: "Do Not Disturb",
+		invisible: "Offline",
+		offline: "Offline"
+	};
+
+	function presenceOf(member: Member) {
+		return profileStore.forUser(member.name)?.presence ?? "online";
+	}
+
 	const groups = $derived.by(() => {
 		const map = new Map<string, Member[]>();
 		for (const member of members) {
-			const key =
-				member.roles?.[0]?.label ??
-				(member.status ? (member.status === "offline" ? "Offline" : "Online") : "Members");
+			const key = member.roles?.[0]?.label ?? PRESENCE_GROUP_LABEL[presenceOf(member)];
 			if (!map.has(key)) map.set(key, []);
 			map.get(key)!.push(member);
 		}
@@ -32,19 +53,27 @@
 	{#each groups as group (group.name)}
 		<p class="label">{group.name} — {group.members.length}</p>
 		{#each group.members as member (member.id)}
+			{@const profile = profileStore.forUser(member.name)}
+			{@const presence = presenceOf(member)}
 			<div class="anchor">
-				<button class="member" class:offline={member.status === "offline"} onclick={(e) => toggle(member.id, e)}>
+				<button class="member" class:offline={presence === "invisible"} onclick={(e) => toggle(member.id, e)}>
 					<div class="status-avatar">
-						<div class="avatar" style:background={member.color}>
-							{member.name.slice(0, 2).toUpperCase()}
+						<div
+							class="avatar avatar-ring on-panel {presence}"
+							style:background={profile?.avatar_url ? undefined : member.color}
+							style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+						>
+							{#if !profile?.avatar_url}{member.name.slice(0, 2).toUpperCase()}{/if}
 						</div>
-						{#if member.status}<span class="status-dot {member.status}"></span>{/if}
 					</div>
 					<div class="identity">
-						<p class="name" style:color={member.status !== "offline" ? member.roles?.[0]?.color : undefined}>
-							{member.name}
+						<p
+							class="name"
+							style:color={presence !== "invisible" ? (profile?.accent_color || member.roles?.[0]?.color) : undefined}
+						>
+							{profile?.display_name || member.name}
 						</p>
-						{#if member.activity}<p class="activity">{member.activity}</p>{/if}
+						{#if profile?.status_text}<p class="activity">{profile.status_text}</p>{:else if member.activity}<p class="activity">{member.activity}</p>{/if}
 					</div>
 				</button>
 			</div>
@@ -112,6 +141,8 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
+		background-position: center;
+		background-size: cover;
 		display: flex;
 		align-items: center;
 		justify-content: center;

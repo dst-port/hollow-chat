@@ -2,6 +2,8 @@
 	import { fade } from "svelte/transition";
 	import ServerRail from "$lib/components/ServerRail.svelte";
 	import ChannelSidebar from "$lib/components/ChannelSidebar.svelte";
+	import CallBar from "$lib/components/CallBar.svelte";
+	import UserBar from "$lib/components/UserBar.svelte";
 	import ChatView from "$lib/components/ChatView.svelte";
 	import MemberList from "$lib/components/MemberList.svelte";
 	import HomeView from "$lib/components/HomeView.svelte";
@@ -10,8 +12,11 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
+	import { initRichPresenceBridge } from "$lib/stores/richPresence.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import * as api from "$lib/api/client";
+
+	initRichPresenceBridge();
 
 	function toServerEntry(server: api.ApiServer): ServerEntry {
 		return {
@@ -174,15 +179,15 @@
 </script>
 
 <div class="window-frame app">
-	<ServerRail
-		servers={serverList}
-		activeId={activeServerId}
-		onSelect={selectServer}
-		onSelectHome={selectHome}
-		onAddServer={() => (createServerOpen = true)}
-	/>
-	{#key activeServerId}
-		<div class="content" in:fade={{ duration: 140 }}>
+	<div class="left-column">
+		<div class="upper">
+			<ServerRail
+				servers={serverList}
+				activeId={activeServerId}
+				onSelect={selectServer}
+				onSelectHome={selectHome}
+				onAddServer={() => (createServerOpen = true)}
+			/>
 			{#if activeServer && activeChannel}
 				<ChannelSidebar
 					server={activeServer}
@@ -191,8 +196,19 @@
 					onCreateChannel={createChannel}
 					onLeaveServer={leaveServer}
 					username={session.username ?? ""}
-					onLogout={() => session.clear()}
 				/>
+			{/if}
+		</div>
+		{#if activeServer && activeChannel}
+			<div class="bottom-panel">
+				<CallBar />
+				<UserBar username={session.username ?? ""} onLogout={() => session.clear()} />
+			</div>
+		{/if}
+	</div>
+	{#key activeServerId}
+		<div class="content" in:fade={{ duration: 140 }}>
+			{#if activeServer && activeChannel}
 				<ChatView
 					channel={activeChannel}
 					serverId={activeServer.id}
@@ -215,6 +231,29 @@
 <style>
 	.app {
 		display: flex;
+	}
+
+	.left-column {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		flex-shrink: 0;
+	}
+
+	.upper {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+	}
+
+	.bottom-panel {
+		margin: 8px;
+		background: var(--sidebar);
+		border-radius: 10px;
+	}
+
+	.bottom-panel:has(:global(.call-bar)) :global(.user-panel) {
+		border-top: 1px solid var(--hover);
 	}
 
 	.content {

@@ -1,25 +1,25 @@
 @import "./fonts.css";
 
 :root {
-	--void: #0c0c0e;
-	--rail: #131316;
-	--sidebar: #18181b;
-	--panel: #1e1e21;
-	--hover: #232327;
-	--active: #2c2c31;
-	--hairline: rgba(255, 255, 255, 0.06);
+	--void: #100e0d;
+	--rail: #171412;
+	--sidebar: #1d1917;
+	--panel: #241f1c;
+	--hover: #362e29;
+	--active: #4a3f37;
+	--hairline: rgba(255, 255, 255, 0.09);
 
-	--ink: #eef0f2;
-	--ink-dim: #9a9ba1;
-	--ink-faint: #58585e;
+	--ink: #f3efe9;
+	--ink-dim: #ada39b;
+	--ink-faint: #756b63;
 
-	--accent-fill: #e4e4e7;
-	--accent-fill-ink: #17171a;
-	--accent-soft: rgba(255, 255, 255, 0.08);
+	--accent-fill: #e8ded2;
+	--accent-fill-ink: #1c1815;
+	--accent-soft: rgba(255, 255, 255, 0.1);
 
 	--online: #3ba55d;
-	--idle: #c9a227;
-	--danger: #d83c3e;
+	--idle: #d3a53a;
+	--danger: #e0524f;
 
 	--font-display: "Comfortaa", sans-serif;
 	--font-mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -48,15 +48,14 @@ body {
 }
 
 .window-frame {
+	position: relative;
 	box-sizing: border-box;
 	height: calc(100% - 24px);
 	width: calc(100% - 24px);
 	margin: 12px;
 	border-radius: 14px;
 	overflow: hidden;
-	background: color-mix(in srgb, var(--panel) 92%, transparent);
-	backdrop-filter: blur(24px);
-	-webkit-backdrop-filter: blur(24px);
+	background: var(--panel);
 	border: 1px solid var(--hairline);
 	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
@@ -101,6 +100,36 @@ body {
 
 .status-dot.on-void {
 	border-color: var(--void);
+}
+
+.avatar-ring {
+	--ring-gap: var(--sidebar);
+	box-shadow: 0 0 0 1px var(--ring-gap), 0 0 0 3px var(--ink-faint);
+}
+
+.avatar-ring.online {
+	box-shadow: 0 0 0 1px var(--ring-gap), 0 0 0 3px var(--online);
+}
+
+.avatar-ring.idle {
+	box-shadow: 0 0 0 1px var(--ring-gap), 0 0 0 3px var(--idle);
+}
+
+.avatar-ring.dnd {
+	box-shadow: 0 0 0 1px var(--ring-gap), 0 0 0 3px var(--danger);
+}
+
+.avatar-ring.invisible,
+.avatar-ring.offline {
+	box-shadow: 0 0 0 1px var(--ring-gap), 0 0 0 3px var(--ink-faint);
+}
+
+.avatar-ring.on-void {
+	--ring-gap: var(--void);
+}
+
+.avatar-ring.on-panel {
+	--ring-gap: var(--panel);
 }
 
 img.emoji {

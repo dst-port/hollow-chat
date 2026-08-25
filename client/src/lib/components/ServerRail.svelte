@@ -51,6 +51,18 @@
 	</button>
 	<div class="divider"></div>
 
+	<button
+		class="add"
+		aria-label="Add a server"
+		onclick={onAddServer}
+		onmouseenter={show("Add a Server")}
+		onmouseleave={hide}
+		onfocus={show("Add a Server")}
+		onblur={hide}
+	>
+		<Plus size={20} strokeWidth={2.25} />
+	</button>
+
 	<ul>
 		{#each servers as server (server.id)}
 			<li>
@@ -79,18 +91,6 @@
 	</ul>
 
 	<div class="spacer"></div>
-
-	<button
-		class="add"
-		aria-label="Add a server"
-		onclick={onAddServer}
-		onmouseenter={show("Add a Server")}
-		onmouseleave={hide}
-		onfocus={show("Add a Server")}
-		onblur={hide}
-	>
-		<Plus size={20} strokeWidth={2.25} />
-	</button>
 </nav>
 
 {#if hovered}

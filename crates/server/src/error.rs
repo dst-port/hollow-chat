@@ -41,6 +41,10 @@ pub enum AppError {
     AttachmentNotFound,
     #[error("invalid profile field")]
     InvalidProfileField,
+    #[error("this link isn't allowed")]
+    LinkNotAllowed,
+    #[error("couldn't load a preview for this link")]
+    LinkPreviewUnavailable,
     #[error("billing is not configured on this server")]
     BillingNotConfigured,
     #[error("billing provider error")]
@@ -84,6 +88,8 @@ impl IntoResponse for AppError {
             AppError::InvalidAttachment => StatusCode::BAD_REQUEST,
             AppError::AttachmentNotFound => StatusCode::NOT_FOUND,
             AppError::InvalidProfileField => StatusCode::BAD_REQUEST,
+            AppError::LinkNotAllowed => StatusCode::BAD_REQUEST,
+            AppError::LinkPreviewUnavailable => StatusCode::BAD_GATEWAY,
             AppError::BillingNotConfigured => StatusCode::SERVICE_UNAVAILABLE,
             AppError::BillingProvider => StatusCode::BAD_GATEWAY,
             AppError::InviteGenerationFailed => StatusCode::INTERNAL_SERVER_ERROR,

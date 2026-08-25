@@ -7,6 +7,8 @@
 	import ScreenShare from "@lucide/svelte/icons/screen-share";
 	import ScreenShareOff from "@lucide/svelte/icons/screen-share-off";
 	import PhoneOff from "@lucide/svelte/icons/phone-off";
+	import Users from "@lucide/svelte/icons/users";
+	import Sparkles from "@lucide/svelte/icons/sparkles";
 	import { call } from "$lib/webrtc/call.svelte";
 	import {
 		attachRemoteStream,
@@ -14,20 +16,71 @@
 		attachRemoteScreenStream,
 		attachLocalScreenStream
 	} from "$lib/actions/attachStream";
-	import { colorForName } from "$lib/utils/color";
+	import { session } from "$lib/stores/session.svelte";
+	import { profileStore } from "$lib/stores/profile.svelte";
+
+	$effect(() => {
+		const token = session.token;
+		const username = session.username;
+		if (!token || !username) return;
+		profileStore.load(token, username);
+		for (const participant of call.participants) {
+			profileStore.load(token, participant.username);
+		}
+	});
 
 	const sharingUserIds = $derived.by(() => {
 		call.streamsVersion;
 		return new Set(call.participants.filter((p) => call.getRemoteScreenStream(p.userId)).map((p) => p.userId));
 	});
+
+	const camUserIds = $derived.by(() => {
+		call.streamsVersion;
+		return new Set(
+			call.participants
+				.filter((p) => (call.getRemoteStream(p.userId)?.getVideoTracks().length ?? 0) > 0)
+				.map((p) => p.userId)
+		);
+	});
+
+	let showParticipants = $state(false);
 </script>
 
 {#if call.status !== "idle"}
 	<div class="call-bar" transition:fly={{ y: 12, duration: 160 }}>
 		<div class="call-header">
 			<span class="status-dot" class:connecting={call.status === "connecting"}></span>
-			<span class="label">{call.label}</span>
-			<span class="status-text">{call.status === "connecting" ? "Connecting…" : "Voice Connected"}</span>
+			<div class="status-text">
+				<span class="status-title">{call.status === "connecting" ? "Connecting…" : "Voice Connected"}</span>
+				<span class="status-sub">{call.label}</span>
+			</div>
+			<button class="mini-icon" class:muted-active={call.muted} aria-label={call.muted ? "Unmute" : "Mute"} onclick={() => call.toggleMute()}>
+				{#if call.muted}<MicOff size={14} strokeWidth={2} />{:else}<Mic size={14} strokeWidth={2} />{/if}
+				<span class="tooltip">{call.muted ? "Unmute" : "Mute"}</span>
+			</button>
+			<button class="mini-icon leave" aria-label="Disconnect" onclick={() => call.leave()}>
+				<PhoneOff size={14} strokeWidth={2} />
+				<span class="tooltip">Disconnect</span>
+			</button>
+		</div>
+
+		<div class="feature-row">
+			<button class="feature-btn" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? "Turn Off Camera" : "Turn On Camera"} onclick={() => call.toggleCamera()}>
+				{#if call.cameraEnabled}<Video size={14} strokeWidth={2} />{:else}<VideoOff size={14} strokeWidth={2} />{/if}
+				<span class="tooltip">{call.cameraEnabled ? "Turn Off Camera" : "Turn On Camera"}</span>
+			</button>
+			<button class="feature-btn" class:active={call.screenSharing} aria-label={call.screenSharing ? "Stop Sharing" : "Share Your Screen"} onclick={() => call.toggleScreenShare()}>
+				{#if call.screenSharing}<ScreenShareOff size={14} strokeWidth={2} />{:else}<ScreenShare size={14} strokeWidth={2} />{/if}
+				<span class="tooltip">{call.screenSharing ? "Stop Sharing" : "Share Your Screen"}</span>
+			</button>
+			<button class="feature-btn" aria-label="Participants">
+				<Users size={14} strokeWidth={2} />
+				<span class="tooltip">Participants</span>
+			</button>
+			<button class="feature-btn" aria-label="Effects">
+				<Sparkles size={14} strokeWidth={2} />
+				<span class="tooltip">Effects</span>
+			</button>
 		</div>
 
 		{#if call.screenSharing}
@@ -45,38 +98,29 @@
 			{/if}
 		{/each}
 
-		<div class="tiles">
-			<div class="tile">
+		{#if call.cameraEnabled || camUserIds.size > 0}
+			<div class="tiles">
 				{#if call.cameraEnabled}
-					<video use:attachLocalStream autoplay playsinline muted></video>
-				{:else}
-					<div class="avatar" style:background={colorForName("you")}>You</div>
+					<div class="tile">
+						<video use:attachLocalStream autoplay playsinline muted></video>
+						<span class="tile-name">You</span>
+					</div>
 				{/if}
-				<span class="tile-name">You {call.muted ? "(muted)" : ""}</span>
+				{#each call.participants as participant (participant.userId)}
+					{#if camUserIds.has(participant.userId)}
+						{@const remoteProfile = profileStore.forUser(participant.username)}
+						<div class="tile">
+							<video use:attachRemoteStream={participant.userId} autoplay playsinline muted></video>
+							<span class="tile-name">{remoteProfile?.display_name || participant.username}</span>
+						</div>
+					{/if}
+				{/each}
 			</div>
-			{#each call.participants as participant (participant.userId)}
-				<div class="tile">
-					<video use:attachRemoteStream={participant.userId} autoplay playsinline></video>
-					<audio use:attachRemoteStream={participant.userId} autoplay></audio>
-					<span class="tile-name">{participant.username}</span>
-				</div>
-			{/each}
-		</div>
+		{/if}
 
-		<div class="controls">
-			<button class="control" class:active={call.muted} title={call.muted ? "Unmute" : "Mute"} onclick={() => call.toggleMute()}>
-				{#if call.muted}<MicOff size={16} strokeWidth={2} />{:else}<Mic size={16} strokeWidth={2} />{/if}
-			</button>
-			<button class="control" class:active={call.cameraEnabled} title={call.cameraEnabled ? "Turn off camera" : "Turn on camera"} onclick={() => call.toggleCamera()}>
-				{#if call.cameraEnabled}<Video size={16} strokeWidth={2} />{:else}<VideoOff size={16} strokeWidth={2} />{/if}
-			</button>
-			<button class="control" class:active={call.screenSharing} title={call.screenSharing ? "Stop screen share" : "Share your screen"} onclick={() => call.toggleScreenShare()}>
-				{#if call.screenSharing}<ScreenShareOff size={16} strokeWidth={2} />{:else}<ScreenShare size={16} strokeWidth={2} />{/if}
-			</button>
-			<button class="control leave" title="Leave call" onclick={() => call.leave()}>
-				<PhoneOff size={16} strokeWidth={2} />
-			</button>
-		</div>
+		{#each call.participants as participant (participant.userId)}
+			<audio use:attachRemoteStream={participant.userId} autoplay muted={call.deafened}></audio>
+		{/each}
 	</div>
 {/if}
 
@@ -85,11 +129,8 @@
 		flex-shrink: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: 8px;
 		padding: 10px 12px;
-		margin: 8px;
-		background: var(--sidebar);
-		border-radius: 10px;
 	}
 
 	.call-header {
@@ -102,27 +143,128 @@
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
-		background: #3ba55d;
+		background: var(--online);
 		flex-shrink: 0;
 	}
 
 	.status-dot.connecting {
-		background: #f0b232;
+		background: var(--idle);
 	}
 
-	.label {
-		font-size: 13px;
+	.status-text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.status-title {
+		font-size: 12px;
 		font-weight: 700;
-		color: var(--ink);
+		color: var(--online);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	.status-text {
-		margin-left: auto;
+	.status-sub {
 		font-size: 11px;
 		color: var(--ink-faint);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mini-icon {
+		position: relative;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 6px;
+		border-radius: 999px;
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.tooltip {
+		position: absolute;
+		bottom: calc(100% + 8px);
+		left: 50%;
+		transform: translateX(-50%);
+		padding: 6px 10px;
+		border-radius: 6px;
+		background: var(--void);
+		color: var(--ink);
+		font-size: 12px;
+		font-weight: 700;
+		white-space: nowrap;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.1s ease;
+		z-index: 30;
+	}
+
+	.tooltip::after {
+		content: "";
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		border: 5px solid transparent;
+		border-top-color: var(--void);
+	}
+
+	.mini-icon:hover .tooltip,
+	.feature-btn:hover .tooltip {
+		opacity: 1;
+	}
+
+	.mini-icon:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.mini-icon.muted-active {
+		color: var(--danger);
+	}
+
+	.mini-icon.leave {
+		color: var(--danger);
+	}
+
+	.mini-icon.leave:hover {
+		background: var(--danger);
+		color: white;
+	}
+
+	.feature-row {
+		display: flex;
+		gap: 8px;
+	}
+
+	.feature-btn {
+		position: relative;
+		flex: 1;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 8px;
+		background: var(--active);
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.feature-btn:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.feature-btn.active {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 	}
 
 	.screen-tile {
@@ -175,20 +317,8 @@
 		object-fit: cover;
 	}
 
-	.tile audio {
+	.call-bar > audio {
 		display: none;
-	}
-
-	.avatar {
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 10px;
-		font-weight: 700;
-		color: var(--void);
 	}
 
 	.tile-name {
@@ -201,39 +331,4 @@
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 	}
 
-	.controls {
-		display: flex;
-		gap: 6px;
-	}
-
-	.control {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 8px;
-		border-radius: 6px;
-		background: var(--active);
-		color: var(--ink-dim);
-		transition: background-color 0.15s ease, color 0.15s ease;
-	}
-
-	.control:hover {
-		background: var(--hover);
-		color: var(--ink);
-	}
-
-	.control.active {
-		background: var(--accent-fill);
-		color: var(--accent-fill-ink);
-	}
-
-	.control.leave {
-		background: var(--danger);
-		color: white;
-	}
-
-	.control.leave:hover {
-		filter: brightness(1.1);
-	}
 </style>

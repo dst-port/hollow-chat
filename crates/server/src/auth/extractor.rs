@@ -54,13 +54,26 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
 
-        let token = parts
+        let header_token = parts
             .headers
             .get(AUTHORIZATION)
             .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.strip_prefix("Bearer "))
-            .ok_or(AppError::Unauthorized)?;
+            .and_then(|value| value.strip_prefix("Bearer "));
 
-        resolve_token(&app_state.pool, token).await
+        let token = match header_token {
+            Some(token) => token.to_string(),
+            None => parts
+                .uri
+                .query()
+                .and_then(|query| {
+                    query.split('&').find_map(|pair| {
+                        let (key, value) = pair.split_once('=')?;
+                        (key == "token").then(|| value.to_string())
+                    })
+                })
+                .ok_or(AppError::Unauthorized)?,
+        };
+
+        resolve_token(&app_state.pool, &token).await
     }
 }

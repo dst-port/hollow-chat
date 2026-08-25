@@ -53,7 +53,7 @@
 	}
 
 	.modal {
-		background: var(--sidebar);
+		background: var(--void);
 		border-radius: 10px;
 		overflow: hidden;
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -64,7 +64,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 18px 20px;
-		border-bottom: 1px solid var(--hairline);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 	}
 
 	.header h2 {

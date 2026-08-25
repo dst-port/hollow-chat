@@ -12,6 +12,7 @@ mod emoji;
 mod error;
 mod friends;
 mod keys;
+mod link_preview;
 mod messages;
 mod password;
 mod permissions;
@@ -88,6 +89,7 @@ async fn main() {
         call_rooms: Arc::new(DashMap::new()),
         link_rooms: Arc::new(DashMap::new()),
         bundle_fetch_locks: Arc::new(DashMap::new()),
+        link_preview_cache: Arc::new(DashMap::new()),
     };
 
     let app = Router::new()
@@ -108,6 +110,7 @@ async fn main() {
         .nest("/blocks", blocks::router(state.clone()))
         .nest("/calls", calls::router(state.clone()))
         .nest("/devicelink", devicelink::router(state.clone()))
+        .nest("/link-preview", link_preview::router(state.clone()))
         .with_state(state)
         .layer(CorsLayer::permissive());
 

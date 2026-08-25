@@ -44,6 +44,7 @@ export type Message = {
 	color: string;
 	content: string;
 	time: string;
+	timestampMs: number;
 	attachment?: MessageAttachment;
 	reactions?: Reaction[];
 	pinned?: boolean;
@@ -93,6 +94,7 @@ export function createServers(): ServerEntry[] {
 }
 
 export function createMessages(): Message[] {
+	const base = Date.now();
 	return [
 		{
 			id: "1",
@@ -100,6 +102,7 @@ export function createMessages(): Message[] {
 			color: "#9c93c2",
 			content: "anyone up for a raid tonight?",
 			time: "20:14",
+			timestampMs: base,
 			reactions: [{ emoji: "🔥", count: 2, reacted: false }]
 		},
 		{
@@ -107,21 +110,24 @@ export function createMessages(): Message[] {
 			author: "nullbyte",
 			color: "#6fb98f",
 			content: "yeah, give me 10 min to finish loading in",
-			time: "20:15"
+			time: "20:15",
+			timestampMs: base + 60_000
 		},
 		{
 			id: "3",
 			author: "ghostpixel",
 			color: "#9c93c2",
 			content: "bet. voice channel is open",
-			time: "20:15"
+			time: "20:15",
+			timestampMs: base + 90_000
 		},
 		{
 			id: "4",
 			author: "vex",
 			color: "#e2793f",
 			content: "count me in too",
-			time: "20:17"
+			time: "20:17",
+			timestampMs: base + 180_000
 		}
 	];
 }

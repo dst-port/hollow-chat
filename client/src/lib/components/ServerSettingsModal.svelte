@@ -526,7 +526,7 @@
 
 <style>
 	.overlay {
-		position: fixed;
+		position: absolute;
 		inset: 0;
 		background: rgba(0, 0, 0, 0.6);
 		display: flex;

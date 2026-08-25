@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::link_preview::LinkPreviewDto;
+
 use dashmap::DashMap;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -38,4 +40,5 @@ pub struct AppState {
     pub call_rooms: Arc<DashMap<Uuid, Vec<PeerHandle>>>,
     pub link_rooms: Arc<DashMap<Uuid, Vec<LinkPeer>>>,
     pub bundle_fetch_locks: Arc<DashMap<(Uuid, Uuid), Instant>>,
+    pub link_preview_cache: Arc<DashMap<String, (Instant, LinkPreviewDto)>>,
 }

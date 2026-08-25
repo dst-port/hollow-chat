@@ -3,6 +3,7 @@
 	import X from "@lucide/svelte/icons/x";
 	import Modal from "$lib/components/Modal.svelte";
 	import Badges from "$lib/components/Badges.svelte";
+	import { clickOutside } from "$lib/actions/clickOutside";
 	import { session } from "$lib/stores/session.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
@@ -23,6 +24,8 @@
 		{ label: "4 hours", minutes: 240 },
 		{ label: "24 hours", minutes: 1440 }
 	];
+
+	const MAX_LEN = 128;
 
 	let statusDraft = $state(profile?.status_text ?? "");
 	let clearMinutes = $state(0);
@@ -63,20 +66,20 @@
 	}
 </script>
 
-<Modal title="Set your status" {onClose} width={400}>
+<Modal title="Set your status" {onClose} width={520}>
 	<div class="preview">
-		<div class="preview-banner" style:background={profile?.banner_url ? `url(${api.resolveUrl(profile.banner_url)}) center/cover` : (profile?.banner_color ?? undefined)}></div>
+		<div class="preview-banner" style:background={api.bannerBackground(profile, session.token)}></div>
 		<div class="preview-avatar-row">
-			<div class="preview-avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url)})` : undefined}>
+			<div class="preview-avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}>
 				{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 			</div>
 			{#if statusDraft.trim()}
 				<div class="preview-bubble">{statusDraft}</div>
 			{/if}
 		</div>
-		<p class="preview-name">{profile?.display_name || username}</p>
+		<p class="preview-name" style:color={profile?.accent_color || undefined}>{profile?.display_name || username}</p>
 		<p class="preview-meta">
-			<span style:color={profile?.accent_color || undefined}>{username}</span>
+			<span>{username}</span>
 			{#if profile?.pronouns}<span class="dot">•</span>{profile.pronouns}{/if}
 			<Badges badges={badgeStore.forUser(username)} />
 		</p>
@@ -85,36 +88,38 @@
 	<label class="field">
 		Status
 		<div class="status-input">
-			<input type="text" bind:value={statusDraft} maxlength="128" placeholder="What's happening?" />
+			<input type="text" bind:value={statusDraft} maxlength={MAX_LEN} placeholder="What's happening?" />
 			{#if statusDraft}
 				<button class="clear-input" onclick={() => (statusDraft = "")} title="Clear text">
-					<X size={13} strokeWidth={2.5} />
+					<X size={15} strokeWidth={2.5} />
 				</button>
 			{/if}
 		</div>
+		<span class="char-count">{statusDraft.length} / {MAX_LEN}</span>
 	</label>
 
 	<div class="clear-row">
-		<button class="clear-select" onclick={() => (pickerOpen = !pickerOpen)}>
-			{CLEAR_OPTIONS.find((o) => o.minutes === clearMinutes)?.label}
-			<ChevronDown size={14} strokeWidth={2} />
-		</button>
+		<div class="clear-select-wrapper">
+			<button class="clear-select" onclick={() => (pickerOpen = !pickerOpen)}>
+				{CLEAR_OPTIONS.find((o) => o.minutes === clearMinutes)?.label}
+				<ChevronDown size={16} strokeWidth={2} />
+			</button>
+			{#if pickerOpen}
+				<div class="clear-menu" use:clickOutside={() => (pickerOpen = false)}>
+					{#each CLEAR_OPTIONS as option (option.minutes)}
+						<button
+							class="clear-option"
+							class:active={clearMinutes === option.minutes}
+							onclick={() => { clearMinutes = option.minutes; pickerOpen = false; }}
+						>
+							{option.label}
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
 		<button class="primary" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
 	</div>
-
-	{#if pickerOpen}
-		<div class="clear-menu">
-			{#each CLEAR_OPTIONS as option (option.minutes)}
-				<button
-					class="clear-option"
-					class:active={clearMinutes === option.minutes}
-					onclick={() => { clearMinutes = option.minutes; pickerOpen = false; }}
-				>
-					{option.label}
-				</button>
-			{/each}
-		</div>
-	{/if}
 
 	{#if profile?.status_text}
 		<button class="ghost-clear" onclick={clearStatus} disabled={saving}>Clear current status</button>
@@ -123,28 +128,28 @@
 
 <style>
 	.preview {
-		border-radius: 8px;
+		border-radius: 10px;
 		overflow: hidden;
 		background: var(--sidebar);
-		margin-bottom: 16px;
+		margin-bottom: 18px;
 	}
 
 	.preview-banner {
-		height: 50px;
+		height: 80px;
 		background: var(--active);
 	}
 
 	.preview-avatar-row {
 		position: relative;
-		margin: -22px 0 0 14px;
+		margin: -32px 0 0 18px;
 		width: fit-content;
 	}
 
 	.preview-avatar {
-		width: 44px;
-		height: 44px;
+		width: 64px;
+		height: 64px;
 		border-radius: 50%;
-		border: 3px solid var(--sidebar);
+		border: 4px solid var(--sidebar);
 		background: var(--accent-fill) center/cover;
 		color: var(--accent-fill-ink);
 		display: flex;
@@ -152,52 +157,52 @@
 		justify-content: center;
 		font-family: var(--font-body);
 		font-weight: 700;
-		font-size: 13px;
+		font-size: 18px;
 	}
 
 	.preview-bubble {
 		position: absolute;
-		left: 52px;
-		bottom: 22px;
-		max-width: 220px;
+		left: 72px;
+		bottom: 30px;
+		max-width: 280px;
 		background: var(--active);
 		color: var(--ink);
-		border-radius: 10px;
+		border-radius: 12px;
 		border-bottom-left-radius: 4px;
-		padding: 6px 9px;
-		font-size: 12px;
-		line-height: 1.35;
+		padding: 8px 12px;
+		font-size: 14px;
+		line-height: 1.4;
 		box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 	}
 
 	.preview-name {
-		margin: 8px 0 0 14px;
+		margin: 12px 0 0 18px;
 		font-family: var(--font-mono);
 		font-weight: 700;
-		font-size: 14px;
+		font-size: 18px;
 		color: var(--ink);
 	}
 
 	.preview-meta {
-		margin: 2px 0 12px 14px;
+		margin: 3px 0 16px 18px;
 		display: flex;
 		align-items: center;
-		gap: 5px;
-		font-size: 11px;
+		gap: 6px;
+		font-size: 13px;
 		font-weight: 500;
 		color: var(--ink-faint);
 	}
 
 	.dot {
-		font-size: 9px;
+		font-size: 10px;
 	}
 
 	.field {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 8px;
 		font-family: var(--font-mono);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
@@ -213,11 +218,11 @@
 		flex: 1;
 		background: var(--panel);
 		border: 1px solid var(--hairline);
-		border-radius: 6px;
-		padding: 9px 32px 9px 10px;
+		border-radius: 8px;
+		padding: 13px 40px 13px 14px;
 		color: var(--ink);
 		font-family: var(--font-body);
-		font-size: 13px;
+		font-size: 15px;
 	}
 
 	.status-input input:focus {
@@ -225,9 +230,18 @@
 		border-color: var(--ink-dim);
 	}
 
+	.char-count {
+		align-self: flex-end;
+		font-size: 11px;
+		font-weight: 500;
+		text-transform: none;
+		letter-spacing: normal;
+		color: var(--ink-faint);
+	}
+
 	.clear-input {
 		position: absolute;
-		right: 8px;
+		right: 10px;
 		top: 50%;
 		transform: translateY(-50%);
 		color: var(--ink-faint);
@@ -242,19 +256,22 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-top: 14px;
+		margin-top: 18px;
+	}
+
+	.clear-select-wrapper {
 		position: relative;
 	}
 
 	.clear-select {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		padding: 8px 12px;
-		border-radius: 6px;
+		gap: 8px;
+		padding: 11px 16px;
+		border-radius: 8px;
 		background: var(--sidebar);
 		color: var(--ink-dim);
-		font-size: 12px;
+		font-size: 14px;
 		font-weight: 600;
 	}
 
@@ -264,12 +281,12 @@
 	}
 
 	.primary {
-		padding: 8px 16px;
-		border-radius: 6px;
+		padding: 11px 22px;
+		border-radius: 8px;
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
 		font-weight: 700;
-		font-size: 12px;
+		font-size: 14px;
 	}
 
 	.primary:disabled {
@@ -279,12 +296,12 @@
 
 	.clear-menu {
 		position: absolute;
-		bottom: calc(100% + 6px);
+		top: calc(100% + 6px);
 		left: 0;
 		background: var(--panel);
-		border-radius: 8px;
+		border-radius: 10px;
 		padding: 6px;
-		min-width: 180px;
+		min-width: 200px;
 		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 		z-index: 10;
 	}
@@ -292,9 +309,9 @@
 	.clear-option {
 		width: 100%;
 		text-align: left;
-		padding: 8px 10px;
+		padding: 10px 12px;
 		border-radius: 6px;
-		font-size: 12px;
+		font-size: 13px;
 		color: var(--ink-dim);
 	}
 
@@ -310,11 +327,11 @@
 
 	.ghost-clear {
 		width: 100%;
-		margin-top: 10px;
-		padding: 8px;
-		border-radius: 6px;
+		margin-top: 14px;
+		padding: 11px;
+		border-radius: 8px;
 		color: var(--danger);
-		font-size: 12px;
+		font-size: 13px;
 		font-weight: 600;
 		text-align: center;
 	}

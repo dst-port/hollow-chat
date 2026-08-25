@@ -4,6 +4,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { ensureIdentity, syncIdentityToServer } from "$lib/crypto/identity";
 	import { deviceLink } from "$lib/devicelink/link.svelte";
+	import { toast } from "$lib/stores/toast.svelte";
 
 	type Step = "choice" | "linking" | "fresh";
 	let step = $state<Step>("choice");
@@ -23,8 +24,16 @@
 		if (!token || !username) return;
 		step = "fresh";
 		freshBusy = true;
-		await ensureIdentity(token, username);
-		session.completeDeviceSetup();
+		try {
+			await ensureIdentity(token, username);
+			session.completeDeviceSetup();
+		} catch (err) {
+			console.error("startFresh failed", err);
+			toast.push("Couldn't set up encryption — check your connection and try again");
+			step = "choice";
+		} finally {
+			freshBusy = false;
+		}
 	}
 
 	function backToChoice() {

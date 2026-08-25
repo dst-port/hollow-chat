@@ -2,6 +2,7 @@
 	import { fade, scale, fly } from "svelte/transition";
 	import { cubicOut } from "svelte/easing";
 	import X from "@lucide/svelte/icons/x";
+	import Search from "@lucide/svelte/icons/search";
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import UserPen from "@lucide/svelte/icons/user-pen";
 	import ShieldCheck from "@lucide/svelte/icons/shield-check";
@@ -49,6 +50,29 @@
 		| "sessions"
 		| "billing";
 	let section = $state<Section>(initialSection);
+	let navSearch = $state("");
+
+	const NAV_ITEMS: { section: Section; label: string }[] = [
+		{ section: "profile", label: "Profile" },
+		{ section: "account", label: "My Account" },
+		{ section: "privacy", label: "Privacy & Safety" },
+		{ section: "notifications", label: "Notifications" },
+		{ section: "sessions", label: "Devices" },
+		{ section: "appearance", label: "Appearance" },
+		{ section: "accessibility", label: "Accessibility" },
+		{ section: "billing", label: "Billing" }
+	];
+
+	function matchesSearch(label: string) {
+		return !navSearch.trim() || label.toLowerCase().includes(navSearch.trim().toLowerCase());
+	}
+
+	function goToAccountField(anchorId: string) {
+		section = "account";
+		requestAnimationFrame(() => {
+			document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+		});
+	}
 
 	let billing = $state<api.BillingStatus | null>(null);
 	let checkoutLoading = $state(false);
@@ -461,7 +485,7 @@
 	>
 		<nav class="nav">
 			<button class="nav-identity" onclick={() => (section = "profile")}>
-				<div class="nav-avatar" style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!)})` : undefined}>
+				<div class="nav-avatar" style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!, session.token)})` : undefined}>
 					{#if !profileStore.forUser(username)?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 				</div>
 				<div class="nav-identity-text">
@@ -470,43 +494,69 @@
 				</div>
 			</button>
 
-			<p class="nav-label">User Settings</p>
-			<button class="nav-item" class:active={section === "profile"} onclick={() => (section = "profile")}>
-				<UserPen size={16} strokeWidth={2} />
-				Profile
-			</button>
-			<button class="nav-item" class:active={section === "account"} onclick={() => (section = "account")}>
-				<UserRound size={16} strokeWidth={2} />
-				My Account
-			</button>
-			<button class="nav-item" class:active={section === "privacy"} onclick={() => (section = "privacy")}>
-				<ShieldCheck size={16} strokeWidth={2} />
-				Privacy &amp; Safety
-			</button>
-			<button class="nav-item" class:active={section === "notifications"} onclick={() => (section = "notifications")}>
-				<Bell size={16} strokeWidth={2} />
-				Notifications
-			</button>
-			<button class="nav-item" class:active={section === "sessions"} onclick={() => (section = "sessions")}>
-				<Monitor size={16} strokeWidth={2} />
-				Devices
-			</button>
+			<label class="nav-search">
+				<Search size={13} strokeWidth={2} />
+				<input type="text" placeholder="Search" bind:value={navSearch} />
+			</label>
 
-			<p class="nav-label">Experience</p>
-			<button class="nav-item" class:active={section === "appearance"} onclick={() => (section = "appearance")}>
-				<Palette size={16} strokeWidth={2} />
-				Appearance
-			</button>
-			<button class="nav-item" class:active={section === "accessibility"} onclick={() => (section = "accessibility")}>
-				<Accessibility size={16} strokeWidth={2} />
-				Accessibility
-			</button>
+			{#if matchesSearch("Profile")}
+				<button class="nav-item" class:active={section === "profile"} onclick={() => (section = "profile")}>
+					<UserPen size={16} strokeWidth={2} />
+					Profile
+				</button>
+			{/if}
+			{#if matchesSearch("My Account") || matchesSearch("Account Info") || matchesSearch("Password & Security")}
+				<button class="nav-item" class:active={section === "account"} onclick={() => (section = "account")}>
+					<UserRound size={16} strokeWidth={2} />
+					My Account
+				</button>
+				{#if section === "account"}
+					<button class="nav-subitem" onclick={() => goToAccountField("account-info")}>Account Info</button>
+					<button class="nav-subitem" onclick={() => goToAccountField("account-security")}>Password &amp; Security</button>
+				{/if}
+			{/if}
+			{#if matchesSearch("Privacy & Safety")}
+				<button class="nav-item" class:active={section === "privacy"} onclick={() => (section = "privacy")}>
+					<ShieldCheck size={16} strokeWidth={2} />
+					Privacy &amp; Safety
+				</button>
+			{/if}
+			{#if matchesSearch("Notifications")}
+				<button class="nav-item" class:active={section === "notifications"} onclick={() => (section = "notifications")}>
+					<Bell size={16} strokeWidth={2} />
+					Notifications
+				</button>
+			{/if}
+			{#if matchesSearch("Devices")}
+				<button class="nav-item" class:active={section === "sessions"} onclick={() => (section = "sessions")}>
+					<Monitor size={16} strokeWidth={2} />
+					Devices
+				</button>
+			{/if}
 
-			<p class="nav-label">Billing</p>
-			<button class="nav-item" class:active={section === "billing"} onclick={() => (section = "billing")}>
-				<CreditCard size={16} strokeWidth={2} />
-				Billing
-			</button>
+			{#if matchesSearch("Appearance") || matchesSearch("Accessibility")}
+				<p class="nav-label">Experience</p>
+				{#if matchesSearch("Appearance")}
+					<button class="nav-item" class:active={section === "appearance"} onclick={() => (section = "appearance")}>
+						<Palette size={16} strokeWidth={2} />
+						Appearance
+					</button>
+				{/if}
+				{#if matchesSearch("Accessibility")}
+					<button class="nav-item" class:active={section === "accessibility"} onclick={() => (section = "accessibility")}>
+						<Accessibility size={16} strokeWidth={2} />
+						Accessibility
+					</button>
+				{/if}
+			{/if}
+
+			{#if matchesSearch("Billing")}
+				<p class="nav-label">Billing</p>
+				<button class="nav-item" class:active={section === "billing"} onclick={() => (section = "billing")}>
+					<CreditCard size={16} strokeWidth={2} />
+					Billing
+				</button>
+			{/if}
 
 			<div class="nav-spacer"></div>
 
@@ -516,11 +566,11 @@
 			</button>
 		</nav>
 
-		<div class="content">
-			<button class="close" onclick={onClose} title="Close">
-				<X size={20} strokeWidth={2} />
-			</button>
+		<button class="close" onclick={onClose} title="Close">
+			<X size={20} strokeWidth={2} />
+		</button>
 
+		<div class="content">
 			{#if section === "profile"}
 				{@const ownBadges = badgeStore.forUser(username)}
 				<h2>Profile</h2>
@@ -529,14 +579,14 @@
 					<div
 						class="preview-banner"
 						style:background={profileStore.forUser(username)?.banner_url
-							? `url(${api.resolveUrl(profileStore.forUser(username)!.banner_url!)}) center/cover`
+							? `url(${api.resolveUrl(profileStore.forUser(username)!.banner_url!, session.token)}) center/cover`
 							: bannerColorDraft}
 					></div>
 					<div class="preview-body">
 						<div class="preview-avatar-row">
 							<div
 								class="preview-avatar"
-								style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!)})` : undefined}
+								style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!, session.token)})` : undefined}
 							>
 								{#if !profileStore.forUser(username)?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 							</div>
@@ -552,7 +602,7 @@
 							</div>
 						</div>
 
-						<p class="preview-name">
+						<p class="preview-name" style:color={accentColorDraft || undefined}>
 							{displayNameDraft || username}
 							{#if pronounsDraft}<span class="preview-pronouns">{pronounsDraft}</span>{/if}
 							{#if ownBadges.length > 0}<Badges badges={ownBadges} />{/if}
@@ -617,9 +667,14 @@
 			{:else if section === "account"}
 				<h2>My Account</h2>
 
-				<div class="card">
+				<div class="card" id="account-info">
 					<div class="identity">
-						<div class="avatar">{username.slice(0, 2).toUpperCase()}</div>
+						<div
+							class="avatar"
+							style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!, session.token)})` : undefined}
+						>
+							{#if !profileStore.forUser(username)?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+						</div>
 						<div>
 							<p class="username">{username}</p>
 							<p class="hint">HollowChat account</p>
@@ -660,7 +715,7 @@
 					</div>
 				</div>
 
-				<div class="card">
+				<div class="card" id="account-security">
 					{#if !editingPassword}
 						<div class="row">
 							<div>
@@ -1033,27 +1088,87 @@
 
 <style>
 	.overlay {
-		position: fixed;
+		position: absolute;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.6);
+		background: rgba(0, 0, 0, 0.55);
+		backdrop-filter: blur(3px);
+		-webkit-backdrop-filter: blur(3px);
 		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 40px;
 		z-index: 100;
 	}
 
 	.modal {
+		position: relative;
 		display: flex;
-		width: 100%;
-		height: 100%;
+		width: min(960px, 100%);
+		height: min(640px, 100%);
 		background: var(--panel);
+		border-radius: 12px;
+		overflow: hidden;
+		box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 	}
 
 	.nav {
 		width: 220px;
 		flex-shrink: 0;
 		background: var(--sidebar);
-		padding: 24px 12px;
+		padding: 16px 12px;
 		display: flex;
 		flex-direction: column;
+		overflow-y: auto;
+	}
+
+	.nav-search {
+		position: relative;
+		margin: 4px 4px 12px;
+	}
+
+	.nav-search :global(svg) {
+		position: absolute;
+		left: 9px;
+		top: 50%;
+		translate: 0 -50%;
+		color: var(--ink-faint);
+		pointer-events: none;
+	}
+
+	.nav-search input {
+		width: 100%;
+		padding: 7px 8px 7px 28px;
+		border-radius: 6px;
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		color: var(--ink);
+		font-size: 12px;
+	}
+
+	.nav-search input:focus {
+		outline: none;
+		border-color: var(--ink-faint);
+	}
+
+	.nav-subitem {
+		display: block;
+		width: 100%;
+		text-align: left;
+		padding: 6px 8px 6px 24px;
+		margin-left: 8px;
+		border-left: 1px solid var(--hairline);
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--ink-faint);
+	}
+
+	.nav-subitem:hover {
+		color: var(--ink-dim);
+	}
+
+	.nav-subitem.active {
+		color: var(--ink);
+		border-left: 1px solid var(--ink);
 	}
 
 	.nav-label {
@@ -1067,10 +1182,11 @@
 	}
 
 	.nav-item {
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		padding: 8px;
+		padding: 8px 8px 8px 12px;
 		border-radius: 6px;
 		font-size: 14px;
 		font-weight: 500;
@@ -1087,6 +1203,18 @@
 	.nav-item.active {
 		background: var(--active);
 		color: var(--ink);
+	}
+
+	.nav-item.active::before {
+		content: "";
+		position: absolute;
+		left: 0;
+		top: 50%;
+		translate: 0 -50%;
+		width: 3px;
+		height: 18px;
+		border-radius: 0 3px 3px 0;
+		background: var(--accent-fill);
 	}
 
 	.nav-spacer {
@@ -1184,7 +1312,7 @@
 		width: 48px;
 		height: 48px;
 		border-radius: 50%;
-		background: var(--accent-fill);
+		background: var(--accent-fill) center/cover;
 		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;

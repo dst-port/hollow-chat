@@ -5,9 +5,11 @@
 	import HeadphoneOff from "@lucide/svelte/icons/headphone-off";
 	import Settings from "@lucide/svelte/icons/settings";
 	import SettingsModal from "$lib/components/SettingsModal.svelte";
+	import EditProfileModal from "$lib/components/EditProfileModal.svelte";
 	import OwnProfilePopover from "$lib/components/OwnProfilePopover.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { call } from "$lib/webrtc/call.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, onLogout }: {
@@ -15,15 +17,13 @@
 		onLogout: () => void;
 	} = $props();
 
-	let muted = $state(false);
-	let deafened = $state(false);
 	let settingsOpen = $state(false);
 	let settingsInitialSection = $state<"account" | "profile">("account");
 	let profileAnchor = $state<HTMLElement | null>(null);
+	let editProfileOpen = $state(false);
 
 	function openEditProfile() {
-		settingsInitialSection = "profile";
-		settingsOpen = true;
+		editProfileOpen = true;
 	}
 
 	const profile = $derived(profileStore.forUser(username));
@@ -35,6 +35,17 @@
 		invisible: "Invisible"
 	};
 
+	const PRESENCE_COLOR_VAR: Record<string, string> = {
+		online: "var(--online)",
+		idle: "var(--idle)",
+		dnd: "var(--danger)",
+		invisible: "var(--ink-faint)"
+	};
+
+	const statusColor = $derived(
+		profile?.status_text ? "var(--ink-faint)" : PRESENCE_COLOR_VAR[profile?.presence ?? "online"]
+	);
+
 	$effect(() => {
 		const token = session.token;
 		if (token) profileStore.load(token, username);
@@ -42,38 +53,46 @@
 </script>
 
 <div class="user-panel">
+	<div class="panel-pill">
 	<button class="identity-trigger" onclick={(e) => (profileAnchor = profileAnchor ? null : (e.currentTarget as HTMLElement))}>
-		<div class="status-avatar">
-			<div class="avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url)})` : undefined}>
-				{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
-			</div>
-			<span class="status-dot on-void {profile?.presence ?? 'online'}"></span>
+		<div
+			class="avatar avatar-ring {profile?.presence ?? 'online'}"
+			style:--ring-gap="var(--hover)"
+			style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+		>
+			{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
 		</div>
 		<div class="identity">
 			<p class="username" style:color={profile?.accent_color || undefined}>{profile?.display_name || username}</p>
-			<p class="status">{profile?.status_text || PRESENCE_LABELS[profile?.presence ?? "online"]}</p>
+			<p class="status-row">
+				<span class="status" style:color={statusColor}>{profile?.status_text || PRESENCE_LABELS[profile?.presence ?? "online"]}</span>
+			</p>
 		</div>
 	</button>
 	<div class="controls">
 		<button
 			class="icon-button"
-			class:muted-active={muted}
-			title={muted ? "Unmute" : "Mute"}
-			onclick={() => (muted = !muted)}
+			class:muted-active={call.muted}
+			aria-label={call.muted ? "Unmute" : "Mute"}
+			onclick={() => call.toggleMute()}
 		>
-			{#if muted}<MicOff size={15} strokeWidth={2} />{:else}<Mic size={15} strokeWidth={2} />{/if}
+			{#if call.muted}<MicOff size={18} strokeWidth={2} />{:else}<Mic size={18} strokeWidth={2} />{/if}
+			<span class="tooltip">{call.muted ? "Unmute" : "Mute"}</span>
 		</button>
 		<button
 			class="icon-button"
-			class:muted-active={deafened}
-			title={deafened ? "Undeafen" : "Deafen"}
-			onclick={() => (deafened = !deafened)}
+			class:muted-active={call.deafened}
+			aria-label={call.deafened ? "Undeafen" : "Deafen"}
+			onclick={() => call.toggleDeafen()}
 		>
-			{#if deafened}<HeadphoneOff size={15} strokeWidth={2} />{:else}<Headphones size={15} strokeWidth={2} />{/if}
+			{#if call.deafened}<HeadphoneOff size={18} strokeWidth={2} />{:else}<Headphones size={18} strokeWidth={2} />{/if}
+			<span class="tooltip">{call.deafened ? "Undeafen" : "Deafen"}</span>
 		</button>
-		<button class="icon-button" title="User settings" onclick={() => { settingsInitialSection = "account"; settingsOpen = true; }}>
-			<Settings size={15} strokeWidth={2} />
+		<button class="icon-button" aria-label="User Settings" onclick={() => { settingsInitialSection = "account"; settingsOpen = true; }}>
+			<Settings size={18} strokeWidth={2} />
+			<span class="tooltip">User Settings</span>
 		</button>
+	</div>
 	</div>
 </div>
 
@@ -90,15 +109,28 @@
 	<SettingsModal {username} initialSection={settingsInitialSection} onClose={() => (settingsOpen = false)} onLogout={onLogout} />
 {/if}
 
+{#if editProfileOpen}
+	<EditProfileModal {username} onClose={() => (editProfileOpen = false)} />
+{/if}
+
 <style>
 	.user-panel {
-		height: 56px;
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
+		padding: 8px;
+	}
+
+	.panel-pill {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		gap: 8px;
-		padding: 0 8px;
-		background: var(--void);
+		padding: 4px 8px;
+		border-radius: 10px;
+		background: var(--hover);
 	}
 
 	.identity-trigger {
@@ -107,16 +139,18 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 4px;
+		padding: 0 4px;
 		border-radius: 8px;
+		background: transparent;
 		transition: background-color 0.15s ease;
 	}
 
 	.identity-trigger:hover {
-		background: var(--hover);
+		background: var(--active);
 	}
 
 	.avatar {
+		flex-shrink: 0;
 		width: 36px;
 		height: 36px;
 		border-radius: 50%;
@@ -133,6 +167,7 @@
 	.identity {
 		flex: 1;
 		min-width: 0;
+		text-align: left;
 	}
 
 	.username {
@@ -146,31 +181,72 @@
 		color: var(--ink);
 	}
 
-	.status {
+	.status-row {
 		margin: 0;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.status {
 		font-size: 11px;
-		color: var(--online);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.controls {
+		flex-shrink: 0;
 		display: flex;
 		align-items: center;
-		gap: 2px;
-		padding: 4px;
-		border-radius: 999px;
-		background: var(--panel);
+		gap: 4px;
 	}
 
 	.icon-button {
-		padding: 7px;
+		position: relative;
+		padding: 9px;
 		border-radius: 999px;
 		color: var(--ink-dim);
 		display: flex;
 		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 
+	.tooltip {
+		position: absolute;
+		bottom: calc(100% + 8px);
+		left: 50%;
+		transform: translateX(-50%);
+		padding: 6px 10px;
+		border-radius: 6px;
+		background: var(--void);
+		color: var(--ink);
+		font-size: 12px;
+		font-weight: 700;
+		white-space: nowrap;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.1s ease;
+		z-index: 30;
+	}
+
+	.tooltip::after {
+		content: "";
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		border: 5px solid transparent;
+		border-top-color: var(--void);
+	}
+
+	.icon-button:hover .tooltip {
+		opacity: 1;
+	}
+
 	.icon-button:hover {
-		background: var(--hover);
+		background: var(--active);
 		color: var(--ink);
 	}
 

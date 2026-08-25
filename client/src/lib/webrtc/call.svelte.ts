@@ -19,16 +19,29 @@ type ClientMsg =
 
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302"] }];
 
+const SELF_KEY = "__self__";
+const SPEAKING_THRESHOLD = 12;
+const SPEAKING_HOLD_MS = 350;
+const SPEAKING_POLL_MS = 120;
+
 class CallStore {
 	roomId = $state<string | null>(null);
 	label = $state("");
 	status = $state<"idle" | "connecting" | "connected">("idle");
 	muted = $state(false);
+	deafened = $state(false);
 	cameraEnabled = $state(false);
 	screenSharing = $state(false);
 	participants = $state<Participant[]>([]);
 	streamsVersion = $state(0);
+	selfSpeaking = $state(false);
+	speakingUserIds = $state<Set<string>>(new Set());
 
+	private mutedBeforeDeafen = false;
+	private audioCtx: AudioContext | null = null;
+	private analysers = new Map<string, { analyser: AnalyserNode; data: Uint8Array }>();
+	private lastSpokeAt = new Map<string, number>();
+	private speakingInterval: ReturnType<typeof setInterval> | null = null;
 	private ws: WebSocket | null = null;
 	private pcs = new Map<string, RTCPeerConnection>();
 	private remoteStreams = new Map<string, MediaStream>();
@@ -92,6 +105,7 @@ class CallStore {
 			throw new Error("Microphone access was denied");
 		}
 		this.applyMuted();
+		this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
 		this.notify();
 
 		const ws = new WebSocket(`${WS_BASE_URL}/calls/${roomId}?token=${encodeURIComponent(token)}`);
@@ -119,6 +133,21 @@ class CallStore {
 
 	toggleMute() {
 		this.muted = !this.muted;
+		if (this.deafened && !this.muted) {
+			this.deafened = false;
+		}
+		this.applyMuted();
+	}
+
+	toggleDeafen() {
+		if (this.deafened) {
+			this.deafened = false;
+			this.muted = this.mutedBeforeDeafen;
+		} else {
+			this.mutedBeforeDeafen = this.muted;
+			this.deafened = true;
+			this.muted = true;
+		}
 		this.applyMuted();
 	}
 
@@ -235,6 +264,7 @@ class CallStore {
 				this.remoteScreenStreams.set(userId, event.streams[0]);
 			} else {
 				this.remoteStreams.set(userId, event.streams[0]);
+				this.attachSpeakingAnalyser(userId, event.streams[0]);
 			}
 			this.notify();
 		};
@@ -267,6 +297,12 @@ class CallStore {
 		this.remoteStreams.delete(userId);
 		this.remoteScreenStreams.delete(userId);
 		this.pendingCandidates.delete(userId);
+		this.detachSpeakingAnalyser(userId);
+		if (this.speakingUserIds.has(userId)) {
+			const next = new Set(this.speakingUserIds);
+			next.delete(userId);
+			this.speakingUserIds = next;
+		}
 		this.participants = this.participants.filter((p) => p.userId !== userId);
 		this.notify();
 	}
@@ -332,6 +368,70 @@ class CallStore {
 		}
 	}
 
+	private attachSpeakingAnalyser(key: string, stream: MediaStream) {
+		if (this.analysers.has(key) || stream.getAudioTracks().length === 0) return;
+		try {
+			if (!this.audioCtx) this.audioCtx = new AudioContext();
+			const ctx = this.audioCtx;
+			if (ctx.state === "suspended") void ctx.resume();
+			const source = ctx.createMediaStreamSource(stream);
+			const analyser = ctx.createAnalyser();
+			analyser.fftSize = 512;
+			analyser.smoothingTimeConstant = 0.6;
+			source.connect(analyser);
+			this.analysers.set(key, { analyser, data: new Uint8Array(analyser.frequencyBinCount) });
+			this.startSpeakingLoop();
+		} catch {
+			return;
+		}
+	}
+
+	private detachSpeakingAnalyser(key: string) {
+		this.analysers.delete(key);
+		this.lastSpokeAt.delete(key);
+	}
+
+	private startSpeakingLoop() {
+		if (this.speakingInterval) return;
+		this.speakingInterval = setInterval(() => this.pollSpeaking(), SPEAKING_POLL_MS);
+	}
+
+	private stopSpeakingLoop() {
+		if (this.speakingInterval) {
+			clearInterval(this.speakingInterval);
+			this.speakingInterval = null;
+		}
+	}
+
+	private pollSpeaking() {
+		const now = Date.now();
+		for (const [key, { analyser, data }] of this.analysers) {
+			analyser.getByteTimeDomainData(data);
+			let sumSquares = 0;
+			for (let i = 0; i < data.length; i++) {
+				const deviation = data[i] - 128;
+				sumSquares += deviation * deviation;
+			}
+			const rms = Math.sqrt(sumSquares / data.length);
+			if (rms > SPEAKING_THRESHOLD) this.lastSpokeAt.set(key, now);
+		}
+
+		let nextSelfSpeaking = false;
+		const nextSpeaking = new Set<string>();
+		for (const [key, ts] of this.lastSpokeAt) {
+			if (now - ts >= SPEAKING_HOLD_MS) continue;
+			if (key === SELF_KEY) nextSelfSpeaking = true;
+			else nextSpeaking.add(key);
+		}
+
+		if (nextSelfSpeaking !== this.selfSpeaking) this.selfSpeaking = nextSelfSpeaking;
+
+		const changed =
+			nextSpeaking.size !== this.speakingUserIds.size ||
+			[...nextSpeaking].some((id) => !this.speakingUserIds.has(id));
+		if (changed) this.speakingUserIds = nextSpeaking;
+	}
+
 	private teardown() {
 		for (const pc of this.pcs.values()) pc.close();
 		this.pcs.clear();
@@ -343,11 +443,20 @@ class CallStore {
 		this.localStream = null;
 		this.localScreenStream?.getTracks().forEach((track) => track.stop());
 		this.localScreenStream = null;
+		this.stopSpeakingLoop();
+		this.analysers.clear();
+		this.lastSpokeAt.clear();
+		this.audioCtx?.close().catch(() => {});
+		this.audioCtx = null;
+		this.selfSpeaking = false;
+		this.speakingUserIds = new Set();
 		this.roomId = null;
 		this.label = "";
 		this.status = "idle";
 		this.participants = [];
 		this.muted = false;
+		this.deafened = false;
+		this.mutedBeforeDeafen = false;
 		this.cameraEnabled = false;
 		this.screenSharing = false;
 		this.notify();

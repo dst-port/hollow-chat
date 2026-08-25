@@ -159,14 +159,20 @@ pub async fn download(
     let stream = tokio_util::io::ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
+    let disposition_kind = if attachment.mime_type.starts_with("image/") {
+        "inline"
+    } else {
+        "attachment"
+    };
     let disposition = format!(
-        "attachment; filename=\"{}\"",
+        "{disposition_kind}; filename=\"{}\"",
         attachment.filename.replace('"', "")
     );
 
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, attachment.mime_type)
         .header(header::CONTENT_DISPOSITION, disposition)
+        .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
         .body(body)
         .unwrap())
 }

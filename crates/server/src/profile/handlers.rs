@@ -13,6 +13,71 @@ const MAX_BIO_LEN: usize = 190;
 const MAX_STATUS_TEXT_LEN: usize = 128;
 const MAX_PRONOUNS_LEN: usize = 40;
 const MAX_DISPLAY_NAME_LEN: usize = 32;
+const MAX_ACTIVITY_FIELD_LEN: usize = 128;
+const MAX_CONNECTION_LABEL_LEN: usize = 64;
+const MAX_CONNECTION_URL_LEN: usize = 256;
+const MAX_CONNECTIONS_PER_USER: i64 = 5;
+const MAX_WIDGET_TITLE_LEN: usize = 48;
+const MAX_WIDGETS_PER_USER: i64 = 6;
+const MAX_WIDGET_DESCRIPTION_LEN: usize = 140;
+const MAX_WIDGET_TAG_LEN: usize = 24;
+const MAX_WIDGET_TAGS: usize = 5;
+const WIDGET_KINDS: &[&str] = &["favorite_game", "want_to_play", "games_i_like", "games_in_rotation"];
+
+/// Hosts allowed for a widget's external_image_url. Only Steam's own public
+/// CDN is trusted here - the game catalog a user picks from client-side is
+/// built from real Steam app IDs, so this just confirms the URL actually
+/// points at that CDN rather than an arbitrary third-party host.
+const WIDGET_IMAGE_HOSTS: &[&str] = &[
+    "cdn.cloudflare.steamstatic.com",
+    "shared.cloudflare.steamstatic.com",
+    "cdn.akamai.steamstatic.com",
+];
+
+fn is_allowed_widget_image_host(host: &str) -> bool {
+    WIDGET_IMAGE_HOSTS.iter().any(|allowed| host == *allowed)
+}
+
+/// Whitelist of connectable services: (id, matching domains). The URL a user
+/// submits must resolve to one of the listed domains for that service - this
+/// is an allowlist, not a denylist, so nothing outside this set can ever be
+/// saved as a connection.
+const CONNECTION_SERVICES: &[(&str, &[&str])] = &[
+    ("github", &["github.com"]),
+    ("youtube", &["youtube.com", "youtu.be"]),
+    ("twitch", &["twitch.tv"]),
+    ("x", &["x.com", "twitter.com"]),
+    ("instagram", &["instagram.com"]),
+    ("tiktok", &["tiktok.com"]),
+    ("reddit", &["reddit.com"]),
+    ("steam", &["steamcommunity.com"]),
+    ("spotify", &["spotify.com", "open.spotify.com"]),
+    ("discord", &["discord.com", "discord.gg"]),
+    ("facebook", &["facebook.com"]),
+    ("telegram", &["t.me", "telegram.me"]),
+    ("vk", &["vk.com"]),
+    ("behance", &["behance.net"]),
+    ("dribbble", &["dribbble.com"]),
+    ("soundcloud", &["soundcloud.com"]),
+    ("bandcamp", &["bandcamp.com"]),
+    ("itchio", &["itch.io"]),
+    ("xbox", &["xbox.com"]),
+    ("playstation", &["playstation.com"]),
+    ("battlenet", &["battle.net"]),
+    ("epicgames", &["epicgames.com", "store.epicgames.com"]),
+    ("roblox", &["roblox.com"]),
+];
+
+fn service_for_host(service: &str, host: &str) -> bool {
+    CONNECTION_SERVICES
+        .iter()
+        .find(|(id, _)| *id == service)
+        .is_some_and(|(_, domains)| {
+            domains
+                .iter()
+                .any(|domain| host == *domain || host.ends_with(&format!(".{domain}")))
+        })
+}
 
 fn is_hex_color(value: &str) -> bool {
     value.len() == 7
@@ -21,7 +86,11 @@ fn is_hex_color(value: &str) -> bool {
 }
 
 fn file_url(attachment_id: Uuid, filename: &str) -> String {
-    format!("/files/{attachment_id}/{filename}")
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+    format!(
+        "/files/{attachment_id}/{}",
+        utf8_percent_encode(filename, NON_ALPHANUMERIC)
+    )
 }
 
 const PRESENCE_VALUES: &[&str] = &["online", "idle", "dnd", "invisible"];
@@ -34,6 +103,9 @@ pub struct ProfileDto {
     pub pronouns: Option<String>,
     pub status_text: Option<String>,
     pub presence: String,
+    pub activity_application: Option<String>,
+    pub activity_details: Option<String>,
+    pub activity_state: Option<String>,
     pub accent_color: Option<String>,
     pub banner_color: Option<String>,
     #[sqlx(skip)]
@@ -51,6 +123,9 @@ struct ProfileRow {
     pronouns: Option<String>,
     status_text: Option<String>,
     presence: String,
+    activity_application: Option<String>,
+    activity_details: Option<String>,
+    activity_state: Option<String>,
     accent_color: Option<String>,
     banner_color: Option<String>,
     member_since: DateTime<Utc>,
@@ -69,7 +144,8 @@ async fn load_profile(
         "SELECT users.username, users.display_name, users.bio, users.pronouns, \
                 CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
                      THEN NULL ELSE users.status_text END AS status_text, \
-                users.presence, users.accent_color, users.banner_color, users.created_at AS member_since, \
+                users.presence, users.activity_application, users.activity_details, users.activity_state, \
+                users.accent_color, users.banner_color, users.created_at AS member_since, \
                 users.avatar_attachment_id, avatar.filename AS avatar_filename, \
                 users.banner_attachment_id, banner.filename AS banner_filename \
          FROM users \
@@ -93,6 +169,9 @@ async fn load_profile(
         } else {
             row.presence
         },
+        activity_application: row.activity_application,
+        activity_details: row.activity_details,
+        activity_state: row.activity_state,
         accent_color: row.accent_color,
         banner_color: row.banner_color,
         avatar_url: row
@@ -223,6 +302,45 @@ pub async fn set_presence(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct SetActivityRequest {
+    #[serde(default)]
+    pub application: Option<String>,
+    #[serde(default)]
+    pub details: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
+}
+
+/// Called by the desktop client's local Rich Presence bridge whenever a
+/// connected game reports (or clears) an activity. `None`/empty clears the
+/// field, matching a game closing or losing focus.
+pub async fn set_activity(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<SetActivityRequest>,
+) -> Result<Json<ProfileDto>, AppError> {
+    let application = clean(payload.application, MAX_ACTIVITY_FIELD_LEN)?;
+    let details = clean(payload.details, MAX_ACTIVITY_FIELD_LEN)?;
+    let activity_state = clean(payload.state, MAX_ACTIVITY_FIELD_LEN)?;
+
+    sqlx::query(
+        "UPDATE users SET \
+            activity_application = $1, \
+            activity_details = $2, \
+            activity_state = $3 \
+         WHERE id = $4",
+    )
+    .bind(&application)
+    .bind(&details)
+    .bind(&activity_state)
+    .bind(session.user_id)
+    .execute(&state.pool)
+    .await?;
+
+    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SetImageRequest {
     pub attachment_id: Uuid,
 }
@@ -299,4 +417,363 @@ pub async fn clear_banner(
         .await?;
 
     Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ConnectionDto {
+    pub id: Uuid,
+    pub service: String,
+    pub label: String,
+    pub url: String,
+}
+
+pub async fn list_connections(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<Json<Vec<ConnectionDto>>, AppError> {
+    let user_id = user_id_by_username(&state.pool, &username).await?;
+    let rows: Vec<ConnectionDto> = sqlx::query_as(
+        "SELECT id, service, label, url FROM user_connections \
+         WHERE user_id = $1 ORDER BY sort_order, created_at",
+    )
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddConnectionRequest {
+    pub service: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    pub url: String,
+}
+
+pub async fn add_connection(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<AddConnectionRequest>,
+) -> Result<Json<ConnectionDto>, AppError> {
+    let raw_url = payload.url.trim();
+    if raw_url.is_empty() || raw_url.chars().count() > MAX_CONNECTION_URL_LEN {
+        return Err(AppError::InvalidProfileField);
+    }
+
+    let parsed = url::Url::parse(raw_url).map_err(|_| AppError::InvalidProfileField)?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err(AppError::InvalidProfileField);
+    }
+    let host = parsed
+        .host_str()
+        .ok_or(AppError::InvalidProfileField)?
+        .to_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host);
+    if !service_for_host(&payload.service, host) {
+        return Err(AppError::LinkNotAllowed);
+    }
+    let service = payload.service.as_str();
+
+    let label = payload
+        .label
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(host);
+    if label.chars().count() > MAX_CONNECTION_LABEL_LEN {
+        return Err(AppError::InvalidProfileField);
+    }
+    let url = parsed.as_str();
+
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM user_connections WHERE user_id = $1")
+            .bind(session.user_id)
+            .fetch_one(&state.pool)
+            .await?;
+    if count >= MAX_CONNECTIONS_PER_USER {
+        return Err(AppError::InvalidProfileField);
+    }
+
+    let row: ConnectionDto = sqlx::query_as(
+        "INSERT INTO user_connections (user_id, service, label, url, sort_order) \
+         VALUES ($1, $2, $3, $4, $5) \
+         RETURNING id, service, label, url",
+    )
+    .bind(session.user_id)
+    .bind(service)
+    .bind(label)
+    .bind(url)
+    .bind(count as i32)
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(Json(row))
+}
+
+pub async fn remove_connection(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(connection_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    let result = sqlx::query("DELETE FROM user_connections WHERE id = $1 AND user_id = $2")
+        .bind(connection_id)
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct WidgetDto {
+    pub id: Uuid,
+    pub kind: String,
+    pub title: String,
+    #[sqlx(skip)]
+    pub image_url: Option<String>,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    pub pinned: bool,
+}
+
+#[derive(sqlx::FromRow)]
+struct WidgetRow {
+    id: Uuid,
+    kind: String,
+    title: String,
+    image_attachment_id: Option<Uuid>,
+    image_filename: Option<String>,
+    external_image_url: Option<String>,
+    description: Option<String>,
+    tags: Vec<String>,
+    pinned: bool,
+}
+
+impl From<WidgetRow> for WidgetDto {
+    fn from(row: WidgetRow) -> Self {
+        WidgetDto {
+            id: row.id,
+            kind: row.kind,
+            title: row.title,
+            image_url: row
+                .image_attachment_id
+                .zip(row.image_filename)
+                .map(|(id, name)| file_url(id, &name))
+                .or(row.external_image_url),
+            description: row.description,
+            tags: row.tags,
+            pinned: row.pinned,
+        }
+    }
+}
+
+const WIDGET_ROW_COLUMNS: &str = "profile_widgets.id, profile_widgets.kind, profile_widgets.title, \
+     profile_widgets.image_attachment_id, attachments.filename AS image_filename, \
+     profile_widgets.pinned, \
+     profile_widgets.external_image_url, profile_widgets.description, profile_widgets.tags";
+
+pub async fn list_widgets(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<Json<Vec<WidgetDto>>, AppError> {
+    let user_id = user_id_by_username(&state.pool, &username).await?;
+    let rows: Vec<WidgetRow> = sqlx::query_as(&format!(
+        "SELECT {WIDGET_ROW_COLUMNS} \
+         FROM profile_widgets \
+         LEFT JOIN attachments ON attachments.id = profile_widgets.image_attachment_id \
+         WHERE profile_widgets.user_id = $1 \
+         ORDER BY profile_widgets.pinned DESC, profile_widgets.sort_order, profile_widgets.created_at"
+    ))
+    .bind(user_id)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(rows.into_iter().map(WidgetDto::from).collect()))
+}
+
+fn validate_widget_image_url(url: &str) -> Result<(), AppError> {
+    let parsed = url::Url::parse(url).map_err(|_| AppError::LinkNotAllowed)?;
+    if parsed.scheme() != "https" {
+        return Err(AppError::LinkNotAllowed);
+    }
+    let host = parsed.host_str().ok_or(AppError::LinkNotAllowed)?;
+    if !is_allowed_widget_image_host(host) {
+        return Err(AppError::LinkNotAllowed);
+    }
+    Ok(())
+}
+
+fn validate_widget_tags(tags: &[String]) -> Result<Vec<String>, AppError> {
+    if tags.len() > MAX_WIDGET_TAGS {
+        return Err(AppError::InvalidProfileField);
+    }
+    tags.iter()
+        .map(|tag| {
+            let trimmed = tag.trim();
+            if trimmed.is_empty() || trimmed.chars().count() > MAX_WIDGET_TAG_LEN {
+                return Err(AppError::InvalidProfileField);
+            }
+            Ok(trimmed.to_string())
+        })
+        .collect()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddWidgetRequest {
+    pub kind: String,
+    pub title: String,
+    #[serde(default)]
+    pub image_attachment_id: Option<Uuid>,
+    #[serde(default)]
+    pub external_image_url: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+pub async fn add_widget(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<AddWidgetRequest>,
+) -> Result<Json<WidgetDto>, AppError> {
+    if !WIDGET_KINDS.contains(&payload.kind.as_str()) {
+        return Err(AppError::InvalidProfileField);
+    }
+    let title = payload.title.trim();
+    if title.is_empty() || title.chars().count() > MAX_WIDGET_TITLE_LEN {
+        return Err(AppError::InvalidProfileField);
+    }
+    if let Some(attachment_id) = payload.image_attachment_id {
+        owned_image_attachment(&state.pool, session.user_id, attachment_id).await?;
+    }
+    if let Some(url) = &payload.external_image_url {
+        validate_widget_image_url(url)?;
+    }
+    let description = match &payload.description {
+        Some(text) if text.trim().chars().count() > MAX_WIDGET_DESCRIPTION_LEN => {
+            return Err(AppError::InvalidProfileField);
+        }
+        Some(text) if text.trim().is_empty() => None,
+        Some(text) => Some(text.trim().to_string()),
+        None => None,
+    };
+    let tags = validate_widget_tags(&payload.tags)?;
+
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM profile_widgets WHERE user_id = $1")
+            .bind(session.user_id)
+            .fetch_one(&state.pool)
+            .await?;
+    if count >= MAX_WIDGETS_PER_USER {
+        return Err(AppError::InvalidProfileField);
+    }
+
+    let row: WidgetRow = sqlx::query_as(&format!(
+        "INSERT INTO profile_widgets \
+             (user_id, kind, title, image_attachment_id, external_image_url, description, tags, sort_order) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+         RETURNING id, kind, title, image_attachment_id, \
+                   (SELECT filename FROM attachments WHERE attachments.id = $4) AS image_filename, \
+                   external_image_url, description, tags, pinned"
+    ))
+    .bind(session.user_id)
+    .bind(&payload.kind)
+    .bind(title)
+    .bind(payload.image_attachment_id)
+    .bind(&payload.external_image_url)
+    .bind(&description)
+    .bind(&tags)
+    .bind(count as i32)
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(Json(row.into()))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateWidgetRequest {
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub pinned: Option<bool>,
+}
+
+pub async fn update_widget(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(widget_id): Path<Uuid>,
+    Json(payload): Json<UpdateWidgetRequest>,
+) -> Result<Json<WidgetDto>, AppError> {
+    let description_provided = payload.description.is_some();
+    let description = match payload.description {
+        Some(text) if text.trim().chars().count() > MAX_WIDGET_DESCRIPTION_LEN => {
+            return Err(AppError::InvalidProfileField);
+        }
+        Some(text) if text.trim().is_empty() => None,
+        Some(text) => Some(text.trim().to_string()),
+        None => None,
+    };
+    let tags_provided = payload.tags.is_some();
+    let tags = match &payload.tags {
+        Some(tags) => validate_widget_tags(tags)?,
+        None => Vec::new(),
+    };
+    let pinned_provided = payload.pinned.is_some();
+    let pinned = payload.pinned.unwrap_or(false);
+
+    let updated = sqlx::query(
+        "UPDATE profile_widgets SET \
+             description = CASE WHEN $3 THEN $4 ELSE description END, \
+             tags = CASE WHEN $5 THEN $6 ELSE tags END, \
+             pinned = CASE WHEN $7 THEN $8 ELSE pinned END \
+         WHERE id = $1 AND user_id = $2",
+    )
+    .bind(widget_id)
+    .bind(session.user_id)
+    .bind(description_provided)
+    .bind(&description)
+    .bind(tags_provided)
+    .bind(&tags)
+    .bind(pinned_provided)
+    .bind(pinned)
+    .execute(&state.pool)
+    .await?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    let row: WidgetRow = sqlx::query_as(&format!(
+        "SELECT {WIDGET_ROW_COLUMNS} \
+         FROM profile_widgets \
+         LEFT JOIN attachments ON attachments.id = profile_widgets.image_attachment_id \
+         WHERE profile_widgets.id = $1"
+    ))
+    .bind(widget_id)
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(Json(row.into()))
+}
+
+pub async fn remove_widget(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(widget_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    let result = sqlx::query("DELETE FROM profile_widgets WHERE id = $1 AND user_id = $2")
+        .bind(widget_id)
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(())
 }

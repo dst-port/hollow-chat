@@ -52,8 +52,20 @@ export function fileUrl(id: string, filename: string): string {
 	return `${BASE_URL}/files/${id}/${encodeURIComponent(filename)}`;
 }
 
-export function resolveUrl(path: string): string {
-	return `${BASE_URL}${path}`;
+export function resolveUrl(path: string, token?: string | null): string {
+	if (/^https?:\/\//i.test(path)) return path;
+	if (!token) return `${BASE_URL}${path}`;
+	const separator = path.includes("?") ? "&" : "?";
+	return `${BASE_URL}${path}${separator}token=${encodeURIComponent(token)}`;
+}
+
+export function bannerBackground(
+	profile: { banner_url: string | null; banner_color: string | null; accent_color: string | null } | null | undefined,
+	token?: string | null
+): string {
+	if (profile?.banner_url) return `url(${resolveUrl(profile.banner_url, token)}) center/cover`;
+	const base = profile?.banner_color || profile?.accent_color || "#5865f2";
+	return `linear-gradient(135deg, ${base}, color-mix(in srgb, ${base} 45%, black))`;
 }
 
 export async function uploadFile(token: string, file: File): Promise<ApiAttachment> {
@@ -875,6 +887,9 @@ export type ApiProfile = {
 	pronouns: string | null;
 	status_text: string | null;
 	presence: PresenceState;
+	activity_application: string | null;
+	activity_details: string | null;
+	activity_state: string | null;
 	accent_color: string | null;
 	banner_color: string | null;
 	avatar_url: string | null;
@@ -929,6 +944,20 @@ export function setPresence(token: string, presence: PresenceState) {
 	});
 }
 
+export type SetActivityBody = {
+	application?: string;
+	details?: string;
+	state?: string;
+};
+
+export function setActivity(token: string, body: SetActivityBody) {
+	return request<ApiProfile>("/profile/activity", {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify(body)
+	});
+}
+
 export function setBanner(token: string, attachmentId: string) {
 	return request<ApiProfile>("/profile/banner", {
 		method: "PUT",
@@ -941,5 +970,129 @@ export function clearBanner(token: string) {
 	return request<ApiProfile>("/profile/banner", {
 		method: "DELETE",
 		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type ConnectionService =
+	| "github"
+	| "youtube"
+	| "twitch"
+	| "x"
+	| "instagram"
+	| "tiktok"
+	| "reddit"
+	| "steam"
+	| "spotify"
+	| "discord"
+	| "facebook"
+	| "telegram"
+	| "vk"
+	| "behance"
+	| "dribbble"
+	| "soundcloud"
+	| "bandcamp"
+	| "itchio"
+	| "xbox"
+	| "playstation"
+	| "battlenet"
+	| "epicgames"
+	| "roblox";
+
+export type ApiConnection = {
+	id: string;
+	service: ConnectionService;
+	label: string;
+	url: string;
+};
+
+export function listConnections(token: string, username: string) {
+	return request<ApiConnection[]>(`/profile/${encodeURIComponent(username)}/connections`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function addConnection(token: string, service: ConnectionService, url: string, label?: string) {
+	return request<ApiConnection>("/profile/connections", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ service, url, label })
+	});
+}
+
+export function removeConnection(token: string, connectionId: string) {
+	return request<void>(`/profile/connections/${encodeURIComponent(connectionId)}`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type WidgetKind = "favorite_game" | "want_to_play" | "games_i_like" | "games_in_rotation";
+
+export type ApiWidget = {
+	id: string;
+	kind: WidgetKind;
+	title: string;
+	image_url: string | null;
+	description: string | null;
+	tags: string[];
+	pinned: boolean;
+};
+
+export function listWidgets(token: string, username: string) {
+	return request<ApiWidget[]>(`/profile/${encodeURIComponent(username)}/widgets`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function addWidget(
+	token: string,
+	kind: WidgetKind,
+	title: string,
+	options?: { imageAttachmentId?: string; externalImageUrl?: string }
+) {
+	return request<ApiWidget>("/profile/widgets", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({
+			kind,
+			title,
+			image_attachment_id: options?.imageAttachmentId,
+			external_image_url: options?.externalImageUrl
+		})
+	});
+}
+
+export function updateWidget(
+	token: string,
+	widgetId: string,
+	patch: { description?: string; tags?: string[]; pinned?: boolean }
+) {
+	return request<ApiWidget>(`/profile/widgets/${encodeURIComponent(widgetId)}`, {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify(patch)
+	});
+}
+
+export function removeWidget(token: string, widgetId: string) {
+	return request<void>(`/profile/widgets/${encodeURIComponent(widgetId)}`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export type LinkPreview = {
+	url: string;
+	site_name: string | null;
+	title: string | null;
+	description: string | null;
+	image: string | null;
+};
+
+export function fetchLinkPreview(token: string, url: string) {
+	return request<LinkPreview>("/link-preview", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ url })
 	});
 }
