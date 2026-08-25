@@ -36,7 +36,20 @@ jobs:
           cache-dependency-path: client/pnpm-lock.yaml
 
       - name: Disable pnpm's interactive prompts
-        run: echo "auto-confirm-all-prompts=true" >> ~/.npmrc
+        run: |
+          set +e
+          OUT=$(pnpm config set force true --global 2>&1)
+          STATUS=$?
+          echo "$OUT"
+          if [ $STATUS -ne 0 ] && echo "$OUT" | grep -q "is not in PATH"; then
+            DIR=$(echo "$OUT" | sed -n 's/.*global bin directory "\(.*\)" is not in PATH.*/\1/p')
+            echo "Creating pnpm global bin dir: $DIR"
+            mkdir -p "$DIR"
+            echo "$DIR" >> "$GITHUB_PATH"
+            export PATH="$DIR:$PATH"
+            pnpm config set force true --global
+          fi
+          set -e
 
       - name: Install frontend dependencies
         working-directory: client
