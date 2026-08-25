@@ -46,9 +46,19 @@ jobs:
         working-directory: client
         run: pnpm tauri ios init --ci
 
+      - name: Inspect generated iOS project (before build)
+        run: |
+          find client/src-tauri/gen/apple -maxdepth 4 \( -iname 'package*.json' -o -iname 'pnpm-lock.yaml' -o -iname '.npmrc' \) -print -exec cat {} \;
+
       - name: Build iOS (simulator, unsigned)
         working-directory: client
         run: pnpm tauri ios build --ci --target aarch64-sim
+
+      - name: Inspect generated iOS project (after build)
+        if: always()
+        run: |
+          find client/src-tauri/gen/apple -maxdepth 4 \( -iname 'package*.json' -o -iname 'pnpm-lock.yaml' -o -iname '.npmrc' \) -print -exec cat {} \;
+          find /Users/runner/Library/Developer/Xcode/DerivedData -iname 'Script-*.sh' -print -exec cat {} \; 2>/dev/null || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
