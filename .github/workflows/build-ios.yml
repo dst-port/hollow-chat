@@ -52,7 +52,7 @@ jobs:
 
       - name: Build iOS (simulator, unsigned)
         working-directory: client
-        run: script -q /dev/null pnpm tauri ios build --ci --target aarch64-sim
+        run: pnpm tauri ios build --ci --target aarch64-sim
 
       - name: Inspect generated iOS project (after build)
         if: always()
