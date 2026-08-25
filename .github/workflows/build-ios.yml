@@ -1,0 +1,53 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: client/src-tauri
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: client
+        run: pnpm install --frozen-lockfile
+
+      - name: Init iOS project
+        working-directory: client
+        run: pnpm tauri ios init --ci
+
+      - name: Build iOS (simulator, unsigned)
+        working-directory: client
+        run: pnpm tauri ios build --ci --target aarch64-sim
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hollowchat-ios-simulator
+          path: client/src-tauri/gen/apple/build/**
+          if-no-files-found: warn

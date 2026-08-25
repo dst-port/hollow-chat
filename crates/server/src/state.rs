@@ -7,6 +7,9 @@ use dashmap::DashMap;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use axum::extract::ws::Message;
+use tokio::sync::mpsc::UnboundedSender;
+
 use crate::calls::PeerHandle;
 use crate::devicelink::LinkPeer;
 use crate::rate_limit::UserRateLimiter;
@@ -41,4 +44,5 @@ pub struct AppState {
     pub link_rooms: Arc<DashMap<Uuid, Vec<LinkPeer>>>,
     pub bundle_fetch_locks: Arc<DashMap<(Uuid, Uuid), Instant>>,
     pub link_preview_cache: Arc<DashMap<String, (Instant, LinkPreviewDto)>>,
+    pub gateway_sockets: Arc<DashMap<Uuid, Vec<UnboundedSender<Message>>>>,
 }

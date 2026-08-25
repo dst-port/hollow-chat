@@ -36,6 +36,11 @@ export function renderMarkdown(raw: string): string {
 		'<span class="md-spoiler" onclick="this.classList.toggle(\'revealed\')">$1</span>'
 	);
 
+	text = text.replace(
+		/(https?:\/\/[^\s<>"']+)/g,
+		'<a href="$1" class="md-link" target="_blank" rel="noreferrer">$1</a>'
+	);
+
 	text = text.replace(/\n/g, "<br />");
 
 	text = text.replace(

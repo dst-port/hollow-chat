@@ -301,6 +301,17 @@
 		}
 	}
 
+	async function toggleShareActivity(value: boolean) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			const updated = await api.updateProfile(token, { share_activity: value });
+			profileStore.set(updated);
+		} catch {
+			toast.push("Couldn't update activity sharing");
+		}
+	}
+
 	async function onAvatarChosen(event: Event) {
 		const token = session.token;
 		const file = (event.target as HTMLInputElement).files?.[0];
@@ -906,6 +917,26 @@
 				</div>
 			{:else if section === "privacy"}
 				<h2>Privacy &amp; Safety</h2>
+
+				<div class="card">
+					<div class="switch-row">
+						<div>
+							<p class="row-label">Show game activity</p>
+							<p class="row-value muted">
+								Let friends see what you're playing via Rich Presence. Off clears it for
+								everyone but you.
+							</p>
+						</div>
+						<label class="switch">
+							<input
+								type="checkbox"
+								checked={profileStore.forUser(username)?.share_activity ?? true}
+								onchange={(e) => toggleShareActivity((e.target as HTMLInputElement).checked)}
+							/>
+							<span class="track"><span class="thumb"></span></span>
+						</label>
+					</div>
+				</div>
 
 				<div class="card">
 					<div class="row">

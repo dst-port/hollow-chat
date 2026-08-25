@@ -890,6 +890,7 @@ export type ApiProfile = {
 	activity_application: string | null;
 	activity_details: string | null;
 	activity_state: string | null;
+	share_activity: boolean;
 	accent_color: string | null;
 	banner_color: string | null;
 	avatar_url: string | null;
@@ -911,6 +912,7 @@ export type UpdateProfileBody = {
 	status_clear_minutes?: number;
 	accent_color?: string;
 	banner_color?: string;
+	share_activity?: boolean;
 };
 
 export function updateProfile(token: string, body: UpdateProfileBody) {

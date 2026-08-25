@@ -17,33 +17,42 @@
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import * as api from "$lib/api/client";
+	import { presenceStore } from "$lib/stores/gateway.svelte";
 
 	let { username, onLogout }: {
 		username: string;
 		onLogout: () => void;
 	} = $props();
 
-	let friends = $state<Member[]>([]);
+	let rawFriends = $state<api.ApiFriend[]>([]);
 	let requests = $state<api.ApiFriendRequest[]>([]);
 	let dmChannels = $state<api.ApiDmChannel[]>([]);
 	let activeDmId = $state<string | null>(null);
 
 	function toMember(f: api.ApiFriend): Member {
+		const live = presenceStore.forUser(f.id);
+		const status = live?.presence ?? f.presence;
+		const statusText = live ? live.status_text : f.status_text;
+		const activityLabel = live?.activity_application
+			? `Playing ${live.activity_application}`
+			: statusText;
 		return {
 			id: f.id,
 			name: f.username,
 			color: colorForName(f.username),
-			status: f.presence,
-			activity: f.status_text ?? undefined
+			status: status as Member["status"],
+			activity: activityLabel ?? undefined
 		};
 	}
+
+	const friends = $derived(rawFriends.map(toMember));
 
 	function refreshFriends() {
 		const token = session.token;
 		if (!token) return;
 		api
 			.listFriends(token)
-			.then((rows) => (friends = rows.map(toMember)))
+			.then((rows) => (rawFriends = rows))
 			.catch(() => {});
 	}
 

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::gateway::{push_to_friends, GatewayEvent};
 use crate::social::user_id_by_username;
 use crate::state::AppState;
 
@@ -106,6 +107,7 @@ pub struct ProfileDto {
     pub activity_application: Option<String>,
     pub activity_details: Option<String>,
     pub activity_state: Option<String>,
+    pub share_activity: bool,
     pub accent_color: Option<String>,
     pub banner_color: Option<String>,
     #[sqlx(skip)]
@@ -126,6 +128,7 @@ struct ProfileRow {
     activity_application: Option<String>,
     activity_details: Option<String>,
     activity_state: Option<String>,
+    share_activity: bool,
     accent_color: Option<String>,
     banner_color: Option<String>,
     member_since: DateTime<Utc>,
@@ -145,6 +148,7 @@ async fn load_profile(
                 CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
                      THEN NULL ELSE users.status_text END AS status_text, \
                 users.presence, users.activity_application, users.activity_details, users.activity_state, \
+                users.share_activity, \
                 users.accent_color, users.banner_color, users.created_at AS member_since, \
                 users.avatar_attachment_id, avatar.filename AS avatar_filename, \
                 users.banner_attachment_id, banner.filename AS banner_filename \
@@ -169,9 +173,16 @@ async fn load_profile(
         } else {
             row.presence
         },
-        activity_application: row.activity_application,
-        activity_details: row.activity_details,
-        activity_state: row.activity_state,
+        activity_application: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_application)
+            .flatten(),
+        activity_details: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_details)
+            .flatten(),
+        activity_state: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_state)
+            .flatten(),
+        share_activity: row.share_activity,
         accent_color: row.accent_color,
         banner_color: row.banner_color,
         avatar_url: row
@@ -211,6 +222,8 @@ pub struct UpdateProfileRequest {
     pub accent_color: Option<String>,
     #[serde(default)]
     pub banner_color: Option<String>,
+    #[serde(default)]
+    pub share_activity: Option<bool>,
 }
 
 fn clean(value: Option<String>, max_len: usize) -> Result<Option<String>, AppError> {
@@ -259,6 +272,7 @@ pub async fn update_profile(
             status_text = CASE WHEN $4 IS NULL THEN status_text WHEN $4 = '' THEN NULL ELSE $4 END, \
             accent_color = CASE WHEN $5 IS NULL THEN accent_color WHEN $5 = '' THEN NULL ELSE $5 END, \
             banner_color = CASE WHEN $6 IS NULL THEN banner_color WHEN $6 = '' THEN NULL ELSE $6 END, \
+            share_activity = CASE WHEN $9::boolean IS NULL THEN share_activity ELSE $9::boolean END, \
             status_clear_at = CASE WHEN $8::bigint IS NULL THEN status_clear_at \
                                     WHEN $8::bigint = 0 THEN NULL \
                                     ELSE now() + make_interval(mins => $8::int) END \
@@ -272,10 +286,29 @@ pub async fn update_profile(
     .bind(&banner_color)
     .bind(session.user_id)
     .bind(clear_minutes)
+    .bind(payload.share_activity)
     .execute(&state.pool)
     .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
+    let profile = load_profile(&state.pool, session.user_id, session.user_id).await?;
+
+    if payload.share_activity == Some(false) {
+        push_to_friends(
+            &state,
+            session.user_id,
+            &GatewayEvent::PresenceUpdate {
+                user_id: session.user_id,
+                presence: profile.presence.clone(),
+                status_text: profile.status_text.clone(),
+                activity_application: None,
+                activity_details: None,
+                activity_state: None,
+            },
+        )
+        .await;
+    }
+
+    Ok(Json(profile))
 }
 
 #[derive(Debug, Deserialize)]
@@ -298,7 +331,23 @@ pub async fn set_presence(
         .execute(&state.pool)
         .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
+    let profile = load_profile(&state.pool, session.user_id, session.user_id).await?;
+
+    push_to_friends(
+        &state,
+        session.user_id,
+        &GatewayEvent::PresenceUpdate {
+            user_id: session.user_id,
+            presence: profile.presence.clone(),
+            status_text: profile.status_text.clone(),
+            activity_application: profile.share_activity.then(|| profile.activity_application.clone()).flatten(),
+            activity_details: profile.share_activity.then(|| profile.activity_details.clone()).flatten(),
+            activity_state: profile.share_activity.then(|| profile.activity_state.clone()).flatten(),
+        },
+    )
+    .await;
+
+    Ok(Json(profile))
 }
 
 #[derive(Debug, Deserialize)]
@@ -337,7 +386,25 @@ pub async fn set_activity(
     .execute(&state.pool)
     .await?;
 
-    Ok(Json(load_profile(&state.pool, session.user_id, session.user_id).await?))
+    let profile = load_profile(&state.pool, session.user_id, session.user_id).await?;
+
+    if profile.share_activity {
+        push_to_friends(
+            &state,
+            session.user_id,
+            &GatewayEvent::PresenceUpdate {
+                user_id: session.user_id,
+                presence: profile.presence.clone(),
+                status_text: profile.status_text.clone(),
+                activity_application: profile.activity_application.clone(),
+                activity_details: profile.activity_details.clone(),
+                activity_state: profile.activity_state.clone(),
+            },
+        )
+        .await;
+    }
+
+    Ok(Json(profile))
 }
 
 #[derive(Debug, Deserialize)]

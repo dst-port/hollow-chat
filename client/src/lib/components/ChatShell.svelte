@@ -13,10 +13,15 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { initRichPresenceBridge } from "$lib/stores/richPresence.svelte";
+	import { initGatewayBridge } from "$lib/stores/gateway.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import * as api from "$lib/api/client";
 
 	initRichPresenceBridge();
+
+	$effect(() => {
+		if (session.token) initGatewayBridge(session.token);
+	});
 
 	function toServerEntry(server: api.ApiServer): ServerEntry {
 		return {

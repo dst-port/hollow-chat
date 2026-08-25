@@ -9,6 +9,22 @@ type PresencePayload = {
 	large_text: string | null;
 };
 
+const KNOWN_APPS: Record<string, string> = {
+	"356875570916753438": "Rocket League",
+	"379286045294002177": "PUBG",
+	"401518684763586560": "Rainbow Six Siege",
+	"438122941302046720": "Genshin Impact",
+	"356869127241760770": "Fortnite",
+	"382112353941667851": "GTA V",
+	"493557426159370240": "Apex Legends",
+	"365468614890782730": "Minecraft",
+	"433027613177298954": "League of Legends",
+	"329165918053335041": "osu!",
+	"445719970763980815": "Terraria",
+	"438122238692147200": "CS2",
+	"1043943905241108561": "Valorant"
+};
+
 let lastSent: string | null = null;
 let started = false;
 
@@ -25,9 +41,17 @@ async function push(body: SetActivityBody) {
 	}
 }
 
+function resolveApplicationName(payload: PresencePayload): string | undefined {
+	if (payload.large_text) return payload.large_text;
+	if (payload.application_id && KNOWN_APPS[payload.application_id]) {
+		return KNOWN_APPS[payload.application_id];
+	}
+	return payload.application_id ?? undefined;
+}
+
 function toActivityBody(payload: PresencePayload): SetActivityBody {
 	return {
-		application: payload.large_text ?? payload.application_id ?? undefined,
+		application: resolveApplicationName(payload),
 		details: payload.details ?? undefined,
 		state: payload.state ?? undefined
 	};

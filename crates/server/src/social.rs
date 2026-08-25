@@ -30,6 +30,17 @@ pub async fn are_friends(pool: &sqlx::PgPool, a: Uuid, b: Uuid) -> Result<bool, 
     Ok(row.is_some())
 }
 
+pub async fn friend_ids(pool: &sqlx::PgPool, user_id: Uuid) -> Result<Vec<Uuid>, AppError> {
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        "SELECT CASE WHEN user_a = $1 THEN user_b ELSE user_a END \
+         FROM friendships WHERE user_a = $1 OR user_b = $1",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
 pub async fn are_blocked(pool: &sqlx::PgPool, a: Uuid, b: Uuid) -> Result<bool, AppError> {
     let row: Option<(i32,)> = sqlx::query_as(
         "SELECT 1 FROM blocked_users \

@@ -1343,6 +1343,15 @@
 		color: var(--ink);
 	}
 
+	.content :global(a.md-link) {
+		color: var(--accent-fill);
+		text-decoration: none;
+	}
+
+	.content :global(a.md-link:hover) {
+		text-decoration: underline;
+	}
+
 	.reply-quote {
 		display: flex;
 		align-items: center;
