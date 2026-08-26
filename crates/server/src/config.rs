@@ -12,6 +12,8 @@ pub struct Config {
     pub ice_turn_url: Option<String>,
     pub ice_turn_username: Option<String>,
     pub ice_turn_credential: Option<String>,
+    pub steamgriddb_api_key: Option<String>,
+    pub cors_allowed_origins: Vec<String>,
 }
 
 impl Config {
@@ -29,8 +31,12 @@ impl Config {
         let lava_offer_id = std::env::var("LAVA_OFFER_ID").ok();
         let lava_webhook_secret = std::env::var("LAVA_WEBHOOK_SECRET").ok();
         let lava_currency = std::env::var("LAVA_CURRENCY").ok();
+        // Matches tauri.conf.json's devUrl exactly ("localhost", not
+        // "127.0.0.1" - different origins for CORS purposes even though
+        // they resolve to the same address) so a fresh dev checkout works
+        // without anyone needing to discover this the hard way.
         let app_base_url =
-            std::env::var("APP_BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:1420".to_string());
+            std::env::var("APP_BASE_URL").unwrap_or_else(|_| "http://localhost:1420".to_string());
         let ice_stun_urls = std::env::var("ICE_STUN_URLS")
             .unwrap_or_else(|_| "stun:stun.l.google.com:19302".to_string())
             .split(',')
@@ -40,6 +46,20 @@ impl Config {
         let ice_turn_url = std::env::var("ICE_TURN_URL").ok();
         let ice_turn_username = std::env::var("ICE_TURN_USERNAME").ok();
         let ice_turn_credential = std::env::var("ICE_TURN_CREDENTIAL").ok();
+        let steamgriddb_api_key = std::env::var("STEAMGRIDDB_API_KEY").ok();
+        // No default beyond APP_BASE_URL: an empty/unset allowlist is safer
+        // than accidentally permissive, and self-hosters running a web or
+        // browser-extension client alongside the desktop app need to opt
+        // those origins in explicitly.
+        let cors_allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
+            .ok()
+            .map(|raw| {
+                raw.split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![app_base_url.clone()]);
 
         Self {
             database_url,
@@ -55,6 +75,8 @@ impl Config {
             ice_turn_url,
             ice_turn_username,
             ice_turn_credential,
+            steamgriddb_api_key,
+            cors_allowed_origins,
         }
     }
 }

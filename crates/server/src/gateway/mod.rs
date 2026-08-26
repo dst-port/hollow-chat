@@ -3,6 +3,7 @@ mod handlers;
 use axum::extract::ws::Message;
 use axum::routing::get;
 use axum::Router;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -19,6 +20,11 @@ pub enum GatewayEvent {
         activity_application: Option<String>,
         activity_details: Option<String>,
         activity_state: Option<String>,
+        activity_image: Option<String>,
+        activity_started_at: Option<DateTime<Utc>>,
+        media_application: Option<String>,
+        media_details: Option<String>,
+        media_state: Option<String>,
     },
 }
 

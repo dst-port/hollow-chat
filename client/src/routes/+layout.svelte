@@ -3,8 +3,11 @@
 	import ToastHost from "$lib/components/ToastHost.svelte";
 	import TitleBar from "$lib/components/TitleBar.svelte";
 	import ResizeHandles from "$lib/components/ResizeHandles.svelte";
+	import { themeStore } from "$lib/stores/theme.svelte";
 
 	let { children } = $props();
+
+	themeStore.init();
 
 	function blockNativeContextMenu(event: MouseEvent) {
 		const target = event.target as HTMLElement | null;

@@ -10,6 +10,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", post(handlers::create_server))
         .route("/", get(handlers::list_servers))
         .route("/{id}", patch(handlers::rename_server))
+        .route("/{id}/icon", put(handlers::set_server_icon))
+        .route("/{id}/icon", delete(handlers::clear_server_icon))
         .route("/{id}/leave", delete(handlers::leave_server))
         .route("/{id}/channels", post(handlers::create_channel))
         .route(

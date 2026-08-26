@@ -11,6 +11,7 @@ mod dms;
 mod emoji;
 mod error;
 mod friends;
+mod games;
 mod gateway;
 mod keys;
 mod link_preview;
@@ -19,7 +20,9 @@ mod password;
 mod permissions;
 mod profile;
 mod rate_limit;
+mod reports;
 mod roles;
+mod secret_box;
 mod sender_keys;
 mod servers;
 mod session;
@@ -27,17 +30,19 @@ mod social;
 mod state;
 mod totp;
 
+use axum::http::{HeaderValue, Method};
 use axum::routing::get;
 use axum::Router;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use dashmap::DashMap;
 
 use config::Config;
 use rate_limit::UserRateLimiter;
+use games::GameCoverConfig;
 use state::{AppState, BillingConfig, IceConfig};
 
 const MESSAGE_LIMIT_PER_WINDOW: u32 = 15;
@@ -53,6 +58,29 @@ async fn main() {
     dotenvy::dotenv().ok();
 
     let config = Config::from_env();
+
+    let cors_origins: Vec<HeaderValue> = config
+        .cors_allowed_origins
+        .iter()
+        .filter_map(|origin| {
+            HeaderValue::from_str(origin)
+                .inspect_err(|_| tracing::warn!("ignoring invalid CORS origin: {origin}"))
+                .ok()
+        })
+        .collect();
+    if cors_origins.is_empty() {
+        tracing::warn!("no valid CORS_ALLOWED_ORIGINS configured - cross-origin requests will all be rejected");
+    }
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(cors_origins))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+        ])
+        .allow_headers(tower_http::cors::Any);
 
     let pool = db::connect(&config.database_url)
         .await
@@ -92,6 +120,10 @@ async fn main() {
         bundle_fetch_locks: Arc::new(DashMap::new()),
         link_preview_cache: Arc::new(DashMap::new()),
         gateway_sockets: Arc::new(DashMap::new()),
+        game_covers: GameCoverConfig {
+            steamgriddb_api_key: config.steamgriddb_api_key.map(|s| Arc::from(s.into_boxed_str())),
+        },
+        game_cover_cache: Arc::new(DashMap::new()),
     };
 
     let app = Router::new()
@@ -103,6 +135,7 @@ async fn main() {
         .nest("/channels", messages::router(state.clone()))
         .nest("/channels", sender_keys::router(state.clone()))
         .nest("/friends", friends::router(state.clone()))
+        .nest("/games", games::router(state.clone()))
         .nest("/dms", dms::router(state.clone()))
         .nest("/keys", keys::router(state.clone()))
         .nest("/badges", badges::router(state.clone()))
@@ -114,8 +147,9 @@ async fn main() {
         .nest("/devicelink", devicelink::router(state.clone()))
         .nest("/link-preview", link_preview::router(state.clone()))
         .nest("/gateway", gateway::router(state.clone()))
+        .nest("/reports", reports::router(state.clone()))
         .with_state(state)
-        .layer(CorsLayer::permissive());
+        .layer(cors);
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr)
         .await

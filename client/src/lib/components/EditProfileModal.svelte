@@ -19,6 +19,7 @@
 	import Badges from "$lib/components/Badges.svelte";
 	import BrandIcon from "$lib/components/BrandIcon.svelte";
 	import { BRAND_ICONS } from "$lib/data/brandIcons";
+	import { extractConnectionHandle } from "$lib/utils/connectionHandle";
 
 	// Xbox has no CC0 mark in Simple Icons (pulled after a takedown request),
 	// so it gets a neutral glyph instead of a logo.
@@ -174,6 +175,10 @@
 		selectedService = null;
 	}
 
+	function connectionLabel(connection: api.ApiConnection): string {
+		return extractConnectionHandle(connection.service, connection.url) ?? connection.label;
+	}
+
 	async function submitConnection() {
 		const token = session.token;
 		if (!token || !selectedService) return;
@@ -181,7 +186,8 @@
 		if (!url) return;
 		savingConnection = true;
 		try {
-			const created = await api.addConnection(token, selectedService.id, url);
+			const handle = extractConnectionHandle(selectedService.id, url);
+			const created = await api.addConnection(token, selectedService.id, url, handle ?? undefined);
 			connections = [...connections, created];
 			addingConnection = false;
 			selectedService = null;
@@ -486,10 +492,10 @@
 				<p class="preview-name" style:color={accentDraft}>
 					{profile?.display_name || username}
 				</p>
-				<p class="preview-handle">@{username}</p>
-				{#if badges.length > 0}
-					<div class="preview-badges"><Badges {badges} /></div>
-				{/if}
+				<p class="preview-handle">
+					<span>@{username}</span>
+					{#if badges.length > 0}<Badges {badges} />{/if}
+				</p>
 
 				<div class="preview-actions">
 					<button class="action primary" disabled title="This is your own profile">
@@ -526,17 +532,17 @@
 				{#each connections as connection (connection.id)}
 					<div class="connection-row">
 						{#if BRAND_ICONS[connection.service]}
-							<BrandIcon service={connection.service} size={14} chip />
+							<BrandIcon service={connection.service} size={13} chip />
 						{:else}
 							{@const Fallback = FALLBACK_ICON[connection.service] ?? Globe}
 							<Fallback size={14} strokeWidth={2} />
 						{/if}
 						<a href={connection.url} target="_blank" rel="noreferrer" class="connection-label">
-							{connection.label}
+							{connectionLabel(connection)}
 						</a>
-						<ExternalLink size={11} strokeWidth={2} class="connection-external" />
+						<ExternalLink size={13} strokeWidth={2} class="connection-external" />
 						<button class="connection-remove" onclick={() => deleteConnection(connection.id)} title="Remove">
-							<Trash2 size={12} strokeWidth={2} />
+							<Trash2 size={14} strokeWidth={2} />
 						</button>
 					</div>
 				{/each}
@@ -964,10 +970,6 @@
 		gap: 6px;
 	}
 
-	.preview-badges {
-		display: flex;
-	}
-
 	.preview-info {
 		display: flex;
 		flex-direction: column;
@@ -1016,6 +1018,10 @@
 
 	.preview-handle {
 		margin: 0;
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px;
 		font-size: 12px;
 		color: var(--ink-faint);
 	}
@@ -1529,11 +1535,15 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+		padding: 6px 10px;
+		border-radius: var(--radius-sm);
+		background: var(--panel);
+		border: 1px solid var(--hairline);
 		color: var(--ink-dim);
 	}
 
 	.connection-label {
-		font-size: 13px;
+		font-size: 16px;
 		color: var(--ink);
 		font-weight: 600;
 	}

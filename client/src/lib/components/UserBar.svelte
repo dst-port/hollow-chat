@@ -42,8 +42,17 @@
 		invisible: "var(--ink-faint)"
 	};
 
+	const statusLabel = $derived(
+		profile?.status_text ||
+			(profile?.activity_application ? `Playing ${profile.activity_application}` : undefined) ||
+			profile?.media_details ||
+			PRESENCE_LABELS[profile?.presence ?? "online"]
+	);
+
 	const statusColor = $derived(
-		profile?.status_text ? "var(--ink-faint)" : PRESENCE_COLOR_VAR[profile?.presence ?? "online"]
+		profile?.status_text || profile?.activity_application || profile?.media_details
+			? "var(--ink-faint)"
+			: PRESENCE_COLOR_VAR[profile?.presence ?? "online"]
 	);
 
 	$effect(() => {
@@ -65,7 +74,7 @@
 		<div class="identity">
 			<p class="username" style:color={profile?.accent_color || undefined}>{profile?.display_name || username}</p>
 			<p class="status-row">
-				<span class="status" style:color={statusColor}>{profile?.status_text || PRESENCE_LABELS[profile?.presence ?? "online"]}</span>
+				<span class="status" style:color={statusColor}>{statusLabel}</span>
 			</p>
 		</div>
 	</button>

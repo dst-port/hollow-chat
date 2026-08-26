@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ProfilePopover from "$lib/components/ProfilePopover.svelte";
+	import FullProfileModal from "$lib/components/FullProfileModal.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import * as api from "$lib/api/client";
@@ -12,6 +13,7 @@
 	} = $props();
 
 	let openMember = $state<{ id: string; anchor: HTMLElement } | null>(null);
+	let fullProfileUsername = $state<string | null>(null);
 
 	$effect(() => {
 		const token = session.token;
@@ -21,22 +23,18 @@
 		}
 	});
 
-	const PRESENCE_GROUP_LABEL: Record<string, string> = {
-		online: "Online",
-		idle: "Idle",
-		dnd: "Do Not Disturb",
-		invisible: "Offline",
-		offline: "Offline"
-	};
-
 	function presenceOf(member: Member) {
 		return profileStore.forUser(member.name)?.presence ?? "online";
+	}
+
+	function fallbackGroupFor(member: Member): string {
+		return presenceOf(member) === "invisible" ? "Offline" : "Online";
 	}
 
 	const groups = $derived.by(() => {
 		const map = new Map<string, Member[]>();
 		for (const member of members) {
-			const key = member.roles?.[0]?.label ?? PRESENCE_GROUP_LABEL[presenceOf(member)];
+			const key = member.roles?.[0]?.label ?? fallbackGroupFor(member);
 			if (!map.has(key)) map.set(key, []);
 			map.get(key)!.push(member);
 		}
@@ -88,6 +86,18 @@
 		{serverName}
 		anchor={openMember.anchor}
 		onClose={() => (openMember = null)}
+		{onMessage}
+		onViewFullProfile={(username) => (fullProfileUsername = username)}
+	/>
+{/if}
+
+{#if fullProfileUsername}
+	{@const fullMember = members.find((m) => m.name === fullProfileUsername) ?? null}
+	<FullProfileModal
+		username={fullProfileUsername}
+		member={fullMember}
+		{serverName}
+		onClose={() => (fullProfileUsername = null)}
 		{onMessage}
 	/>
 {/if}

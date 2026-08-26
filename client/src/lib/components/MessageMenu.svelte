@@ -6,18 +6,21 @@
 	import SquarePen from "@lucide/svelte/icons/square-pen";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
+	import Flag from "@lucide/svelte/icons/flag";
 	import { clickOutside } from "$lib/actions/clickOutside";
 
-	let { pinned, canEdit, canDelete, onClose, onCopy, onTogglePin, onEdit, onDelete, onCreateThread }: {
+	let { pinned, canEdit, canDelete, canReport, onClose, onCopy, onTogglePin, onEdit, onDelete, onCreateThread, onReport }: {
 		pinned: boolean;
 		canEdit: boolean;
 		canDelete: boolean;
+		canReport?: boolean;
 		onClose: () => void;
 		onCopy: () => void;
 		onTogglePin: () => void;
 		onEdit?: () => void;
 		onDelete?: () => void;
 		onCreateThread?: () => void;
+		onReport?: () => void;
 	} = $props();
 </script>
 
@@ -76,6 +79,18 @@
 		>
 			<Trash2 size={14} strokeWidth={2} />
 			Delete Message
+		</button>
+	{/if}
+	{#if canReport && onReport}
+		<button
+			class="item danger"
+			onclick={() => {
+				onReport();
+				onClose();
+			}}
+		>
+			<Flag size={14} strokeWidth={2} />
+			Report Message
 		</button>
 	{/if}
 </div>

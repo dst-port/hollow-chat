@@ -13,6 +13,7 @@ export type ServerEntry = {
 	id: string;
 	name: string;
 	initials: string;
+	iconUrl?: string | null;
 	channels: Channel[];
 	unread?: number;
 	ownerId?: string;
@@ -52,6 +53,7 @@ export type Message = {
 	pinned?: boolean;
 	replyTo?: ReplyPreview;
 	edited?: boolean;
+	mentionsMe?: boolean;
 };
 
 export function createServers(): ServerEntry[] {

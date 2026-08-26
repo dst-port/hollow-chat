@@ -17,9 +17,11 @@
 	import Download from "@lucide/svelte/icons/download";
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import Phone from "@lucide/svelte/icons/phone";
+	import AtSign from "@lucide/svelte/icons/at-sign";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
+	import ReportModal from "$lib/components/ReportModal.svelte";
 	import EmojiPicker from "$lib/components/EmojiPicker.svelte";
 	import ThreadPanel from "$lib/components/ThreadPanel.svelte";
 	import { emojify } from "$lib/actions/emojify";
@@ -57,6 +59,8 @@
 		type LinkPreview
 	} from "$lib/api/client";
 	import { colorForName } from "$lib/utils/color";
+	import { textMentionsUser } from "$lib/utils/mentions";
+	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
 	import {
 		encryptForChannel,
@@ -79,10 +83,11 @@
 	const DEFAULT_QUICK_EMOJI = ["👍", "❤️", "😂", "🔥", "🎉"];
 	const POLL_INTERVAL_MS = 3000;
 
-	let { channel, isDm = false, serverId, onToggleMembers }: {
+	let { channel, isDm = false, serverId, peerId, onToggleMembers }: {
 		channel: Channel;
 		isDm?: boolean;
 		serverId?: string;
+		peerId?: string;
 		onToggleMembers?: () => void;
 	} = $props();
 
@@ -247,7 +252,10 @@
 			replyTo: await toReplyPreview(apiMsg.reply_to),
 			edited: !!apiMsg.edited_at,
 			time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-			timestampMs: new Date(apiMsg.timestamp).getTime()
+			timestampMs: new Date(apiMsg.timestamp).getTime(),
+			mentionsMe: session.username
+				? textMentionsUser(payload.text, session.username, !isDm)
+				: false
 		};
 	}
 
@@ -260,6 +268,8 @@
 	let messages = $state<Message[]>([]);
 	let lastId: string | null = null;
 	let canManageMessages = $state(false);
+	let memberIdByUsername = $state<Record<string, string>>({});
+	let reportTarget = $state<Message | null>(null);
 
 	$effect(() => {
 		const token = session.token;
@@ -272,6 +282,7 @@
 		apiListMembers(token, serverId)
 			.then((members) => {
 				if (cancelled) return;
+				memberIdByUsername = Object.fromEntries(members.map((m) => [m.username, m.id]));
 				const me = members.find((m) => m.id === myUserId);
 				if (!me) {
 					canManageMessages = false;
@@ -287,6 +298,10 @@
 			cancelled = true;
 		};
 	});
+
+	function reportedUserIdFor(message: Message): string | undefined {
+		return isDm ? peerId : memberIdByUsername[message.author];
+	}
 
 	$effect(() => {
 		const token = session.token;
@@ -321,7 +336,16 @@
 					const known = new Set(messages.map((m) => m.id));
 					for (const row of rows) {
 						if (cancelled) return;
-						if (!known.has(row.id)) messages.push(await toMessage(row));
+						if (known.has(row.id)) continue;
+						const built = await toMessage(row);
+						messages.push(built);
+						if (
+							built.mentionsMe &&
+							built.author !== myUsername &&
+							notificationSettings.mentionsEnabled
+						) {
+							toast.push(`${built.author} mentioned you in #${channel.name}`);
+						}
 					}
 					lastId = rows.at(-1)!.id;
 				})
@@ -341,7 +365,83 @@
 	let pendingFile = $state<File | null>(null);
 	let uploading = $state(false);
 	let fileInputEl = $state<HTMLInputElement | undefined>();
+	let composerInputEl = $state<HTMLInputElement | undefined>();
 	let replyingTo = $state<Message | null>(null);
+	let mentionQuery = $state<string | null>(null);
+	let mentionStart = $state(0);
+	let mentionIndex = $state(0);
+
+	type MentionCandidate = { name: string; kind: "everyone" | "here" | "user" };
+
+	const mentionCandidates = $derived.by(() => {
+		if (mentionQuery === null) return [];
+		const q = mentionQuery.toLowerCase();
+		const candidates: MentionCandidate[] = [];
+		if (isDm) {
+			if (channel.name.toLowerCase().startsWith(q)) candidates.push({ name: channel.name, kind: "user" });
+		} else {
+			if (q.length > 0 && "everyone".startsWith(q)) candidates.push({ name: "everyone", kind: "everyone" });
+			if (q.length > 0 && "here".startsWith(q)) candidates.push({ name: "here", kind: "here" });
+			for (const name of Object.keys(memberIdByUsername)) {
+				if (name.toLowerCase().startsWith(q)) candidates.push({ name, kind: "user" });
+			}
+		}
+		return candidates.slice(0, 8);
+	});
+
+	$effect(() => {
+		const token = session.token;
+		if (!token) return;
+		for (const candidate of mentionCandidates) {
+			if (candidate.kind === "user" && !profileStore.forUser(candidate.name)) {
+				profileStore.load(token, candidate.name);
+			}
+		}
+	});
+
+	function onComposerInput() {
+		const el = composerInputEl;
+		if (!el) return;
+		const pos = el.selectionStart ?? draft.length;
+		const before = draft.slice(0, pos);
+		const match = before.match(/(?:^|\s)@([a-zA-Z0-9_]{0,32})$/);
+		if (match) {
+			mentionQuery = match[1];
+			mentionStart = pos - match[1].length - 1;
+			mentionIndex = 0;
+		} else {
+			mentionQuery = null;
+		}
+	}
+
+	function selectMention(name: string) {
+		const query = mentionQuery ?? "";
+		const before = draft.slice(0, mentionStart);
+		const after = draft.slice(mentionStart + 1 + query.length);
+		draft = `${before}@${name} ${after}`;
+		mentionQuery = null;
+		const caret = before.length + name.length + 2;
+		requestAnimationFrame(() => {
+			composerInputEl?.focus();
+			composerInputEl?.setSelectionRange(caret, caret);
+		});
+	}
+
+	function onComposerKeydown(event: KeyboardEvent) {
+		if (mentionQuery === null || mentionCandidates.length === 0) return;
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			mentionIndex = (mentionIndex + 1) % mentionCandidates.length;
+		} else if (event.key === "ArrowUp") {
+			event.preventDefault();
+			mentionIndex = (mentionIndex - 1 + mentionCandidates.length) % mentionCandidates.length;
+		} else if (event.key === "Enter" || event.key === "Tab") {
+			event.preventDefault();
+			selectMention(mentionCandidates[mentionIndex].name);
+		} else if (event.key === "Escape") {
+			mentionQuery = null;
+		}
+	}
 	let openMenuId = $state<string | null>(null);
 	let composerEmojiOpen = $state(false);
 	let pinnedOpen = $state(false);
@@ -462,18 +562,55 @@
 		pendingFilePreviewUrl = null;
 	});
 
-	function onComposerPaste(event: ClipboardEvent) {
+	function normalizeImageFile(file: File, mimeType: string): File {
+		const ext = mimeType.split("/")[1]?.split("+")[0] || "png";
+		if (file.type === mimeType) return file;
+		return new File([file], `image.${ext}`, { type: mimeType });
+	}
+
+	async function onComposerPaste(event: ClipboardEvent) {
 		const items = event.clipboardData?.items;
-		if (!items) return;
-		for (const item of items) {
-			if (item.kind === "file") {
-				const file = item.getAsFile();
-				if (file) {
-					pendingFile = file;
-					event.preventDefault();
-					return;
+		if (items) {
+			for (const item of items) {
+				if (item.kind === "file" && item.type.startsWith("image/")) {
+					const file = item.getAsFile();
+					if (file) {
+						pendingFile = normalizeImageFile(file, item.type);
+						event.preventDefault();
+						return;
+					}
 				}
 			}
+			for (const item of items) {
+				if (item.kind === "file") {
+					const file = item.getAsFile();
+					if (file) {
+						pendingFile = file;
+						event.preventDefault();
+						return;
+					}
+				}
+			}
+		}
+
+		// WebKitGTK on Linux doesn't reliably expose image clipboard entries
+		// via ClipboardEvent.clipboardData, so fall back to Tauri's native
+		// clipboard reader for image data copied from other apps.
+		try {
+			const { readImage } = await import("@tauri-apps/plugin-clipboard-manager");
+			const image = await readImage();
+			const [rgba, size] = await Promise.all([image.rgba(), image.size()]);
+			const canvas = document.createElement("canvas");
+			canvas.width = size.width;
+			canvas.height = size.height;
+			const ctx = canvas.getContext("2d");
+			if (!ctx) return;
+			ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), size.width, size.height), 0, 0);
+			canvas.toBlob((blob) => {
+				if (blob) pendingFile = new File([blob], "image.png", { type: "image/png" });
+			}, "image/png");
+		} catch {
+			// Clipboard has no image content — nothing to paste.
 		}
 	}
 
@@ -515,6 +652,7 @@
 
 	async function send(event: SubmitEvent) {
 		event.preventDefault();
+		mentionQuery = null;
 		const content = draft.trim();
 		const token = session.token;
 		const myUsername = session.username;
@@ -852,7 +990,7 @@
 			</div>
 		{/if}
 			{#each messages as message, index (message.id)}
-				<div class="message" class:grouped={isGrouped(index)} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
+				<div class="message" class:grouped={isGrouped(index)} class:mentioned={message.mentionsMe} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
 					{#if !isGrouped(index)}
 						{@const authorAvatarUrl = profileStore.forUser(message.author)?.avatar_url}
 						<div
@@ -894,7 +1032,7 @@
 							</form>
 						{:else if message.content}
 							<p class="content" use:emojify>
-								{@html renderMarkdown(message.content)}
+								{@html renderMarkdown(message.content, session.username ?? undefined)}
 								{#if message.edited && isGrouped(index)}<span class="edited-flag">(edited)</span>{/if}
 							</p>
 							{@const previewUrl = firstUrl(message.content)}
@@ -976,12 +1114,14 @@
 									pinned={!!message.pinned}
 									canEdit={isMine(message)}
 									canDelete={isMine(message) || canManageMessages}
+									canReport={!isMine(message)}
 									onClose={() => (openMenuId = null)}
 									onCopy={() => copyText(message)}
 									onTogglePin={() => togglePin(message)}
 									onEdit={() => startEdit(message)}
 									onDelete={() => deleteMessage(message)}
 									onCreateThread={isDm ? undefined : () => createThread(message)}
+									onReport={() => (reportTarget = message)}
 								/>
 							{/if}
 						</div>
@@ -1026,12 +1166,48 @@
 		<button type="button" class="attach" title="Upload a file" onclick={pickFile}>
 			<Paperclip size={18} strokeWidth={2} />
 		</button>
-		<input
-			type="text"
-			placeholder={isDm ? `Message ${channel.name}` : `Message #${channel.name}`}
-			bind:value={draft}
-			onpaste={onComposerPaste}
-		/>
+		<div class="anchor composer-input-wrap">
+			{#if mentionQuery !== null && mentionCandidates.length > 0}
+				<div class="mention-popup" transition:fly={{ y: 6, duration: 120 }}>
+					{#each mentionCandidates as candidate, i (candidate.name)}
+						{@const candidateAvatarUrl = candidate.kind === "user" ? profileStore.forUser(candidate.name)?.avatar_url : null}
+						<button
+							type="button"
+							class="mention-item"
+							class:active={i === mentionIndex}
+							onmousedown={(e) => {
+								e.preventDefault();
+								selectMention(candidate.name);
+							}}
+						>
+							{#if candidate.kind === "user"}
+								<span
+									class="mention-avatar"
+									style:background={candidateAvatarUrl ? undefined : colorFor(candidate.name)}
+									style:background-image={candidateAvatarUrl ? `url(${resolveUrl(candidateAvatarUrl, session.token)})` : undefined}
+								>
+									{#if !candidateAvatarUrl}{candidate.name.slice(0, 2).toUpperCase()}{/if}
+								</span>
+							{:else}
+								<span class="mention-avatar mention-avatar-broadcast">
+									<AtSign size={14} strokeWidth={2.25} />
+								</span>
+							{/if}
+							@{candidate.name}
+						</button>
+					{/each}
+				</div>
+			{/if}
+			<input
+				type="text"
+				bind:this={composerInputEl}
+				placeholder={isDm ? `Message ${channel.name}` : `Message #${channel.name}`}
+				bind:value={draft}
+				onpaste={onComposerPaste}
+				oninput={onComposerInput}
+				onkeydown={onComposerKeydown}
+			/>
+		</div>
 		<div class="anchor">
 			<button type="button" class="emoji-toggle" title="Emoji" onclick={() => (composerEmojiOpen = !composerEmojiOpen)}>
 				<Smile size={18} strokeWidth={2} />
@@ -1047,6 +1223,22 @@
 </section>
 {#if threadsOpen && !isDm}
 	<ThreadPanel channelId={channel.id} initialThreadId={openThreadId} onClose={() => (threadsOpen = false)} />
+{/if}
+{#if reportTarget && session.token}
+	{@const reportedId = reportedUserIdFor(reportTarget)}
+	{#if reportedId}
+		<ReportModal
+			token={session.token}
+			reportedUsername={reportTarget.author}
+			reportedUserId={reportedId}
+			contextKind={isDm ? "dm" : "channel"}
+			contextId={channel.id}
+			serverId={isDm ? undefined : serverId}
+			candidates={messages.filter((m) => m.author === reportTarget?.author).slice(-30)}
+			initialMessageId={reportTarget.id}
+			onClose={() => (reportTarget = null)}
+		/>
+	{/if}
 {/if}
 </div>
 
@@ -1287,6 +1479,15 @@
 		margin-top: 12px;
 	}
 
+	.message.mentioned {
+		background: color-mix(in srgb, var(--idle) 10%, transparent);
+		box-shadow: inset 2px 0 0 var(--idle);
+	}
+
+	.message.mentioned:hover {
+		background: color-mix(in srgb, var(--idle) 16%, transparent);
+	}
+
 	.avatar {
 		width: 36px;
 		height: 36px;
@@ -1424,6 +1625,24 @@
 
 	.content :global(a.md-link:hover) {
 		text-decoration: underline;
+	}
+
+	.content :global(.md-mention) {
+		background: color-mix(in srgb, var(--accent-fill) 22%, transparent);
+		color: var(--accent-fill);
+		border-radius: 4px;
+		padding: 0 3px;
+		font-weight: 600;
+	}
+
+	.content :global(.md-mention-special) {
+		background: color-mix(in srgb, var(--idle) 25%, transparent);
+		color: var(--idle);
+	}
+
+	.content :global(.md-mention-self) {
+		background: color-mix(in srgb, var(--danger) 25%, transparent);
+		color: var(--danger);
 	}
 
 	.reply-quote {
@@ -1772,8 +1991,66 @@
 		color: var(--ink);
 	}
 
-	.composer input {
+	.composer-input-wrap {
 		flex: 1;
+	}
+
+	.mention-popup {
+		position: absolute;
+		bottom: calc(100% + 8px);
+		left: 0;
+		right: 0;
+		background: var(--panel);
+		border-radius: 8px;
+		padding: 6px;
+		max-height: 220px;
+		overflow-y: auto;
+		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+		z-index: 60;
+	}
+
+	.mention-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		text-align: left;
+		padding: 6px 10px;
+		border-radius: 6px;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink-dim);
+	}
+
+	.mention-item:hover,
+	.mention-item.active {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.mention-avatar {
+		flex-shrink: 0;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-mono);
+		font-size: 9px;
+		font-weight: 700;
+		color: var(--accent-fill-ink);
+	}
+
+	.mention-avatar-broadcast {
+		background: var(--active);
+		color: var(--ink-dim);
+	}
+
+	.composer input {
+		width: 100%;
 		background: var(--active);
 		border-radius: 8px;
 		padding: 10px 12px;

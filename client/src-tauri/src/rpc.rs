@@ -38,6 +38,10 @@ pub struct PresenceUpdate {
     pub details: Option<String>,
     pub state: Option<String>,
     pub large_text: Option<String>,
+    pub large_image: Option<String>,
+    /// Milliseconds since the Unix epoch, straight off the wire - the
+    /// activity's elapsed-time anchor (Discord RPC's `timestamps.start`).
+    pub start_timestamp: Option<i64>,
 }
 
 #[cfg(unix)]
@@ -148,6 +152,8 @@ fn parse_activity(args: &serde_json::Value) -> PresenceUpdate {
         details: activity["details"].as_str().map(str::to_owned),
         state: activity["state"].as_str().map(str::to_owned),
         large_text: activity["assets"]["large_text"].as_str().map(str::to_owned),
+        large_image: activity["assets"]["large_image"].as_str().map(str::to_owned),
+        start_timestamp: activity["timestamps"]["start"].as_i64(),
     }
 }
 

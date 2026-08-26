@@ -18,6 +18,10 @@
 	import { session } from "$lib/stores/session.svelte";
 	import {
 		renameServer,
+		setServerIcon,
+		clearServerIcon,
+		uploadFile,
+		resolveUrl,
 		setSlowmode,
 		listRoles,
 		createRole,
@@ -52,6 +56,37 @@
 	let members = $state<ApiMember[]>([]);
 	let bans = $state<ApiBan[]>([]);
 	let newRoleName = $state("");
+
+	let iconInput: HTMLInputElement | undefined;
+	let iconUploading = $state(false);
+
+	async function onIconChosen(event: Event) {
+		const token = session.token;
+		const file = (event.target as HTMLInputElement).files?.[0];
+		if (!token || !file) return;
+		iconUploading = true;
+		try {
+			const attachment = await uploadFile(token, file);
+			const updated = await setServerIcon(token, server.id, attachment.id);
+			server.iconUrl = updated.icon_url;
+		} catch {
+			toast.push("Couldn't update server icon");
+		} finally {
+			iconUploading = false;
+			if (iconInput) iconInput.value = "";
+		}
+	}
+
+	async function removeIcon() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			const updated = await clearServerIcon(token, server.id);
+			server.iconUrl = updated.icon_url;
+		} catch {
+			toast.push("Couldn't remove server icon");
+		}
+	}
 
 	async function loadRoles() {
 		const token = session.token;
@@ -319,10 +354,26 @@
 
 				<div class="card">
 					<div class="identity">
-						<div class="server-icon">{server.initials}</div>
+						<button
+							class="server-icon"
+							style:background-image={server.iconUrl ? `url(${resolveUrl(server.iconUrl, session.token)})` : undefined}
+							onclick={() => iconInput?.click()}
+							disabled={iconUploading}
+							title="Change server icon"
+						>
+							{#if !server.iconUrl}{server.initials}{/if}
+						</button>
+						<input bind:this={iconInput} type="file" accept="image/*" hidden onchange={onIconChosen} />
 						<div>
 							<p class="hint">Server icon</p>
-							<p class="hint muted">Initials are generated from the server name.</p>
+							<p class="hint muted">
+								{#if server.iconUrl}
+									<button class="link" onclick={() => iconInput?.click()}>Change</button> ·
+									<button class="link" onclick={removeIcon}>Remove</button>
+								{:else}
+									Click the icon to upload one — otherwise initials are used.
+								{/if}
+							</p>
 						</div>
 					</div>
 
@@ -650,6 +701,8 @@
 		height: 48px;
 		border-radius: 16px;
 		background: var(--accent-fill);
+		background-position: center;
+		background-size: cover;
 		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;
@@ -658,6 +711,26 @@
 		font-weight: 700;
 		font-size: 15px;
 		flex-shrink: 0;
+		overflow: hidden;
+		transition: opacity 0.15s ease;
+	}
+
+	.server-icon:hover:not(:disabled) {
+		opacity: 0.85;
+	}
+
+	.server-icon:disabled {
+		opacity: 0.6;
+	}
+
+	.link {
+		color: var(--ink-dim);
+		text-decoration: underline;
+		font-size: inherit;
+	}
+
+	.link:hover {
+		color: var(--ink);
 	}
 
 	.hint {

@@ -15,6 +15,7 @@ const MAX_STATUS_TEXT_LEN: usize = 128;
 const MAX_PRONOUNS_LEN: usize = 40;
 const MAX_DISPLAY_NAME_LEN: usize = 32;
 const MAX_ACTIVITY_FIELD_LEN: usize = 128;
+const MAX_ACTIVITY_IMAGE_LEN: usize = 300;
 const MAX_CONNECTION_LABEL_LEN: usize = 64;
 const MAX_CONNECTION_URL_LEN: usize = 256;
 const MAX_CONNECTIONS_PER_USER: i64 = 5;
@@ -107,6 +108,11 @@ pub struct ProfileDto {
     pub activity_application: Option<String>,
     pub activity_details: Option<String>,
     pub activity_state: Option<String>,
+    pub activity_image: Option<String>,
+    pub activity_started_at: Option<DateTime<Utc>>,
+    pub media_application: Option<String>,
+    pub media_details: Option<String>,
+    pub media_state: Option<String>,
     pub share_activity: bool,
     pub accent_color: Option<String>,
     pub banner_color: Option<String>,
@@ -128,6 +134,11 @@ struct ProfileRow {
     activity_application: Option<String>,
     activity_details: Option<String>,
     activity_state: Option<String>,
+    activity_image: Option<String>,
+    activity_started_at: Option<DateTime<Utc>>,
+    media_application: Option<String>,
+    media_details: Option<String>,
+    media_state: Option<String>,
     share_activity: bool,
     accent_color: Option<String>,
     banner_color: Option<String>,
@@ -148,6 +159,8 @@ async fn load_profile(
                 CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
                      THEN NULL ELSE users.status_text END AS status_text, \
                 users.presence, users.activity_application, users.activity_details, users.activity_state, \
+                users.activity_image, users.activity_started_at, \
+                users.media_application, users.media_details, users.media_state, \
                 users.share_activity, \
                 users.accent_color, users.banner_color, users.created_at AS member_since, \
                 users.avatar_attachment_id, avatar.filename AS avatar_filename, \
@@ -181,6 +194,21 @@ async fn load_profile(
             .flatten(),
         activity_state: (row.share_activity || viewer_id == user_id)
             .then_some(row.activity_state)
+            .flatten(),
+        activity_image: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_image)
+            .flatten(),
+        activity_started_at: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_started_at)
+            .flatten(),
+        media_application: (row.share_activity || viewer_id == user_id)
+            .then_some(row.media_application)
+            .flatten(),
+        media_details: (row.share_activity || viewer_id == user_id)
+            .then_some(row.media_details)
+            .flatten(),
+        media_state: (row.share_activity || viewer_id == user_id)
+            .then_some(row.media_state)
             .flatten(),
         share_activity: row.share_activity,
         accent_color: row.accent_color,
@@ -303,6 +331,11 @@ pub async fn update_profile(
                 activity_application: None,
                 activity_details: None,
                 activity_state: None,
+                activity_image: None,
+                activity_started_at: None,
+                media_application: None,
+                media_details: None,
+                media_state: None,
             },
         )
         .await;
@@ -343,6 +376,11 @@ pub async fn set_presence(
             activity_application: profile.share_activity.then(|| profile.activity_application.clone()).flatten(),
             activity_details: profile.share_activity.then(|| profile.activity_details.clone()).flatten(),
             activity_state: profile.share_activity.then(|| profile.activity_state.clone()).flatten(),
+            activity_image: profile.share_activity.then(|| profile.activity_image.clone()).flatten(),
+            activity_started_at: profile.share_activity.then_some(profile.activity_started_at).flatten(),
+            media_application: profile.share_activity.then(|| profile.media_application.clone()).flatten(),
+            media_details: profile.share_activity.then(|| profile.media_details.clone()).flatten(),
+            media_state: profile.share_activity.then(|| profile.media_state.clone()).flatten(),
         },
     )
     .await;
@@ -358,11 +396,25 @@ pub struct SetActivityRequest {
     pub details: Option<String>,
     #[serde(default)]
     pub state: Option<String>,
+    #[serde(default)]
+    pub image: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<DateTime<Utc>>,
+    /// "game" (default, from the Discord-IPC bridge) or "media" (from the
+    /// browser extension bridge) - the two run independently so watching a
+    /// YouTube video doesn't clobber a game's activity or vice versa.
+    #[serde(default = "default_activity_kind")]
+    pub kind: String,
 }
 
-/// Called by the desktop client's local Rich Presence bridge whenever a
-/// connected game reports (or clears) an activity. `None`/empty clears the
-/// field, matching a game closing or losing focus.
+fn default_activity_kind() -> String {
+    "game".to_string()
+}
+
+/// Called by the desktop client's local Rich Presence bridges (the
+/// Discord-IPC game bridge, or the browser extension's media bridge)
+/// whenever they report (or clear) an activity. `None`/empty clears that
+/// slot, matching a game closing or a video/track stopping.
 pub async fn set_activity(
     State(state): State<AppState>,
     session: AuthSession,
@@ -371,20 +423,42 @@ pub async fn set_activity(
     let application = clean(payload.application, MAX_ACTIVITY_FIELD_LEN)?;
     let details = clean(payload.details, MAX_ACTIVITY_FIELD_LEN)?;
     let activity_state = clean(payload.state, MAX_ACTIVITY_FIELD_LEN)?;
+    let image = clean(payload.image, MAX_ACTIVITY_IMAGE_LEN)?.filter(|url| url.starts_with("https://"));
+    let is_media = payload.kind == "media";
 
-    sqlx::query(
-        "UPDATE users SET \
-            activity_application = $1, \
-            activity_details = $2, \
-            activity_state = $3 \
-         WHERE id = $4",
-    )
-    .bind(&application)
-    .bind(&details)
-    .bind(&activity_state)
-    .bind(session.user_id)
-    .execute(&state.pool)
-    .await?;
+    if is_media {
+        sqlx::query(
+            "UPDATE users SET \
+                media_application = $1, \
+                media_details = $2, \
+                media_state = $3 \
+             WHERE id = $4",
+        )
+        .bind(&application)
+        .bind(&details)
+        .bind(&activity_state)
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+    } else {
+        sqlx::query(
+            "UPDATE users SET \
+                activity_application = $1, \
+                activity_details = $2, \
+                activity_state = $3, \
+                activity_image = $4, \
+                activity_started_at = $5 \
+             WHERE id = $6",
+        )
+        .bind(&application)
+        .bind(&details)
+        .bind(&activity_state)
+        .bind(&image)
+        .bind(payload.started_at)
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+    }
 
     let profile = load_profile(&state.pool, session.user_id, session.user_id).await?;
 
@@ -399,6 +473,11 @@ pub async fn set_activity(
                 activity_application: profile.activity_application.clone(),
                 activity_details: profile.activity_details.clone(),
                 activity_state: profile.activity_state.clone(),
+                activity_image: profile.activity_image.clone(),
+                activity_started_at: profile.activity_started_at,
+                media_application: profile.media_application.clone(),
+                media_details: profile.media_details.clone(),
+                media_state: profile.media_state.clone(),
             },
         )
         .await;

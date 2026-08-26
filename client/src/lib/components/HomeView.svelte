@@ -33,9 +33,10 @@
 		const live = presenceStore.forUser(f.id);
 		const status = live?.presence ?? f.presence;
 		const statusText = live ? live.status_text : f.status_text;
-		const activityLabel = live?.activity_application
-			? `Playing ${live.activity_application}`
-			: statusText;
+		const activityLabels: string[] = [];
+		if (live?.activity_application) activityLabels.push(`Playing ${live.activity_application}`);
+		if (live?.media_details) activityLabels.push(live.media_details);
+		const activityLabel = activityLabels.length > 0 ? activityLabels.join(" · ") : statusText;
 		return {
 			id: f.id,
 			name: f.username,
@@ -231,12 +232,14 @@
 			{/each}
 		{/if}
 		<div class="spacer"></div>
-		<CallBar />
-		<UserBar {username} {onLogout} />
+		<div class="bottom-panel">
+			<CallBar />
+			<UserBar {username} {onLogout} />
+		</div>
 	</aside>
 
 	{#if activeDmChannel}
-		<ChatView channel={activeDmChannel} isDm={true} />
+		<ChatView channel={activeDmChannel} isDm={true} peerId={activeDm?.peer_id} />
 	{:else}
 	<div class="main">
 		<div class="tabs">
@@ -416,6 +419,16 @@
 
 	.spacer {
 		flex: 1;
+	}
+
+	.bottom-panel {
+		margin: 8px;
+		background: var(--panel);
+		border-radius: 10px;
+	}
+
+	.bottom-panel:has(:global(.call-bar)) :global(.user-panel) {
+		border-top: 1px solid var(--hover);
 	}
 
 	.search-bar {

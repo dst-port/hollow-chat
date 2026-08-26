@@ -11,6 +11,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import Badges from "$lib/components/Badges.svelte";
+	import ActivityCard from "$lib/components/ActivityCard.svelte";
 	import StatusModal from "$lib/components/StatusModal.svelte";
 	import * as api from "$lib/api/client";
 
@@ -32,6 +33,27 @@
 
 	let statusModalOpen = $state(false);
 	let presenceMenuOpen = $state(false);
+	let presenceButtonEl = $state<HTMLElement | undefined>();
+	let presencePosition = $state({ top: 0, left: 0 });
+
+	const PRESENCE_FLYOUT_HEIGHT = 250;
+
+	function togglePresenceMenu() {
+		if (!presenceMenuOpen && presenceButtonEl) {
+			const rect = presenceButtonEl.getBoundingClientRect();
+			const frame = document.querySelector(".window-frame");
+			const frameRect = frame
+				? frame.getBoundingClientRect()
+				: { top: 0, bottom: window.innerHeight };
+			const maxTop = frameRect.bottom - PRESENCE_FLYOUT_HEIGHT - 8;
+			const minTop = frameRect.top + 8;
+			presencePosition = {
+				top: Math.max(minTop, Math.min(rect.top, maxTop)),
+				left: rect.right + 8
+			};
+		}
+		presenceMenuOpen = !presenceMenuOpen;
+	}
 
 	const PRESENCE_OPTIONS: { value: api.PresenceState; label: string; description?: string }[] = [
 		{ value: "online", label: "Online" },
@@ -134,15 +156,24 @@
 		<p class="role-line">
 			<span>{username}</span>
 			{#if profile?.pronouns}<span class="role-dot">•</span><span>{profile.pronouns}</span>{/if}
-		</p>
-		<div class="badges-row">
 			<Badges badges={badgeStore.forUser(username)} />
-		</div>
+		</p>
 
 		<div class="card">
 			<p class="card-label">About me</p>
 			<p class="card-text">{profile?.bio || "No bio yet."}</p>
 		</div>
+
+		{#if profile?.activity_application}
+			<ActivityCard
+				label="Playing"
+				application={profile.activity_application}
+				details={profile.activity_details}
+				activityState={profile.activity_state}
+				image={profile.activity_image}
+				startedAt={profile.activity_started_at}
+			/>
+		{/if}
 
 		<button class="cta" onclick={editProfile}>
 			<Pencil size={16} strokeWidth={2.25} />
@@ -156,7 +187,7 @@
 			</button>
 
 			<div class="list-row-wrapper">
-				<button class="list-row" onclick={() => (presenceMenuOpen = !presenceMenuOpen)}>
+				<button class="list-row" bind:this={presenceButtonEl} onclick={togglePresenceMenu}>
 					<span class="status-dot static list-row-icon {profile?.presence ?? 'online'}"></span>
 					<span class="list-row-label">{PRESENCE_LABELS[profile?.presence ?? "online"]}</span>
 					<ChevronRight size={14} strokeWidth={2} class="list-row-chevron" />
@@ -167,10 +198,12 @@
 						role="menu"
 						tabindex="-1"
 						use:clickOutside={() => (presenceMenuOpen = false)}
+						style:top={`${presencePosition.top}px`}
+						style:left={`${presencePosition.left}px`}
 						transition:fly={{ x: -4, duration: 120 }}
 					>
 						{#each PRESENCE_OPTIONS as option (option.value)}
-							<button class="presence-option" onclick={() => pickPresence(option.value)}>
+							<button class="presence-option {option.value}" onclick={() => pickPresence(option.value)}>
 								<span class="status-dot static presence-option-dot {option.value}"></span>
 								<span class="presence-option-text">
 									<span class="presence-option-label">{option.label}</span>
@@ -345,14 +378,6 @@
 		font-size: 10px;
 	}
 
-	.badges-row {
-		margin-top: var(--gap-xs);
-	}
-
-	.badges-row:empty {
-		display: none;
-	}
-
 	.card {
 		margin-top: var(--gap-md);
 		background: rgba(255, 255, 255, 0.03);
@@ -450,16 +475,16 @@
 	}
 
 	.presence-flyout {
-		position: absolute;
-		left: 100%;
-		top: 0;
-		margin-left: var(--gap-sm);
+		position: fixed;
 		width: 220px;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
 		background: var(--panel);
 		border-radius: var(--radius-sm);
 		padding: var(--gap-xs);
 		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-		z-index: 20;
+		z-index: 120;
 	}
 
 	.presence-option {
@@ -467,13 +492,50 @@
 		display: flex;
 		align-items: flex-start;
 		gap: var(--gap-sm);
-		padding: var(--gap-sm);
+		padding: 10px var(--gap-sm);
 		border-radius: var(--gap-xs);
 		text-align: left;
 	}
 
+	.presence-option:first-child {
+		margin-bottom: 4px;
+		padding-bottom: 12px;
+		border-bottom: 1px solid var(--hairline);
+		border-radius: var(--gap-xs) var(--gap-xs) 0 0;
+	}
+
 	.presence-option:hover {
 		background: var(--hover);
+	}
+
+	.presence-option.online:hover {
+		background: var(--online);
+	}
+
+	.presence-option.idle:hover {
+		background: var(--idle);
+	}
+
+	.presence-option.dnd:hover {
+		background: var(--danger);
+	}
+
+	.presence-option.invisible:hover {
+		background: var(--ink-faint);
+	}
+
+	.presence-option.online:hover .presence-option-label,
+	.presence-option.idle:hover .presence-option-label,
+	.presence-option.dnd:hover .presence-option-label,
+	.presence-option.invisible:hover .presence-option-label {
+		color: #fff;
+	}
+
+	.presence-option.online:hover .presence-option-desc,
+	.presence-option.idle:hover .presence-option-desc,
+	.presence-option.dnd:hover .presence-option-desc,
+	.presence-option.invisible:hover .presence-option-desc {
+		color: rgba(255, 255, 255, 0.85);
 	}
 
 	.presence-option-dot {

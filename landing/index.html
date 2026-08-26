@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HollowChat — private messenger for people who play together</title>
+<meta name="description" content="An end-to-end encrypted messenger built for gamers. No phone number, no email, no server that can read your messages. Free, open source, self-hostable." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='none' stroke='%23e8ded2' stroke-width='10'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+	:root {
+		--void: #100e0d;
+		--panel: #191513;
+		--panel-raised: #211c19;
+		--hairline: rgba(243, 239, 233, 0.1);
+		--hairline-strong: rgba(243, 239, 233, 0.18);
+		--ink: #f3efe9;
+		--ink-dim: #ada39b;
+		--ink-faint: #756b63;
+		--accent: #e8ded2;
+		--accent-ink: #1c1815;
+		--online: #3ba55d;
+
+		--font-display: "Comfortaa", sans-serif;
+		--font-mono: "IBM Plex Mono", ui-monospace, monospace;
+		--font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	}
+
+	* { box-sizing: border-box; }
+
+	html { scroll-behavior: smooth; }
+
+	body {
+		margin: 0;
+		background: var(--void);
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 16px;
+		line-height: 1.6;
+		-webkit-font-smoothing: antialiased;
+		overflow-x: hidden;
+	}
+
+	img, svg { display: block; max-width: 100%; }
+
+	a { color: inherit; }
+
+	.wrap {
+		max-width: 1080px;
+		margin: 0 auto;
+		padding: 0 28px;
+	}
+
+	.mono {
+		font-family: var(--font-mono);
+	}
+
+	.eyebrow {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		font-family: var(--font-mono);
+		font-size: 12px;
+		font-weight: 500;
+		letter-spacing: 0.04em;
+		color: var(--ink-faint);
+		text-transform: lowercase;
+	}
+
+	.eyebrow::before,
+	.eyebrow::after {
+		content: "";
+	}
+
+	/* ---------- nav ---------- */
+
+	.nav {
+		position: sticky;
+		top: 0;
+		z-index: 20;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 20px 28px;
+		background: rgba(16, 14, 13, 0.72);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border-bottom: 1px solid var(--hairline);
+	}
+
+	.brand {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 16px;
+		letter-spacing: 0.01em;
+		text-decoration: none;
+	}
+
+	.brand .mark {
+		width: 26px;
+		height: 26px;
+	}
+
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 11px 20px;
+		border-radius: 999px;
+		font-family: var(--font-body);
+		font-weight: 600;
+		font-size: 14px;
+		text-decoration: none;
+		border: 1px solid transparent;
+		cursor: pointer;
+		transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.btn-primary {
+		background: var(--accent);
+		color: var(--accent-ink);
+	}
+
+	.btn-primary:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 8px 24px rgba(232, 222, 210, 0.18);
+	}
+
+	.btn-ghost {
+		background: transparent;
+		color: var(--ink-dim);
+		border-color: var(--hairline-strong);
+	}
+
+	.btn-ghost:hover {
+		color: var(--ink);
+		border-color: var(--ink-dim);
+	}
+
+	.nav .btn { padding: 9px 18px; font-size: 13px; }
+
+	/* ---------- hero ---------- */
+
+	.hero {
+		position: relative;
+		padding: 100px 28px 80px;
+		text-align: center;
+		overflow: hidden;
+	}
+
+	.hero-ring {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: min(900px, 140vw);
+		height: min(900px, 140vw);
+		transform: translate(-50%, -52%);
+		opacity: 0.55;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	.hero-ring circle {
+		fill: none;
+		stroke: var(--hairline-strong);
+		stroke-width: 1;
+	}
+
+	.hero-ring .draw {
+		stroke: var(--accent);
+		stroke-width: 1.4;
+		stroke-linecap: round;
+		stroke-dasharray: 900;
+		stroke-dashoffset: 900;
+		animation: draw-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.2s;
+	}
+
+	@keyframes draw-ring {
+		to { stroke-dashoffset: 0; }
+	}
+
+	.hero > * {
+		position: relative;
+		z-index: 1;
+	}
+
+	.hero .eyebrow {
+		justify-content: center;
+		margin-bottom: 22px;
+	}
+
+	.hero h1 {
+		margin: 0 auto;
+		max-width: 720px;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: clamp(34px, 6vw, 58px);
+		line-height: 1.12;
+		letter-spacing: -0.01em;
+	}
+
+	.hero h1 em {
+		font-style: normal;
+		color: var(--accent);
+	}
+
+	.hero .sub {
+		max-width: 520px;
+		margin: 20px auto 0;
+		color: var(--ink-dim);
+		font-size: 17px;
+	}
+
+	.cta-row {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 14px;
+		margin-top: 34px;
+		flex-wrap: wrap;
+	}
+
+	.cta-row .btn { padding: 14px 26px; font-size: 15px; }
+
+	/* ---------- live encrypt demo ---------- */
+
+	.demo {
+		max-width: 480px;
+		margin: 56px auto 0;
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 14px;
+		padding: 18px;
+		text-align: left;
+		box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+	}
+
+	.demo-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-family: var(--font-mono);
+		font-size: 11px;
+		color: var(--ink-faint);
+		margin-bottom: 8px;
+	}
+
+	.demo-row .dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--online);
+		flex-shrink: 0;
+	}
+
+	.demo input {
+		width: 100%;
+		background: var(--panel-raised);
+		border: 1px solid var(--hairline);
+		border-radius: 8px;
+		padding: 12px 14px;
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 14px;
+	}
+
+	.demo input:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+
+	.demo input::placeholder { color: var(--ink-faint); }
+
+	.demo-out {
+		margin-top: 12px;
+		padding: 12px 14px;
+		border-radius: 8px;
+		background: var(--void);
+		border: 1px solid var(--hairline);
+		font-family: var(--font-mono);
+		font-size: 12px;
+		line-height: 1.7;
+		color: var(--ink-faint);
+		min-height: 44px;
+		word-break: break-all;
+	}
+
+	.demo-caption {
+		margin: 10px 2px 0;
+		font-size: 12px;
+		color: var(--ink-faint);
+	}
+
+	.demo-caption strong { color: var(--ink-dim); font-weight: 500; }
+
+	/* ---------- shared section chrome ---------- */
+
+	section { padding: 90px 0; }
+
+	.section-head {
+		max-width: 560px;
+		margin: 0 0 48px;
+	}
+
+	.section-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+
+	.section-head h2 {
+		margin: 14px 0 0;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: clamp(24px, 3.4vw, 34px);
+		letter-spacing: -0.01em;
+	}
+
+	.divider {
+		border: none;
+		height: 1px;
+		background: var(--hairline);
+		margin: 0;
+	}
+
+	/* ---------- why ---------- */
+
+	.why-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1px;
+		background: var(--hairline);
+		border: 1px solid var(--hairline);
+		border-radius: 14px;
+		overflow: hidden;
+	}
+
+	.why-card {
+		background: var(--panel);
+		padding: 32px 28px;
+	}
+
+	.why-card .tag {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		color: var(--accent);
+		letter-spacing: 0.03em;
+	}
+
+	.why-card h3 {
+		margin: 14px 0 8px;
+		font-family: var(--font-body);
+		font-weight: 600;
+		font-size: 17px;
+	}
+
+	.why-card p {
+		margin: 0;
+		color: var(--ink-dim);
+		font-size: 14px;
+	}
+
+	/* ---------- built for gamers ---------- */
+
+	.gamers {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 56px;
+		align-items: center;
+	}
+
+	.gamers .copy .eyebrow { margin-bottom: 14px; }
+
+	.gamers h2 {
+		margin: 0 0 14px;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: clamp(24px, 3.2vw, 32px);
+	}
+
+	.gamers p { color: var(--ink-dim); margin: 0 0 24px; }
+
+	.gamers ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.gamers li {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		font-size: 14px;
+		color: var(--ink-dim);
+	}
+
+	.gamers li .ring-bullet {
+		flex-shrink: 0;
+		width: 14px;
+		height: 14px;
+		margin-top: 3px;
+		border-radius: 50%;
+		border: 1.5px solid var(--accent);
+	}
+
+	.gamers li strong { color: var(--ink); font-weight: 600; }
+
+	/* mock app card */
+
+	.mock {
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 16px;
+		padding: 20px;
+		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
+	}
+
+	.mock-activity {
+		display: flex;
+		gap: 12px;
+		padding: 14px;
+		border-radius: 10px;
+		background: var(--panel-raised);
+		border: 1px solid var(--hairline);
+	}
+
+	.mock-activity .cover {
+		width: 52px;
+		height: 52px;
+		border-radius: 10px;
+		background: linear-gradient(135deg, var(--accent), #8f8474);
+		flex-shrink: 0;
+	}
+
+	.mock-activity .label {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--ink-faint);
+		margin: 0 0 4px;
+	}
+
+	.mock-activity .title { margin: 0; font-weight: 700; font-size: 14px; }
+	.mock-activity .line { margin: 3px 0 0; font-size: 12px; color: var(--ink-dim); }
+
+	.mock-msgs {
+		margin-top: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.mock-msg { display: flex; gap: 10px; }
+
+	.mock-msg .avatar {
+		width: 34px;
+		height: 34px;
+		border-radius: 50%;
+		flex-shrink: 0;
+		background: #5c9ec9;
+	}
+
+	.mock-msg .avatar.b { background: #c9789e; }
+
+	.mock-msg .body .name {
+		font-family: var(--font-mono);
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--accent);
+		margin: 0 0 2px;
+	}
+
+	.mock-msg .body p {
+		margin: 0;
+		font-size: 13px;
+		color: var(--ink-dim);
+	}
+
+	.mock-badges {
+		display: flex;
+		gap: 6px;
+		margin-top: 16px;
+	}
+
+	.mock-badges span {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		padding: 4px 9px;
+		border-radius: 999px;
+		border: 1px solid var(--hairline-strong);
+		color: var(--ink-faint);
+	}
+
+	/* ---------- download ---------- */
+
+	.download-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 16px;
+	}
+
+	.os-card {
+		display: block;
+		padding: 26px 22px;
+		border-radius: 14px;
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		text-decoration: none;
+		transition: border-color 0.15s ease, transform 0.15s ease;
+	}
+
+	.os-card:hover {
+		border-color: var(--accent);
+		transform: translateY(-2px);
+	}
+
+	.os-card .name {
+		font-weight: 600;
+		font-size: 16px;
+		margin: 0 0 4px;
+	}
+
+	.os-card .note {
+		font-family: var(--font-mono);
+		font-size: 12px;
+		color: var(--ink-faint);
+	}
+
+	.selfhost {
+		margin-top: 20px;
+		padding: 20px 24px;
+		border-radius: 14px;
+		border: 1px dashed var(--hairline-strong);
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	.selfhost p { margin: 0; color: var(--ink-dim); font-size: 14px; }
+	.selfhost strong { color: var(--ink); }
+
+	/* ---------- faq ---------- */
+
+	.faq-list {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.faq-item {
+		border-bottom: 1px solid var(--hairline);
+	}
+
+	.faq-item summary {
+		list-style: none;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 20px;
+		padding: 22px 4px;
+		cursor: pointer;
+		font-weight: 600;
+		font-size: 15px;
+	}
+
+	.faq-item summary::-webkit-details-marker { display: none; }
+
+	.faq-item summary .plus {
+		flex-shrink: 0;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		border: 1px solid var(--hairline-strong);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-mono);
+		font-size: 14px;
+		color: var(--ink-dim);
+		transition: transform 0.2s ease;
+	}
+
+	.faq-item[open] summary .plus { transform: rotate(45deg); }
+
+	.faq-item .a {
+		margin: 0 0 22px;
+		padding: 0 4px;
+		max-width: 640px;
+		color: var(--ink-dim);
+		font-size: 14px;
+	}
+
+	.faq-item .a code {
+		font-family: var(--font-mono);
+		font-size: 12px;
+		background: var(--panel);
+		padding: 2px 6px;
+		border-radius: 4px;
+		color: var(--accent);
+	}
+
+	/* ---------- final cta ---------- */
+
+	.final {
+		text-align: center;
+		padding: 100px 28px 60px;
+	}
+
+	.final h2 {
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: clamp(26px, 4vw, 40px);
+		margin: 0 0 28px;
+		max-width: 560px;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	/* ---------- footer ---------- */
+
+	footer {
+		border-top: 1px solid var(--hairline);
+		padding: 32px 28px;
+	}
+
+	.foot-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		flex-wrap: wrap;
+		font-size: 13px;
+		color: var(--ink-faint);
+	}
+
+	.foot-row a {
+		text-decoration: none;
+		color: var(--ink-dim);
+	}
+
+	.foot-row a:hover { color: var(--ink); }
+
+	.foot-links {
+		display: flex;
+		gap: 22px;
+	}
+
+	/* ---------- responsive ---------- */
+
+	@media (max-width: 820px) {
+		.why-grid { grid-template-columns: 1fr; }
+		.gamers { grid-template-columns: 1fr; }
+		.gamers .mock { order: -1; }
+		.download-grid { grid-template-columns: 1fr; }
+		section { padding: 64px 0; }
+		.hero { padding: 76px 20px 56px; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html { scroll-behavior: auto; }
+		.hero-ring .draw { animation: none; stroke-dashoffset: 0; }
+		.btn, .os-card { transition: none; }
+	}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+	<a class="brand" href="#top">
+		<svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
+			<circle cx="50" cy="46" r="30" fill="none" stroke="#e8ded2" stroke-width="7" stroke-dasharray="150 220" stroke-linecap="round" transform="rotate(-40 50 46)"/>
+			<circle cx="50" cy="54" r="22" fill="none" stroke="#e8ded2" stroke-width="7" stroke-dasharray="100 160" stroke-linecap="round" transform="rotate(140 50 54)"/>
+		</svg>
+		HollowChat
+	</a>
+	<a class="btn btn-primary" href="#download">Download</a>
+</nav>
+
+<header class="hero" id="top">
+	<svg class="hero-ring" viewBox="0 0 400 400" aria-hidden="true">
+		<circle cx="200" cy="200" r="180"/>
+		<circle cx="200" cy="200" r="140"/>
+		<circle class="draw" cx="200" cy="200" r="160" pathLength="900" stroke-dasharray="230 900"/>
+	</svg>
+
+	<p class="eyebrow">x3dh · double ratchet · agplv3 · no phone number</p>
+	<h1>Nobody's listening in. <em>Not even us.</em></h1>
+	<p class="sub">HollowChat is a real end-to-end encrypted messenger built for people who game together — servers, voice, rich presence, the whole shape of Discord, minus the part where a company reads your messages.</p>
+
+	<div class="cta-row">
+		<a class="btn btn-primary" href="#download">Download HollowChat</a>
+		<a class="btn btn-ghost" href="#why">See how it's private</a>
+	</div>
+
+	<div class="demo">
+		<p class="demo-row"><span class="dot"></span> what you type</p>
+		<input id="demoInput" type="text" placeholder="Type a message…" maxlength="60" autocomplete="off" />
+		<p class="demo-row" style="margin-top:14px"><span class="dot" style="background:var(--ink-faint)"></span> what our server sees</p>
+		<div class="demo-out" id="demoOut">— nothing yet —</div>
+		<p class="demo-caption">This box is just a visual, not real crypto. In the app, your message is sealed on your device with a Double Ratchet session before it ever reaches us — <strong>we couldn't read it if we wanted to.</strong></p>
+	</div>
+</header>
+
+<hr class="divider" />
+
+<section id="why">
+	<div class="wrap">
+		<div class="section-head center">
+			<p class="eyebrow">why it's actually private</p>
+			<h2>Not "we promise not to look." Can't look.</h2>
+		</div>
+		<div class="why-grid">
+			<div class="why-card">
+				<p class="tag">[ no account trail ]</p>
+				<h3>No phone, no email</h3>
+				<p>Pick a username, we hand you a random generated password once. Nothing to link back to your identity — but that also means nobody can reset it for you, so write it down.</p>
+			</div>
+			<div class="why-card">
+				<p class="tag">[ real cryptography ]</p>
+				<h3>X3DH + Double Ratchet</h3>
+				<p>The same key-exchange and forward-secrecy design Signal popularized. Every message gets its own key. A compromised key today doesn't unlock yesterday's conversation.</p>
+			</div>
+			<div class="why-card">
+				<p class="tag">[ nothing to leak ]</p>
+				<h3>We don't log your IP</h3>
+				<p>Not hashed, not anonymized — just never collected. A stolen database or a subpoena has nothing to hand over, because we never had it in the first place.</p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<hr class="divider" />
+
+<section>
+	<div class="wrap">
+	<div class="gamers">
+		<div class="copy">
+			<p class="eyebrow">built for people who play together</p>
+			<h2>Everything Discord got right, kept.</h2>
+			<p>Servers and channels, voice and video, rich presence that shows what you're playing — HollowChat doesn't ask you to give up the parts that make a gaming server feel alive.</p>
+			<ul>
+				<li><span class="ring-bullet"></span><span><strong>Rich presence</strong> — friends see what you're playing, with real cover art, live.</span></li>
+				<li><span class="ring-bullet"></span><span><strong>Servers &amp; roles</strong> — text channels, voice channels, permissions, the works.</span></li>
+				<li><span class="ring-bullet"></span><span><strong>Multi-device</strong> — link a second device with a one-time confirmation code, no cloud key escrow.</span></li>
+				<li><span class="ring-bullet"></span><span><strong>Make it yours</strong> — a full colour theme editor, not just a dark/light toggle.</span></li>
+			</ul>
+		</div>
+		<div class="mock" aria-hidden="true">
+			<div class="mock-activity">
+				<div class="cover"></div>
+				<div>
+					<p class="label">Playing</p>
+					<p class="title">Wasteland Raiders</p>
+					<p class="line">Squad Deathmatch · 4/5</p>
+					<p class="line">1:24:07 elapsed</p>
+				</div>
+			</div>
+			<div class="mock-msgs">
+				<div class="mock-msg">
+					<div class="avatar"></div>
+					<div class="body">
+						<p class="name">vex</p>
+						<p>anyone free for ranked in 10?</p>
+					</div>
+				</div>
+				<div class="mock-msg">
+					<div class="avatar b"></div>
+					<div class="body">
+						<p class="name">rho</p>
+						<p>yeah, invite me when the lobby's up</p>
+					</div>
+				</div>
+			</div>
+			<div class="mock-badges">
+				<span>owner</span>
+				<span>early adopter</span>
+			</div>
+		</div>
+	</div>
+	</div>
+</section>
+
+<hr class="divider" />
+
+<section id="download">
+	<div class="wrap">
+		<div class="section-head center">
+			<p class="eyebrow">get the app</p>
+			<h2>Free. Open source. Yours to keep.</h2>
+		</div>
+		<div class="download-grid">
+			<a class="os-card" href="https://github.com/dst-port/hollow-chat/releases/latest">
+				<p class="name">Windows</p>
+				<p class="note mono">.msi installer</p>
+			</a>
+			<a class="os-card" href="https://github.com/dst-port/hollow-chat/releases/latest">
+				<p class="name">macOS</p>
+				<p class="note mono">.dmg, Apple Silicon &amp; Intel</p>
+			</a>
+			<a class="os-card" href="https://github.com/dst-port/hollow-chat/releases/latest">
+				<p class="name">Linux</p>
+				<p class="note mono">.AppImage / .deb</p>
+			</a>
+		</div>
+		<div class="selfhost">
+			<p>Want to run your own server instead? <strong>It's the same code we run</strong> — Docker Compose gets you there in a few minutes.</p>
+			<a class="btn btn-ghost" href="https://github.com/dst-port/hollow-chat/tree/main/deploy">Self-hosting guide</a>
+		</div>
+	</div>
+</section>
+
+<hr class="divider" />
+
+<section id="faq">
+	<div class="wrap">
+		<div class="section-head">
+			<p class="eyebrow">frequently asked</p>
+			<h2>Questions people actually ask</h2>
+		</div>
+		<div class="faq-list">
+			<details class="faq-item" open>
+				<summary>What happens if I lose my password?<span class="plus">+</span></summary>
+				<p class="a">There's no recovery flow, on purpose — we'd need an email or phone number to offer one, and we deliberately don't collect either. Your password is generated for you once at signup; save it somewhere safe (a password manager, not a sticky note).</p>
+			</details>
+			<details class="faq-item">
+				<summary>Can you read my messages if you wanted to?<span class="plus">+</span></summary>
+				<p class="a">No. Messages are encrypted on your device before they're sent, using <code>X3DH</code> for the initial key exchange and a <code>Double Ratchet</code> session for every message after. Our server stores and relays ciphertext it can't decrypt — that's the whole point of the design, not a policy we could quietly change.</p>
+			</details>
+			<details class="faq-item">
+				<summary>Do you store my IP address?<span class="plus">+</span></summary>
+				<p class="a">No. Sessions used to keep IP and user-agent for basic diagnostics; we removed both columns entirely rather than anonymize them, because a low-entropy value like an IP is trivially recoverable even hashed. Nothing to store means nothing to leak.</p>
+			</details>
+			<details class="faq-item">
+				<summary>Is it actually free?<span class="plus">+</span></summary>
+				<p class="a">The app and the server are both free and open source under AGPLv3. You can read every line, self-host it, or fork it.</p>
+			</details>
+			<details class="faq-item">
+				<summary>Can I use HollowChat on more than one device?<span class="plus">+</span></summary>
+				<p class="a">Yes — link a second device from Settings → Account, and confirm a short code shown on both screens. That transfers your encryption keys directly between your devices; we never see them.</p>
+			</details>
+			<details class="faq-item">
+				<summary>What if I want to run my own server?<span class="plus">+</span></summary>
+				<p class="a">It's the exact same server we run, packaged with Docker Compose — see the <a href="https://github.com/dst-port/hollow-chat/tree/main/deploy">self-hosting guide</a>. Point your client at your own domain and it's yours end to end.</p>
+			</details>
+		</div>
+	</div>
+</section>
+
+<section class="final">
+	<h2>Talk to your friends like it's just the two of you. Because it is.</h2>
+	<a class="btn btn-primary" href="#download">Download HollowChat</a>
+</section>
+
+<footer>
+	<div class="wrap foot-row">
+		<span>© HollowChat · AGPLv3</span>
+		<div class="foot-links">
+			<a href="https://github.com/dst-port/hollow-chat">GitHub</a>
+			<a href="https://github.com/dst-port/hollow-chat/tree/main/deploy">Self-hosting</a>
+			<a href="#faq">FAQ</a>
+		</div>
+	</div>
+</footer>
+
+<script>
+	(function () {
+		var input = document.getElementById("demoInput");
+		var out = document.getElementById("demoOut");
+		if (!input || !out) return;
+
+		function scramble(text) {
+			if (!text) return "— nothing yet —";
+			var bytes = [];
+			for (var i = 0; i < text.length; i++) {
+				var code = text.charCodeAt(i);
+				var mixed = (code * 41 + i * 17) % 256;
+				bytes.push(mixed.toString(16).padStart(2, "0"));
+			}
+			var hex = bytes.join("").toUpperCase();
+			return hex.match(/.{1,8}/g).join(" ");
+		}
+
+		input.addEventListener("input", function () {
+			out.textContent = scramble(input.value.trim());
+		});
+	})();
+</script>
+
+</body>
+</html>

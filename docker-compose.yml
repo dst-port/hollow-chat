@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hollowchat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a real POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: hollowchat
+    volumes:
+      - hollowchat_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hollowchat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: crates/server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DATABASE_URL: postgres://hollowchat:${POSTGRES_PASSWORD:?set a real POSTGRES_PASSWORD in .env}@postgres:5432/hollowchat
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER:?set a real random PASSWORD_PEPPER in .env - never reuse the dev value}
+      APP_BASE_URL: ${APP_BASE_URL:?set the public URL clients will reach this server at}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      LAVA_API_KEY: ${LAVA_API_KEY:-}
+      LAVA_OFFER_ID: ${LAVA_OFFER_ID:-}
+      LAVA_WEBHOOK_SECRET: ${LAVA_WEBHOOK_SECRET:-}
+      LAVA_CURRENCY: ${LAVA_CURRENCY:-}
+      ICE_STUN_URLS: ${ICE_STUN_URLS:-stun:stun.l.google.com:19302}
+      ICE_TURN_URL: ${ICE_TURN_URL:-}
+      ICE_TURN_USERNAME: ${ICE_TURN_USERNAME:-}
+      ICE_TURN_CREDENTIAL: ${ICE_TURN_CREDENTIAL:-}
+      STEAMGRIDDB_API_KEY: ${STEAMGRIDDB_API_KEY:-}
+    volumes:
+      - hollowchat_attachments:/home/hollowchat/attachments
+
+volumes:
+  hollowchat_pg_data:
+  hollowchat_attachments:

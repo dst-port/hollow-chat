@@ -1,0 +1,8 @@
+{
+	"name": "hollowchat-moderation-tools",
+	"private": true,
+	"type": "module",
+	"dependencies": {
+		"@noble/curves": "^2.3.0"
+	}
+}

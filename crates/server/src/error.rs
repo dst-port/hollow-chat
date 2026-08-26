@@ -59,12 +59,16 @@ pub enum AppError {
     TotpNotConfigured,
     #[error("unauthorized")]
     Unauthorized,
+    #[error("invalid report")]
+    InvalidReport,
     #[error("not found")]
     NotFound,
     #[error("database error")]
     Database(#[from] sqlx::Error),
     #[error("password hashing error")]
     Hashing,
+    #[error("internal error")]
+    Internal,
 }
 
 impl IntoResponse for AppError {
@@ -97,9 +101,11 @@ impl IntoResponse for AppError {
             AppError::InvalidTotpCode => StatusCode::BAD_REQUEST,
             AppError::TotpNotConfigured => StatusCode::BAD_REQUEST,
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
+            AppError::InvalidReport => StatusCode::BAD_REQUEST,
             AppError::NotFound => StatusCode::NOT_FOUND,
             AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Hashing => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         if let AppError::Database(err) = &self {

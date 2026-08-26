@@ -71,6 +71,13 @@
 		}
 	}
 
+	function enterChannel(channel: Channel) {
+		selectChannel(channel.id);
+		if (channel.type === "voice" && call.roomId !== channel.id) {
+			joinVoice(channel);
+		}
+	}
+
 	function handleCreateChannel(name: string, type: ChannelType) {
 		onCreateChannel(name, type);
 		createChannelOpen = false;
@@ -132,8 +139,8 @@
 						{#each category.channels as channel (channel.id)}
 							<button
 								class="channel"
-								class:active={channel.type === "text" ? channel.id === activeChannelId : call.roomId === channel.id}
-								onclick={() => (channel.type === "text" ? selectChannel(channel.id) : joinVoice(channel))}
+								class:active={channel.id === activeChannelId}
+								onclick={() => enterChannel(channel)}
 							>
 								{#if channel.type === "text"}
 									<Hash size={16} strokeWidth={2} class="channel-icon" />

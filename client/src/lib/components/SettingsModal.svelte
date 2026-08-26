@@ -29,6 +29,8 @@
 	import { deviceLink } from "$lib/devicelink/link.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
+	import { themeStore, COLOR_GROUPS, COLOR_LABELS } from "$lib/stores/theme.svelte";
+	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import Badges from "$lib/components/Badges.svelte";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import * as api from "$lib/api/client";
@@ -114,7 +116,6 @@
 	let passwordCopied = $state(false);
 
 	let notifyMessages = $state(true);
-	let notifyMentions = $state(true);
 	let notifySounds = $state(true);
 
 	let reducedMotion = $state(false);
@@ -398,15 +399,8 @@
 	}
 
 	function describeSession(s: api.ApiSession): string {
-		const ua = s.user_agent ?? "";
-		let device = "Unknown device";
-		if (/Windows/.test(ua)) device = "Windows";
-		else if (/Mac OS/.test(ua)) device = "macOS";
-		else if (/Linux/.test(ua)) device = "Linux";
-		else if (/Android/.test(ua)) device = "Android";
-		else if (/iPhone|iPad/.test(ua)) device = "iOS";
 		const when = new Date(s.created_at).toLocaleDateString([], { month: "short", day: "numeric" });
-		return `${device}${s.ip_address ? " · " + s.ip_address : ""} · signed in ${when}`;
+		return `Signed in ${when}`;
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -921,10 +915,10 @@
 				<div class="card">
 					<div class="switch-row">
 						<div>
-							<p class="row-label">Show game activity</p>
+							<p class="row-label">Show activity status</p>
 							<p class="row-value muted">
-								Let friends see what you're playing via Rich Presence. Off clears it for
-								everyone but you.
+								Let friends see what you're playing, watching, or listening to via Rich
+								Presence. Off clears it for everyone but you.
 							</p>
 						</div>
 						<label class="switch">
@@ -968,7 +962,9 @@
 						<div>
 							<p class="row-label">IP logging</p>
 							<p class="row-value muted">
-								Logged only against your own active sessions, so you can review and revoke them under Devices.
+								None. HollowChat doesn't record your IP address or device info against your
+								account, even for active sessions — a server compromise can't link your
+								account to a network or a device.
 							</p>
 						</div>
 					</div>
@@ -1007,7 +1003,15 @@
 							<p class="row-value muted">Notify when someone @mentions you.</p>
 						</div>
 						<label class="switch">
-							<input type="checkbox" bind:checked={notifyMentions} onchange={() => toggle((v) => (notifyMentions = v), !notifyMentions, "Mention notifications")} />
+							<input
+							type="checkbox"
+							checked={notificationSettings.mentionsEnabled}
+							onchange={(e) => {
+								const value = (e.target as HTMLInputElement).checked;
+								notificationSettings.setMentionsEnabled(value);
+								toast.push(`Mention notifications ${value ? "enabled" : "disabled"}`);
+							}}
+						/>
 							<span class="track"><span class="thumb"></span></span>
 						</label>
 					</div>
@@ -1039,9 +1043,49 @@
 				</div>
 
 				<div class="card">
-					<p class="row-label">Theme</p>
-					<p class="row-value muted">HollowChat ships with one neutral theme. More are on the way.</p>
+					<div class="row">
+						<div>
+							<p class="row-label">Theme</p>
+							<p class="row-value muted">Hollow Theme lets you recolor every surface of the app.</p>
+						</div>
+					</div>
+					<div class="theme-options">
+						<button
+							class="theme-option"
+							class:active={themeStore.settings.mode === "default"}
+							onclick={() => themeStore.setMode("default")}
+						>
+							Default
+						</button>
+						<button
+							class="theme-option"
+							class:active={themeStore.settings.mode === "custom"}
+							onclick={() => themeStore.setMode("custom")}
+						>
+							Hollow Theme
+						</button>
+					</div>
 				</div>
+
+				{#if themeStore.settings.mode === "custom"}
+					{#each COLOR_GROUPS as group (group.label)}
+						<div class="card">
+							<p class="row-label" style="margin-bottom: 8px;">{group.label}</p>
+							{#each group.keys as key (key)}
+								<div class="row">
+									<p class="row-value">{COLOR_LABELS[key]}</p>
+									<ColorPicker
+										value={themeStore.settings.colors[key]}
+										onCommit={(hex) => themeStore.setColor(key, hex)}
+									/>
+								</div>
+							{/each}
+						</div>
+					{/each}
+					<button class="theme-option" onclick={() => themeStore.resetColors()}>
+						Reset colors to default
+					</button>
+				{/if}
 			{:else if section === "accessibility"}
 				<h2>Accessibility</h2>
 
@@ -1407,6 +1451,33 @@
 		display: flex;
 		gap: 8px;
 		flex-shrink: 0;
+	}
+
+	.theme-options {
+		display: flex;
+		gap: 8px;
+		padding-top: 4px;
+	}
+
+	.theme-option {
+		padding: 8px 14px;
+		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.theme-option:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.theme-option.active {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
+		border-color: var(--accent-fill);
 	}
 
 	.inline-input {

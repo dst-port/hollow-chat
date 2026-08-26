@@ -5,24 +5,23 @@
 	import CalendarDays from "@lucide/svelte/icons/calendar-days";
 	import Users from "@lucide/svelte/icons/users";
 	import SendHorizontal from "@lucide/svelte/icons/send-horizontal";
-	import UserMinus from "@lucide/svelte/icons/user-minus";
-	import IdCard from "@lucide/svelte/icons/id-card";
-	import ShieldOff from "@lucide/svelte/icons/shield-off";
 	import Badges from "$lib/components/Badges.svelte";
+	import ActivityCard from "$lib/components/ActivityCard.svelte";
+	import ProfileActionsMenu from "$lib/components/ProfileActionsMenu.svelte";
 	import { clickOutside } from "$lib/actions/clickOutside";
-	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import * as api from "$lib/api/client";
 	import type { Member } from "$lib/data/mock";
 
-	let { member, serverName, anchor, onClose, onMessage }: {
+	let { member, serverName, anchor, onClose, onMessage, onViewFullProfile }: {
 		member: Member;
 		serverName: string;
 		anchor: HTMLElement;
 		onClose: () => void;
 		onMessage: (username: string) => void;
+		onViewFullProfile: (username: string) => void;
 	} = $props();
 
 	const POPOVER_WIDTH = 280;
@@ -69,34 +68,23 @@
 		onClose();
 	}
 
+	let moreButtonEl: HTMLElement | undefined;
 	let moreOpen = $state(false);
+	let morePosition = $state({ top: 0, left: 0 });
+	const MORE_MENU_HEIGHT = 260;
 
-	function copyUserId() {
-		navigator.clipboard.writeText(member.id);
-		toast.push("User ID copied");
-		moreOpen = false;
-	}
-
-	function removeFriend() {
-		const token = session.token;
-		if (!token) return;
-		api
-			.removeFriend(token, member.id)
-			.then(() => toast.push(`Removed ${member.name} as a friend`))
-			.catch(() => toast.push("Couldn't remove friend"));
-		moreOpen = false;
-		onClose();
-	}
-
-	function blockUser() {
-		const token = session.token;
-		if (!token) return;
-		api
-			.blockUser(token, member.id)
-			.then(() => toast.push(`Blocked ${member.name}`))
-			.catch(() => toast.push("Couldn't block user"));
-		moreOpen = false;
-		onClose();
+	function toggleMore() {
+		if (!moreOpen && moreButtonEl) {
+			const frame = document.querySelector(".window-frame");
+			const frameRect = frame ? frame.getBoundingClientRect() : ({ top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight } as DOMRect);
+			const rect = moreButtonEl.getBoundingClientRect();
+			const maxTop = frameRect.bottom - frameRect.top - MORE_MENU_HEIGHT - 8;
+			morePosition = {
+				top: Math.max(8, Math.min(rect.bottom - frameRect.top + 4, maxTop)),
+				left: Math.min(rect.right - frameRect.left - 210, frameRect.right - frameRect.left - 218)
+			};
+		}
+		moreOpen = !moreOpen;
 	}
 
 	function sendDraft(event: SubmitEvent) {
@@ -127,27 +115,9 @@
 		</div>
 		<div class="header-actions">
 			<div class="anchor">
-				<button class="icon-action" title="More" onclick={() => (moreOpen = !moreOpen)}>
+				<button bind:this={moreButtonEl} class="icon-action" title="More" onclick={toggleMore}>
 					<MoreHorizontal size={16} strokeWidth={2} />
 				</button>
-				{#if moreOpen}
-					<div class="more-menu" use:clickOutside={() => (moreOpen = false)} transition:fly={{ y: -4, duration: 120 }}>
-						<button class="menu-item" onclick={copyUserId}>
-							<IdCard size={14} strokeWidth={2} />
-							Copy User ID
-						</button>
-						{#if !isSelf}
-							<button class="menu-item danger" onclick={removeFriend}>
-								<UserMinus size={14} strokeWidth={2} />
-								Remove Friend
-							</button>
-							<button class="menu-item danger" onclick={blockUser}>
-								<ShieldOff size={14} strokeWidth={2} />
-								Block User
-							</button>
-						{/if}
-					</div>
-				{/if}
 			</div>
 			{#if !isSelf}
 				<button class="icon-action primary" title="Message" onclick={message}>
@@ -160,17 +130,13 @@
 	<div class="body">
 		<p class="name-row">
 			<span class="name" style:color={accent}>{displayName}</span>
+		</p>
+		<p class="handle">
+			<span>{member.name}</span>
+			{#if profile?.pronouns}<span>· {profile.pronouns}</span>{/if}
 			<Badges badges={badgeStore.forUser(member.name)} />
 		</p>
-		<p class="handle">{member.name}{#if profile?.pronouns} · {profile.pronouns}{/if}</p>
 		{#if profile?.status_text}<p class="status">{profile.status_text}</p>{:else if member.activity}<p class="status">{member.activity}</p>{/if}
-		{#if profile?.activity_application || profile?.activity_details}
-			<p class="activity-line">
-				{#if profile.activity_application}Playing <strong>{profile.activity_application}</strong>{/if}
-				{#if profile.activity_details}<br />{profile.activity_details}{/if}
-				{#if profile.activity_state}<br />{profile.activity_state}{/if}
-			</p>
-		{/if}
 
 		{#if !isSelf}
 			<p class="mutual">
@@ -184,6 +150,24 @@
 				<p class="section-label">About Me</p>
 				<p class="bio">{profile?.bio || member.bio}</p>
 			</div>
+		{/if}
+
+		{#if profile?.activity_application}
+			<ActivityCard
+				label="Playing"
+				application={profile.activity_application}
+				details={profile.activity_details}
+				activityState={profile.activity_state}
+				image={profile.activity_image}
+				startedAt={profile.activity_started_at}
+			/>
+		{/if}
+		{#if profile?.media_details}
+			<p class="activity-line">
+				{profile.media_details}
+				{#if profile.media_application}<br /><strong>{profile.media_application}</strong>{/if}
+				{#if profile.media_state}<br />{profile.media_state}{/if}
+			</p>
 		{/if}
 
 		{#if member.memberSince}
@@ -227,6 +211,10 @@
 			<SendHorizontal size={15} strokeWidth={2} />
 		</button>
 	</form>
+
+	{#if moreOpen}
+		<ProfileActionsMenu {member} {isSelf} position={morePosition} onClose={() => (moreOpen = false)} {onViewFullProfile} />
+	{/if}
 </div>
 
 <style>
@@ -292,46 +280,6 @@
 		position: relative;
 	}
 
-	.more-menu {
-		position: absolute;
-		top: calc(100% + 4px);
-		right: 0;
-		background: var(--panel);
-		border-radius: 8px;
-		padding: 6px;
-		width: 180px;
-		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-		z-index: 60;
-	}
-
-	.menu-item {
-		width: 100%;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 10px;
-		border-radius: 6px;
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--ink-dim);
-		white-space: nowrap;
-		transition: background-color 0.15s ease, color 0.15s ease;
-	}
-
-	.menu-item:hover {
-		background: var(--hover);
-		color: var(--ink);
-	}
-
-	.menu-item.danger {
-		color: var(--danger);
-	}
-
-	.menu-item.danger:hover {
-		background: rgba(216, 60, 62, 0.12);
-		color: var(--danger);
-	}
-
 	.icon-action.primary {
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
@@ -358,6 +306,10 @@
 
 	.handle {
 		margin: 1px 0 0;
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 5px;
 		font-size: 11px;
 		color: var(--ink-faint);
 	}

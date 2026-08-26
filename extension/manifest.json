@@ -1,0 +1,29 @@
+{
+	"manifest_version": 3,
+	"name": "HollowChat Media Presence",
+	"version": "1.0.0",
+	"description": "Shares what you're watching or listening to on YouTube, SoundCloud, Spotify and Twitch with your HollowChat friends.",
+	"host_permissions": [
+		"http://127.0.0.1:47821/*"
+	],
+	"background": {
+		"service_worker": "background.js"
+	},
+	"content_scripts": [
+		{
+			"matches": [
+				"*://*.youtube.com/*",
+				"*://*.soundcloud.com/*",
+				"*://open.spotify.com/*",
+				"*://*.twitch.tv/*"
+			],
+			"js": ["content.js"],
+			"run_at": "document_idle"
+		}
+	],
+	"icons": {
+		"16": "icons/16.png",
+		"48": "icons/48.png",
+		"128": "icons/128.png"
+	}
+}

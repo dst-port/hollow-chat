@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { fade } from "svelte/transition";
 	import Plus from "@lucide/svelte/icons/plus";
+	import Logo from "$lib/components/Logo.svelte";
+	import { session } from "$lib/stores/session.svelte";
+	import { resolveUrl } from "$lib/api/client";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { servers, activeId, onSelect, onSelectHome, onAddServer }: {
@@ -47,7 +50,7 @@
 		onblur={hide}
 	>
 		<span class="pill" class:active={activeId === null}></span>
-		<img class="mark" src="/logo/hollowchat-mark.png" alt="" />
+		<Logo size={56} />
 	</button>
 	<div class="divider"></div>
 
@@ -81,7 +84,12 @@
 						class:active={server.id === activeId}
 						class:unread={!!server.unread && server.id !== activeId}
 					></span>
-					<span class="icon">{server.initials}</span>
+					<span
+						class="icon"
+						style:background-image={server.iconUrl ? `url(${resolveUrl(server.iconUrl, session.token)})` : undefined}
+					>
+						{#if !server.iconUrl}{server.initials}{/if}
+					</span>
 					{#if server.unread}
 						<span class="badge">{server.unread > 9 ? "9+" : server.unread}</span>
 					{/if}
@@ -124,7 +132,7 @@
 		height: 48px;
 		border-radius: 16px;
 		background: var(--accent-soft);
-		color: var(--ink);
+		color: var(--accent-fill);
 		font-family: var(--font-body);
 		font-weight: 700;
 		font-size: 12px;
@@ -138,13 +146,6 @@
 	.home.active {
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
-	}
-
-	.mark {
-		width: 26px;
-		height: 26px;
-		object-fit: contain;
-		pointer-events: none;
 	}
 
 	.divider {
@@ -180,7 +181,18 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		overflow: hidden;
 		transition: border-radius 0.15s ease, background 0.15s ease, color 0.15s ease;
+	}
+
+	.server .icon {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background-position: center;
+		background-size: cover;
 	}
 
 	.server:hover {

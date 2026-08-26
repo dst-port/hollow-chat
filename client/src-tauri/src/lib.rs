@@ -1,4 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod media_bridge;
 mod rpc;
 
 use tauri::Emitter;
@@ -13,11 +14,17 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
             let handle = app.handle().clone();
             rpc::spawn(move |update| {
                 let _ = handle.emit("rich-presence", update);
+            });
+
+            let handle = app.handle().clone();
+            media_bridge::spawn(move |update| {
+                let _ = handle.emit("media-presence", update);
             });
 
             #[cfg(target_os = "linux")]

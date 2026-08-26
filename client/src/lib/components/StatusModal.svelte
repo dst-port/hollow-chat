@@ -296,14 +296,14 @@
 
 	.clear-menu {
 		position: absolute;
-		top: calc(100% + 6px);
+		bottom: calc(100% + 6px);
 		left: 0;
 		background: var(--panel);
 		border-radius: 10px;
 		padding: 6px;
 		min-width: 200px;
 		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-		z-index: 10;
+		z-index: 60;
 	}
 
 	.clear-option {

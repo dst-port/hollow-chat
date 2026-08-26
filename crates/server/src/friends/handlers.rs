@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
-use crate::social::{are_blocked, are_friends, ordered_pair, user_id_by_username};
+use crate::social::{are_blocked, are_friends, friend_ids, ordered_pair, user_id_by_username};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -50,6 +50,39 @@ pub async fn remove_friend(
         .execute(&state.pool)
         .await?;
     Ok(())
+}
+
+pub async fn list_mutual_friends(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(username): Path<String>,
+) -> Result<Json<Vec<FriendDto>>, AppError> {
+    let target_id = user_id_by_username(&state.pool, username.trim()).await?;
+
+    if target_id == session.user_id {
+        return Ok(Json(Vec::new()));
+    }
+
+    let mine = friend_ids(&state.pool, session.user_id).await?;
+    let theirs = friend_ids(&state.pool, target_id).await?;
+    let mutual_ids: Vec<Uuid> = mine.into_iter().filter(|id| theirs.contains(id)).collect();
+
+    if mutual_ids.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+
+    let mutual: Vec<FriendDto> = sqlx::query_as(
+        "SELECT users.id, users.username, users.display_name, \
+                CASE WHEN users.presence = 'invisible' THEN 'offline' ELSE users.presence END AS presence, \
+                CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
+                     THEN NULL ELSE users.status_text END AS status_text \
+         FROM users WHERE users.id = ANY($1) ORDER BY users.username",
+    )
+    .bind(&mutual_ids)
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(mutual))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

@@ -1,48 +1,33 @@
-use axum::extract::{ConnectInfo, State};
-use axum::http::header::USER_AGENT;
-use axum::http::HeaderMap;
+use axum::extract::State;
 use axum::Json;
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
 use uuid::Uuid;
 
 use crate::error::AppError;
 use crate::password::{generate_password, hash_password, verify_password};
+use crate::secret_box;
 use crate::session::{generate_token, SESSION_TTL_HOURS};
 use crate::state::AppState;
 use crate::totp;
 
 use super::extractor::AuthSession;
 
-fn client_meta(addr: SocketAddr, headers: &HeaderMap) -> (String, String) {
-    let user_agent = headers
-        .get(USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string();
-    (user_agent, addr.ip().to_string())
-}
-
-async fn create_session(
-    pool: &sqlx::PgPool,
-    user_id: Uuid,
-    user_agent: &str,
-    ip_address: &str,
-) -> Result<LoginResponse, AppError> {
+/// No connection metadata (IP, User-Agent, ...) is ever captured or stored
+/// against a session - a database dump (or a memory dump mid-request)
+/// should never be able to link an account to a network or a device.
+async fn create_session(pool: &sqlx::PgPool, user_id: Uuid) -> Result<LoginResponse, AppError> {
     let (token, token_hash) = generate_token();
     let expires_at = Utc::now() + Duration::hours(SESSION_TTL_HOURS);
 
     sqlx::query(
-        "INSERT INTO sessions (user_id, token_hash, expires_at, user_agent, ip_address) \
-         VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO sessions (user_id, token_hash, expires_at) \
+         VALUES ($1, $2, $3)",
     )
     .bind(user_id)
     .bind(&token_hash)
     .bind(expires_at)
-    .bind(user_agent)
-    .bind(ip_address)
     .execute(pool)
     .await?;
 
@@ -128,8 +113,6 @@ struct UserAuthRow {
 
 pub async fn login(
     State(state): State<AppState>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, AppError> {
     let user: Option<UserAuthRow> = sqlx::query_as(
@@ -145,8 +128,6 @@ pub async fn login(
     if !valid {
         return Err(AppError::InvalidCredentials);
     }
-
-    let (user_agent, ip_address) = client_meta(addr, &headers);
 
     if user.totp_enabled {
         let challenge_id: (Uuid,) = sqlx::query_as(
@@ -165,7 +146,7 @@ pub async fn login(
         }));
     }
 
-    let response = create_session(&state.pool, user.id, &user_agent, &ip_address).await?;
+    let response = create_session(&state.pool, user.id).await?;
     Ok(Json(response))
 }
 
@@ -177,8 +158,6 @@ pub struct CompleteTotpLoginRequest {
 
 pub async fn complete_totp_login(
     State(state): State<AppState>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
     Json(payload): Json<CompleteTotpLoginRequest>,
 ) -> Result<Json<LoginResponse>, AppError> {
     let challenge: Option<(Uuid, DateTime<Utc>)> = sqlx::query_as(
@@ -204,8 +183,7 @@ pub async fn complete_totp_login(
         .execute(&state.pool)
         .await?;
 
-    let (user_agent, ip_address) = client_meta(addr, &headers);
-    let response = create_session(&state.pool, user_id, &user_agent, &ip_address).await?;
+    let response = create_session(&state.pool, user_id).await?;
     Ok(Json(response))
 }
 
@@ -281,8 +259,6 @@ pub async fn regenerate_password(
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct SessionDto {
     pub id: Uuid,
-    pub user_agent: Option<String>,
-    pub ip_address: Option<String>,
     pub created_at: DateTime<Utc>,
     pub current: bool,
 }
@@ -291,8 +267,8 @@ pub async fn list_sessions(
     State(state): State<AppState>,
     session: AuthSession,
 ) -> Result<Json<Vec<SessionDto>>, AppError> {
-    let rows: Vec<(Uuid, Option<String>, Option<String>, DateTime<Utc>)> = sqlx::query_as(
-        "SELECT id, user_agent, ip_address, created_at FROM sessions \
+    let rows: Vec<(Uuid, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT id, created_at FROM sessions \
          WHERE user_id = $1 AND expires_at > $2 \
          ORDER BY created_at DESC",
     )
@@ -303,10 +279,8 @@ pub async fn list_sessions(
 
     let sessions = rows
         .into_iter()
-        .map(|(id, user_agent, ip_address, created_at)| SessionDto {
+        .map(|(id, created_at)| SessionDto {
             id,
-            user_agent,
-            ip_address,
             created_at,
             current: id == session.session_id,
         })
@@ -333,9 +307,10 @@ async fn verify_totp_or_backup(state: &AppState, user_id: Uuid, code: &str) -> R
             .fetch_optional(&state.pool)
             .await?;
 
-    let Some((Some(secret),)) = secret else {
+    let Some((Some(sealed),)) = secret else {
         return Err(AppError::TotpNotConfigured);
     };
+    let secret = secret_box::open(&state.pepper, &sealed)?;
 
     if totp::verify_code(&secret, code) {
         return Ok(());
@@ -413,9 +388,10 @@ pub async fn totp_setup(
     session: AuthSession,
 ) -> Result<Json<TotpSetupResponse>, AppError> {
     let secret = totp::generate_secret();
+    let sealed = secret_box::seal(&state.pepper, &secret);
 
     sqlx::query("UPDATE users SET totp_secret = $1, totp_enabled = false WHERE id = $2")
-        .bind(&secret)
+        .bind(&sealed)
         .bind(session.user_id)
         .execute(&state.pool)
         .await?;
@@ -445,7 +421,8 @@ pub async fn totp_verify(
         .fetch_one(&state.pool)
         .await?;
 
-    let secret = secret.0.ok_or(AppError::TotpNotConfigured)?;
+    let sealed = secret.0.ok_or(AppError::TotpNotConfigured)?;
+    let secret = secret_box::open(&state.pepper, &sealed)?;
 
     if !totp::verify_code(&secret, &payload.code) {
         return Err(AppError::InvalidTotpCode);

@@ -5,6 +5,7 @@
 	import CallBar from "$lib/components/CallBar.svelte";
 	import UserBar from "$lib/components/UserBar.svelte";
 	import ChatView from "$lib/components/ChatView.svelte";
+	import CallStage from "$lib/components/CallStage.svelte";
 	import MemberList from "$lib/components/MemberList.svelte";
 	import HomeView from "$lib/components/HomeView.svelte";
 	import CreateServerModal from "$lib/components/CreateServerModal.svelte";
@@ -15,6 +16,7 @@
 	import { initRichPresenceBridge } from "$lib/stores/richPresence.svelte";
 	import { initGatewayBridge } from "$lib/stores/gateway.svelte";
 	import { colorForName } from "$lib/utils/color";
+	import { call } from "$lib/webrtc/call.svelte";
 	import * as api from "$lib/api/client";
 
 	initRichPresenceBridge();
@@ -28,6 +30,7 @@
 			id: server.id,
 			name: server.name,
 			initials: server.name.slice(0, 2).toUpperCase(),
+			iconUrl: server.icon_url,
 			ownerId: server.owner_id,
 			channels: server.channels.map((c) => ({
 				id: c.id,
@@ -126,6 +129,16 @@
 		}
 	}
 
+	async function joinVoiceChannel() {
+		const token = session.token;
+		if (!token || !activeServer || !activeChannel) return;
+		try {
+			await call.join(token, activeChannel.id, `${activeServer.name} / ${activeChannel.name}`);
+		} catch {
+			toast.push("Couldn't join voice — check microphone permissions");
+		}
+	}
+
 	function createServer(name: string) {
 		const token = session.token;
 		if (!token) return;
@@ -213,7 +226,12 @@
 	</div>
 	{#key activeServerId}
 		<div class="content" in:fade={{ duration: 140 }}>
-			{#if activeServer && activeChannel}
+			{#if activeServer && activeChannel && activeChannel.type === "voice"}
+				<CallStage server={activeServer} channel={activeChannel} onJoin={joinVoiceChannel} />
+				{#if showMembers}
+					<MemberList members={memberList} serverName={activeServer.name} onMessage={messageUser} />
+				{/if}
+			{:else if activeServer && activeChannel}
 				<ChatView
 					channel={activeChannel}
 					serverId={activeServer.id}

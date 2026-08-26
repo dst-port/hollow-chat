@@ -7,6 +7,9 @@ export type PresenceEvent = {
 	activity_application: string | null;
 	activity_details: string | null;
 	activity_state: string | null;
+	media_application: string | null;
+	media_details: string | null;
+	media_state: string | null;
 };
 
 class PresenceStore {

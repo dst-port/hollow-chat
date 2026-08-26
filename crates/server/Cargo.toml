@@ -30,5 +30,7 @@ tokio-util.workspace = true
 futures-util.workspace = true
 hmac.workspace = true
 sha1.workspace = true
+aes-gcm.workspace = true
+hkdf.workspace = true
 percent-encoding = "2"
 regex = "1"

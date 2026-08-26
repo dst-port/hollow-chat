@@ -239,7 +239,7 @@
 							<span class="time">{new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
 						</p>
 						{#if message.content}
-							<p class="content" use:emojify>{@html renderMarkdown(message.content)}</p>
+							<p class="content" use:emojify>{@html renderMarkdown(message.content, session.username ?? undefined)}</p>
 						{/if}
 					</div>
 				</div>
@@ -476,6 +476,33 @@
 	.content :global(.md-spoiler.revealed) {
 		background: var(--active);
 		color: var(--ink);
+	}
+
+	.content :global(a.md-link) {
+		color: var(--accent-fill);
+		text-decoration: none;
+	}
+
+	.content :global(a.md-link:hover) {
+		text-decoration: underline;
+	}
+
+	.content :global(.md-mention) {
+		background: color-mix(in srgb, var(--accent-fill) 22%, transparent);
+		color: var(--accent-fill);
+		border-radius: 4px;
+		padding: 0 3px;
+		font-weight: 600;
+	}
+
+	.content :global(.md-mention-special) {
+		background: color-mix(in srgb, var(--idle) 25%, transparent);
+		color: var(--idle);
+	}
+
+	.content :global(.md-mention-self) {
+		background: color-mix(in srgb, var(--danger) 25%, transparent);
+		color: var(--danger);
 	}
 
 	.composer {

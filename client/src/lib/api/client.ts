@@ -195,8 +195,6 @@ export function regeneratePassword(token: string) {
 
 export type ApiSession = {
 	id: string;
-	user_agent: string | null;
-	ip_address: string | null;
 	created_at: string;
 	current: boolean;
 };
@@ -245,6 +243,7 @@ export type ApiServer = {
 	id: string;
 	name: string;
 	owner_id: string;
+	icon_url: string | null;
 	channels: ApiChannel[];
 };
 
@@ -303,6 +302,21 @@ export function renameServer(token: string, serverId: string, name: string) {
 	});
 }
 
+export function setServerIcon(token: string, serverId: string, attachmentId: string) {
+	return request<Omit<ApiServer, "channels">>(`/servers/${serverId}/icon`, {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ attachment_id: attachmentId })
+	});
+}
+
+export function clearServerIcon(token: string, serverId: string) {
+	return request<Omit<ApiServer, "channels">>(`/servers/${serverId}/icon`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
 export function leaveServer(token: string, serverId: string) {
 	return request<void>(`/servers/${serverId}/leave`, {
 		method: "DELETE",
@@ -348,6 +362,12 @@ export type ApiFriendRequest = {
 
 export function listFriends(token: string) {
 	return request<ApiFriend[]>("/friends", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function listMutualFriends(token: string, username: string) {
+	return request<ApiFriend[]>(`/friends/mutual/${encodeURIComponent(username)}`, {
 		headers: { authorization: `Bearer ${token}` }
 	});
 }
@@ -890,6 +910,11 @@ export type ApiProfile = {
 	activity_application: string | null;
 	activity_details: string | null;
 	activity_state: string | null;
+	activity_image: string | null;
+	activity_started_at: string | null;
+	media_application: string | null;
+	media_details: string | null;
+	media_state: string | null;
 	share_activity: boolean;
 	accent_color: string | null;
 	banner_color: string | null;
@@ -950,6 +975,9 @@ export type SetActivityBody = {
 	application?: string;
 	details?: string;
 	state?: string;
+	image?: string;
+	started_at?: string;
+	kind?: "game" | "media";
 };
 
 export function setActivity(token: string, body: SetActivityBody) {
@@ -1096,5 +1124,29 @@ export function fetchLinkPreview(token: string, url: string) {
 		method: "POST",
 		headers: { authorization: `Bearer ${token}` },
 		body: JSON.stringify({ url })
+	});
+}
+
+export type SubmitReportBody = {
+	reported_user_id: string;
+	context_kind: "dm" | "channel";
+	context_id: string;
+	server_id?: string;
+	sealed_key: { ephemeral_public: string; nonce: string; ciphertext: string };
+	payload_nonce: string;
+	payload_ciphertext: string;
+};
+
+export function submitReport(token: string, body: SubmitReportBody) {
+	return request<{ id: string }>("/reports", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify(body)
+	});
+}
+
+export function gameCover(token: string, name: string) {
+	return request<{ url: string | null }>(`/games/cover?name=${encodeURIComponent(name)}`, {
+		headers: { authorization: `Bearer ${token}` }
 	});
 }

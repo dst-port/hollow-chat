@@ -6,6 +6,20 @@ function syncKeyStorageKey(username: string): string {
 	return `hollowchat_devicesync_${username}`;
 }
 
+function seqStorageKey(username: string): string {
+	return `hollowchat_devicesync_seq_${username}`;
+}
+
+function loadSeq(username: string): number {
+	const raw = localStorage.getItem(seqStorageKey(username));
+	const parsed = raw ? parseInt(raw, 10) : 0;
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function saveSeq(username: string, seq: number) {
+	localStorage.setItem(seqStorageKey(username), String(seq));
+}
+
 export function hasSyncKey(username: string): boolean {
 	return localStorage.getItem(syncKeyStorageKey(username)) !== null;
 }
@@ -50,8 +64,12 @@ class DeviceSyncStore {
 
 	private openSocket() {
 		const token = this.token;
-		if (!token) return;
-		const ws = new WebSocket(`${WS_BASE_URL}/devicelink?token=${encodeURIComponent(token)}`);
+		const username = this.username;
+		if (!token || !username) return;
+		const since = loadSeq(username);
+		const ws = new WebSocket(
+			`${WS_BASE_URL}/devicelink?token=${encodeURIComponent(token)}&since=${since}`
+		);
 		this.ws = ws;
 		ws.onopen = () => this.flushOutbox();
 		ws.onmessage = (event) => {
@@ -74,7 +92,7 @@ class DeviceSyncStore {
 
 	private async handleMessage(raw: string) {
 		if (!this.key) return;
-		let msg: { type?: string; payload?: string };
+		let msg: { type?: string; payload?: string; id?: number };
 		try {
 			msg = JSON.parse(raw);
 		} catch {
@@ -96,6 +114,10 @@ class DeviceSyncStore {
 			wire = JSON.parse(utf8Decode(plaintext)) as WireMsg;
 		} catch {
 			return;
+		}
+
+		if (typeof msg.id === "number" && this.username) {
+			saveSeq(this.username, Math.max(loadSeq(this.username), msg.id));
 		}
 
 		if (wire.kind === "delta") {

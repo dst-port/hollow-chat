@@ -13,7 +13,7 @@
 
 {#if icon}
 	{#if chip}
-		<span class="chip" style:width={`${size + 8}px`} style:height={`${size + 8}px`}>
+		<span class="chip" style:width={`${size + 4}px`} style:height={`${size + 4}px`}>
 			<svg
 				width={size}
 				height={size}
@@ -46,6 +46,6 @@
 		align-items: center;
 		justify-content: center;
 		border-radius: 50%;
-		background: #f2f2f2;
+		background: #ebe8e4;
 	}
 </style>

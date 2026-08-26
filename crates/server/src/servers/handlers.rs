@@ -19,6 +19,48 @@ fn validate_name(name: &str) -> Result<String, AppError> {
     }
 }
 
+fn file_url(attachment_id: Uuid, filename: &str) -> String {
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+    format!(
+        "/files/{attachment_id}/{}",
+        utf8_percent_encode(filename, NON_ALPHANUMERIC)
+    )
+}
+
+async fn owned_image_attachment(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    attachment_id: Uuid,
+) -> Result<(), AppError> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT mime_type FROM attachments WHERE id = $1 AND uploader_id = $2")
+            .bind(attachment_id)
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
+
+    match row {
+        Some((mime,)) if mime.starts_with("image/") => Ok(()),
+        _ => Err(AppError::InvalidAttachment),
+    }
+}
+
+async fn load_server_dto(pool: &sqlx::PgPool, server_id: Uuid) -> Result<ServerDto, AppError> {
+    let row: ServerRow = sqlx::query_as(
+        "SELECT servers.id, servers.name, servers.owner_id, \
+                servers.icon_attachment_id, icon.filename AS icon_filename \
+         FROM servers \
+         LEFT JOIN attachments icon ON icon.id = servers.icon_attachment_id \
+         WHERE servers.id = $1",
+    )
+    .bind(server_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(row.into())
+}
+
 async fn require_member(pool: &sqlx::PgPool, server_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
     let exists: Option<(i32,)> = sqlx::query_as(
         "SELECT 1 FROM server_members WHERE server_id = $1 AND user_id = $2",
@@ -42,11 +84,35 @@ pub struct ChannelDto {
     pub slowmode_seconds: i32,
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
 pub struct ServerDto {
     pub id: Uuid,
     pub name: String,
     pub owner_id: Uuid,
+    pub icon_url: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ServerRow {
+    id: Uuid,
+    name: String,
+    owner_id: Uuid,
+    icon_attachment_id: Option<Uuid>,
+    icon_filename: Option<String>,
+}
+
+impl From<ServerRow> for ServerDto {
+    fn from(row: ServerRow) -> Self {
+        ServerDto {
+            id: row.id,
+            name: row.name,
+            owner_id: row.owner_id,
+            icon_url: row
+                .icon_attachment_id
+                .zip(row.icon_filename)
+                .map(|(id, name)| file_url(id, &name)),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -81,13 +147,14 @@ pub async fn create_server(
 
     let mut tx = state.pool.begin().await?;
 
-    let server: ServerDto = sqlx::query_as(
+    let (id, saved_name, owner_id): (Uuid, String, Uuid) = sqlx::query_as(
         "INSERT INTO servers (name, owner_id) VALUES ($1, $2) RETURNING id, name, owner_id",
     )
     .bind(&name)
     .bind(session.user_id)
     .fetch_one(&mut *tx)
     .await?;
+    let server = ServerDto { id, name: saved_name, owner_id, icon_url: None };
 
     sqlx::query("INSERT INTO server_members (server_id, user_id) VALUES ($1, $2)")
         .bind(server.id)
@@ -122,9 +189,12 @@ pub async fn list_servers(
     State(state): State<AppState>,
     session: AuthSession,
 ) -> Result<Json<Vec<ServerWithChannels>>, AppError> {
-    let servers: Vec<ServerDto> = sqlx::query_as(
-        "SELECT servers.id, servers.name, servers.owner_id FROM servers \
+    let rows: Vec<ServerRow> = sqlx::query_as(
+        "SELECT servers.id, servers.name, servers.owner_id, \
+                servers.icon_attachment_id, icon.filename AS icon_filename \
+         FROM servers \
          JOIN server_members ON server_members.server_id = servers.id \
+         LEFT JOIN attachments icon ON icon.id = servers.icon_attachment_id \
          WHERE server_members.user_id = $1 \
          ORDER BY servers.created_at",
     )
@@ -132,8 +202,9 @@ pub async fn list_servers(
     .fetch_all(&state.pool)
     .await?;
 
-    let mut result = Vec::with_capacity(servers.len());
-    for server in servers {
+    let mut result = Vec::with_capacity(rows.len());
+    for row in rows {
+        let server: ServerDto = row.into();
         let channels = load_channels(&state.pool, server.id).await?;
         result.push(ServerWithChannels { server, channels });
     }
@@ -155,15 +226,53 @@ pub async fn rename_server(
     let name = validate_name(&payload.name)?;
     require_permission(&state.pool, id, session.user_id, MANAGE_SERVER).await?;
 
-    let server: ServerDto = sqlx::query_as(
-        "UPDATE servers SET name = $1 WHERE id = $2 RETURNING id, name, owner_id",
-    )
-    .bind(&name)
-    .bind(id)
-    .fetch_one(&state.pool)
-    .await?;
+    sqlx::query("UPDATE servers SET name = $1 WHERE id = $2")
+        .bind(&name)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    let server = load_server_dto(&state.pool, id).await?;
 
     Ok(Json(server))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetServerIconRequest {
+    pub attachment_id: Uuid,
+}
+
+pub async fn set_server_icon(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<SetServerIconRequest>,
+) -> Result<Json<ServerDto>, AppError> {
+    require_permission(&state.pool, id, session.user_id, MANAGE_SERVER).await?;
+    owned_image_attachment(&state.pool, session.user_id, payload.attachment_id).await?;
+
+    sqlx::query("UPDATE servers SET icon_attachment_id = $1 WHERE id = $2")
+        .bind(payload.attachment_id)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(Json(load_server_dto(&state.pool, id).await?))
+}
+
+pub async fn clear_server_icon(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ServerDto>, AppError> {
+    require_permission(&state.pool, id, session.user_id, MANAGE_SERVER).await?;
+
+    sqlx::query("UPDATE servers SET icon_attachment_id = NULL WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(Json(load_server_dto(&state.pool, id).await?))
 }
 
 pub async fn leave_server(
@@ -538,10 +647,7 @@ pub async fn join_server(
     .execute(&state.pool)
     .await?;
 
-    let server: ServerDto = sqlx::query_as("SELECT id, name, owner_id FROM servers WHERE id = $1")
-        .bind(server_id)
-        .fetch_one(&state.pool)
-        .await?;
+    let server = load_server_dto(&state.pool, server_id).await?;
 
     let channels = load_channels(&state.pool, server.id).await?;
 

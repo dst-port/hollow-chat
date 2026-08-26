@@ -6,6 +6,7 @@
 	import Copy from "@lucide/svelte/icons/copy";
 	import { register, login, completeTotpLogin, ApiError } from "$lib/api/client";
 	import { session } from "$lib/stores/session.svelte";
+	import Logo from "$lib/components/Logo.svelte";
 
 	type Mode = "login" | "register" | "reveal" | "totp";
 
@@ -111,7 +112,7 @@
 <div class="window-frame screen">
 	<div class="card">
 		<div class="brand">
-			<img class="mark" src="/logo/hollowchat-mark.png" alt="" />
+			<span class="mark"><Logo size={22} /></span>
 			<span class="name">HollowChat</span>
 		</div>
 
@@ -275,12 +276,14 @@
 	}
 
 	.mark {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		width: 32px;
 		height: 32px;
 		border-radius: 10px;
 		background: var(--accent-soft);
-		object-fit: contain;
-		padding: 5px;
+		color: var(--accent-fill);
 	}
 
 	.brand .name {
