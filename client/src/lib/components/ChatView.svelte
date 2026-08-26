@@ -33,6 +33,7 @@
 	import ThreadPanel from "$lib/components/ThreadPanel.svelte";
 	import { emojify } from "$lib/actions/emojify";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { notifyDesktop } from "$lib/utils/notify";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { customEmojiStore } from "$lib/stores/customEmoji.svelte";
@@ -360,7 +361,9 @@
 							built.author !== myUsername &&
 							notificationSettings.mentionsEnabled
 						) {
-							toast.push(`${built.author} mentioned you in #${channel.name}`);
+							const summary = `${built.author} mentioned you in #${channel.name}`;
+							toast.push(summary);
+							notifyDesktop(isDm ? `${built.author}` : `#${channel.name}`, built.content || summary);
 						}
 					}
 					lastId = rows.at(-1)!.id;
