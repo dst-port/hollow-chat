@@ -138,19 +138,42 @@ class CallStore {
 		}
 	}
 
-	/// Device labels are only populated once mic permission has been
-	/// granted at least once - fine here since this is only ever useful
-	/// from inside a call (or right after one), by which point that's
-	/// already true.
+	/// Device labels only come through once mic permission has been granted
+	/// at least once in this session - if there's no active call yet (no
+	/// permission grant behind us), request a throwaway stream just to
+	/// unlock labels, then immediately let it go. Otherwise the picker in
+	/// Settings would list real devices with blank/generic names before
+	/// you'd ever joined a voice channel.
 	async refreshDevices(): Promise<void> {
+		let throwaway: MediaStream | null = null;
+		if (!this.localStream) {
+			try {
+				throwaway = await navigator.mediaDevices.getUserMedia({ audio: true });
+			} catch {
+				// permission denied/unavailable - enumeration below will just come back unlabeled
+			}
+		}
+
 		try {
 			const devices = await navigator.mediaDevices.enumerateDevices();
 			this.inputDevices = devices.filter((d) => d.kind === "audioinput");
 			this.outputDevices = devices.filter((d) => d.kind === "audiooutput");
 		} catch {
 			// enumeration unsupported/blocked - quick settings just won't offer a picker
+		} finally {
+			throwaway?.getTracks().forEach((t) => t.stop());
 		}
 	}
+
+	get noiseSuppressionSupported(): boolean {
+		try {
+			return !!navigator.mediaDevices.getSupportedConstraints().noiseSuppression;
+		} catch {
+			return false;
+		}
+	}
+
+	noiseSuppressionActive = $state(false);
 
 	async setInputDevice(deviceId: string | null): Promise<void> {
 		this.inputDeviceId = deviceId;
@@ -178,6 +201,7 @@ class CallStore {
 			this.localStream.addTrack(newTrack);
 			this.applyMuted();
 			this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
+			this.refreshNoiseSuppressionActive();
 			this.notify();
 		} catch {
 			// couldn't switch - keep using the current input rather than dropping audio
@@ -205,6 +229,23 @@ class CallStore {
 			await track.applyConstraints({ noiseSuppression: enabled });
 		} catch {
 			// device/browser doesn't support live constraint changes - takes effect on next join
+		}
+		this.refreshNoiseSuppressionActive();
+	}
+
+	/// What actually took effect, straight off the live track - not just
+	/// what we asked for. getUserMedia constraints are a *request*; the
+	/// platform can silently ignore them; this is the honest answer.
+	private refreshNoiseSuppressionActive() {
+		const track = this.localStream?.getAudioTracks()[0];
+		if (!track) {
+			this.noiseSuppressionActive = false;
+			return;
+		}
+		try {
+			this.noiseSuppressionActive = !!track.getSettings().noiseSuppression;
+		} catch {
+			this.noiseSuppressionActive = false;
 		}
 	}
 
@@ -274,6 +315,7 @@ class CallStore {
 		}
 		this.applyMuted();
 		this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
+		this.refreshNoiseSuppressionActive();
 		this.notify();
 
 		const ws = new WebSocket(`${WS_BASE_URL}/calls/${roomId}?token=${encodeURIComponent(token)}`);
@@ -618,6 +660,7 @@ class CallStore {
 		this.audioCtx = null;
 		this.selfSpeaking = false;
 		this.speakingUserIds = new Set();
+		this.noiseSuppressionActive = false;
 		this.roomId = null;
 		this.label = "";
 		this.status = "idle";

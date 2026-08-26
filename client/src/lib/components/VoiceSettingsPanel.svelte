@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { onMount, onDestroy } from "svelte";
 	import Check from "@lucide/svelte/icons/check";
 	import Dropdown from "$lib/components/Dropdown.svelte";
 	import { call } from "$lib/webrtc/call.svelte";
@@ -13,19 +13,52 @@
 		call.refreshDevices();
 	});
 
-	const PTT_KEYS: { code: string; label: string }[] = [
-		{ code: "Space", label: "Space" },
-		{ code: "ControlLeft", label: "Left Ctrl" },
-		{ code: "AltLeft", label: "Left Alt" },
-		{ code: "ShiftLeft", label: "Left Shift" },
-		{ code: "CapsLock", label: "Caps Lock" },
-		{ code: "Backquote", label: "` (backtick)" }
-	];
+	const NAMED_KEYS: Record<string, string> = {
+		Space: "Space",
+		ControlLeft: "Left Ctrl",
+		ControlRight: "Right Ctrl",
+		AltLeft: "Left Alt",
+		AltRight: "Right Alt",
+		ShiftLeft: "Left Shift",
+		ShiftRight: "Right Shift",
+		CapsLock: "Caps Lock",
+		Backquote: "`",
+		Tab: "Tab",
+		MetaLeft: "Left Super",
+		MetaRight: "Right Super"
+	};
 
 	function keyLabel(code: string): string {
-		return PTT_KEYS.find((k) => k.code === code)?.label ?? code;
+		if (NAMED_KEYS[code]) return NAMED_KEYS[code];
+		if (code.startsWith("Key")) return code.slice(3);
+		if (code.startsWith("Digit")) return code.slice(5);
+		if (code.startsWith("F") && /^F\d+$/.test(code)) return code;
+		return code;
 	}
+
+	let capturing = $state(false);
+
+	function startCapture() {
+		capturing = true;
+	}
+
+	function onCaptureKeydown(event: KeyboardEvent) {
+		if (!capturing) return;
+		event.preventDefault();
+		if (event.code === "Escape") {
+			capturing = false;
+			return;
+		}
+		call.setPushToTalkKey(event.code);
+		capturing = false;
+	}
+
+	onDestroy(() => {
+		capturing = false;
+	});
 </script>
+
+<svelte:window onkeydown={onCaptureKeydown} />
 
 <div class="panel">
 	{#if focus === "input" || focus === "all"}
@@ -46,26 +79,37 @@
 
 			<div class="field">
 				<span class="field-label">Noise Suppression</span>
-				<div class="radio-list">
-					<button
-						type="button"
-						class="radio-row"
-						class:active={!call.noiseSuppression}
-						onclick={() => call.setNoiseSuppression(false)}
-					>
-						<span>Off</span>
-						{#if !call.noiseSuppression}<Check size={14} strokeWidth={2.5} />{/if}
-					</button>
-					<button
-						type="button"
-						class="radio-row"
-						class:active={call.noiseSuppression}
-						onclick={() => call.setNoiseSuppression(true)}
-					>
-						<span>On</span>
-						{#if call.noiseSuppression}<Check size={14} strokeWidth={2.5} />{/if}
-					</button>
-				</div>
+				{#if call.noiseSuppressionSupported}
+					<div class="radio-list">
+						<button
+							type="button"
+							class="radio-row"
+							class:active={!call.noiseSuppression}
+							onclick={() => call.setNoiseSuppression(false)}
+						>
+							<span>Off</span>
+							{#if !call.noiseSuppression}<Check size={14} strokeWidth={2.5} />{/if}
+						</button>
+						<button
+							type="button"
+							class="radio-row"
+							class:active={call.noiseSuppression}
+							onclick={() => call.setNoiseSuppression(true)}
+						>
+							<span>On</span>
+							{#if call.noiseSuppression}<Check size={14} strokeWidth={2.5} />{/if}
+						</button>
+					</div>
+					{#if call.noiseSuppression}
+						<p class="hint" class:warn={!call.noiseSuppressionActive}>
+							{call.noiseSuppressionActive
+								? "Active — applied by your OS/driver on the raw mic signal."
+								: "Requested, but your mic/driver didn't confirm it's actually applying it."}
+						</p>
+					{/if}
+				{:else}
+					<p class="hint warn">Not supported by this device or platform.</p>
+				{/if}
 			</div>
 
 			<label class="switch-row">
@@ -83,9 +127,11 @@
 			{#if call.pushToTalk}
 				<div class="field">
 					<span class="field-label">Push to Talk Key</span>
-					<Dropdown value={call.pushToTalkKey} options={PTT_KEYS.map((k) => ({ value: k.code, label: k.label }))} onChange={(v) => call.setPushToTalkKey(v)} />
+					<button type="button" class="keybind-btn" class:capturing onclick={startCapture}>
+						{capturing ? "Press any key… (Esc to cancel)" : keyLabel(call.pushToTalkKey)}
+					</button>
 				</div>
-				<p class="hint">Hold {keyLabel(call.pushToTalkKey)} to transmit.</p>
+				{#if !capturing}<p class="hint">Hold {keyLabel(call.pushToTalkKey)} to transmit.</p>{/if}
 			{/if}
 		</div>
 	{/if}
@@ -245,6 +291,31 @@
 		margin: 0;
 		font-size: 11px;
 		color: var(--ink-faint);
+	}
+
+	.hint.warn {
+		color: var(--idle);
+	}
+
+	.keybind-btn {
+		width: 100%;
+		padding: 7px 9px;
+		border-radius: 6px;
+		background: var(--active);
+		color: var(--ink);
+		font-size: 13px;
+		font-weight: 600;
+		text-align: center;
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.keybind-btn:hover {
+		background: var(--hover);
+	}
+
+	.keybind-btn.capturing {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 	}
 
 	.full-settings-link {
