@@ -19,6 +19,7 @@
 	import Phone from "@lucide/svelte/icons/phone";
 	import AtSign from "@lucide/svelte/icons/at-sign";
 	import Eye from "@lucide/svelte/icons/eye";
+	import EyeOff from "@lucide/svelte/icons/eye-off";
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import CropAttachmentModal from "$lib/components/CropAttachmentModal.svelte";
@@ -478,6 +479,19 @@
 	});
 
 	let imageUrls = $state<Record<string, string>>({});
+	let revealedSpoilers = $state<Set<string>>(new Set());
+
+	function isSpoilerFilename(name: string): boolean {
+		return name.startsWith("SPOILER_");
+	}
+
+	function displayFilename(name: string): string {
+		return isSpoilerFilename(name) ? name.slice("SPOILER_".length) : name;
+	}
+
+	function revealSpoiler(messageId: string) {
+		revealedSpoilers = new Set(revealedSpoilers).add(messageId);
+	}
 
 	$effect(() => {
 		const token = session.token;
@@ -561,6 +575,17 @@
 	function onCropped(file: File) {
 		pendingFile = file;
 		cropModalOpen = false;
+	}
+
+	const SPOILER_PREFIX = "SPOILER_";
+
+	const pendingIsSpoiler = $derived(pendingFile?.name.startsWith(SPOILER_PREFIX) ?? false);
+
+	function toggleSpoiler() {
+		if (!pendingFile) return;
+		pendingFile = pendingIsSpoiler
+			? new File([pendingFile], pendingFile.name.slice(SPOILER_PREFIX.length), { type: pendingFile.type })
+			: new File([pendingFile], `${SPOILER_PREFIX}${pendingFile.name}`, { type: pendingFile.type });
 	}
 
 	let pendingFilePreviewUrl = $state<string | null>(null);
@@ -1067,23 +1092,47 @@
 							{/if}
 						{/if}
 						{#if message.attachment}
+							{@const isSpoiler = isSpoilerFilename(message.attachment.filename)}
+							{@const revealed = !isSpoiler || revealedSpoilers.has(message.id)}
 							{#if message.attachment.mimeType.startsWith("image/") && imageUrls[message.attachment.id]}
-								<a
-									class="attachment-image"
-									href={imageUrls[message.attachment.id]}
-									target="_blank"
-									rel="noreferrer"
-								>
-									<img src={imageUrls[message.attachment.id]} alt={message.attachment.filename} />
-								</a>
+								{#if revealed}
+									<a
+										class="attachment-image"
+										href={imageUrls[message.attachment.id]}
+										target="_blank"
+										rel="noreferrer"
+									>
+										<img src={imageUrls[message.attachment.id]} alt={displayFilename(message.attachment.filename)} />
+									</a>
+								{:else}
+									<button
+										class="attachment-image spoiler-hidden"
+										onclick={() => revealSpoiler(message.id)}
+									>
+										<img src={imageUrls[message.attachment.id]} alt="" />
+										<span class="spoiler-overlay">
+											<EyeOff size={20} strokeWidth={2} />
+											Spoiler — click to reveal
+										</span>
+									</button>
+								{/if}
 							{:else}
-								<button class="attachment-file" onclick={() => downloadAttachment(message.attachment!)}>
-									<FileIcon size={20} strokeWidth={2} />
+								<button
+									class="attachment-file"
+									onclick={() => (revealed ? downloadAttachment(message.attachment!) : revealSpoiler(message.id))}
+								>
+									{#if revealed}
+										<FileIcon size={20} strokeWidth={2} />
+									{:else}
+										<EyeOff size={20} strokeWidth={2} />
+									{/if}
 									<span class="attachment-info">
-										<span class="attachment-name">{message.attachment.filename}</span>
-										<span class="attachment-size">{formatSize(message.attachment.sizeBytes)}</span>
+										<span class="attachment-name">
+											{revealed ? displayFilename(message.attachment.filename) : "Spoiler — click to reveal"}
+										</span>
+										{#if revealed}<span class="attachment-size">{formatSize(message.attachment.sizeBytes)}</span>{/if}
 									</span>
-									<Download size={16} strokeWidth={2} />
+									{#if revealed}<Download size={16} strokeWidth={2} />{/if}
 								</button>
 							{/if}
 						{/if}
@@ -1155,11 +1204,14 @@
 	{#if pendingFile}
 		<div class="attachment-preview-row" transition:fly={{ y: 8, duration: 140 }}>
 			<div class="attachment-card">
-				<div class="attachment-thumb">
+				<div class="attachment-thumb" class:spoiler-blur={pendingIsSpoiler}>
 					{#if pendingFilePreviewUrl}
 						<img src={pendingFilePreviewUrl} alt={pendingFile.name} />
 					{:else}
 						<FileIcon size={22} strokeWidth={1.5} />
+					{/if}
+					{#if pendingIsSpoiler}
+						<span class="spoiler-tag">Spoiler</span>
 					{/if}
 					<div class="attachment-hover-actions">
 						{#if pendingFilePreviewUrl}
@@ -1170,19 +1222,18 @@
 							<button type="button" title="Edit" onclick={() => (cropModalOpen = true)}>
 								<Pencil size={16} strokeWidth={2} />
 							</button>
+							<button type="button" title={pendingIsSpoiler ? "Unmark spoiler" : "Mark as spoiler"} onclick={toggleSpoiler}>
+								<EyeOff size={16} strokeWidth={2} />
+							</button>
 						{/if}
 						<button type="button" title="Remove" onclick={clearPendingFile}>
 							<Trash2 size={16} strokeWidth={2} />
 						</button>
 					</div>
 				</div>
-				<span class="attachment-name">{pendingFile.name}</span>
+				<span class="attachment-preview-name">{pendingIsSpoiler ? pendingFile.name.slice(SPOILER_PREFIX.length) : pendingFile.name}</span>
 			</div>
 		</div>
-	{/if}
-
-	{#if cropModalOpen && pendingFile && pendingFilePreviewUrl}
-		<CropAttachmentModal src={pendingFilePreviewUrl} filename={pendingFile.name} onCancel={() => (cropModalOpen = false)} onConfirm={onCropped} />
 	{/if}
 
 	{#if cropModalOpen && pendingFile && pendingFilePreviewUrl}
@@ -1773,6 +1824,31 @@
 		object-fit: contain;
 	}
 
+	.attachment-image.spoiler-hidden {
+		position: relative;
+		padding: 0;
+		cursor: pointer;
+	}
+
+	.attachment-image.spoiler-hidden img {
+		filter: blur(24px);
+	}
+
+	.spoiler-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		background: rgba(0, 0, 0, 0.45);
+		color: white;
+		font-size: 13px;
+		font-weight: 700;
+		text-align: center;
+		padding: 8px;
+	}
+
 	.attachment-file {
 		display: flex;
 		align-items: center;
@@ -1961,12 +2037,30 @@
 		background: rgba(255, 255, 255, 0.24);
 	}
 
-	.attachment-name {
+	.attachment-preview-name {
 		font-size: 12px;
 		color: var(--ink-faint);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.spoiler-tag {
+		position: absolute;
+		top: 6px;
+		left: 6px;
+		padding: 2px 6px;
+		border-radius: 4px;
+		background: rgba(0, 0, 0, 0.6);
+		color: white;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.attachment-thumb.spoiler-blur img {
+		filter: blur(16px);
 	}
 
 	.reactions {
