@@ -18,9 +18,7 @@
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import Phone from "@lucide/svelte/icons/phone";
 	import AtSign from "@lucide/svelte/icons/at-sign";
-	import Eye from "@lucide/svelte/icons/eye";
 	import EyeOff from "@lucide/svelte/icons/eye-off";
-	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import Loader2 from "@lucide/svelte/icons/loader-2";
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -1222,10 +1220,6 @@
 					{:else}
 						<div class="attachment-hover-actions">
 							{#if pendingFilePreviewUrl}
-								{@const previewUrl = pendingFilePreviewUrl}
-								<button type="button" title="Preview" onclick={() => window.open(previewUrl, "_blank", "noreferrer")}>
-									<Eye size={16} strokeWidth={2} />
-								</button>
 								<button type="button" title="Edit" onclick={() => (cropModalOpen = true)}>
 									<Pencil size={16} strokeWidth={2} />
 								</button>
@@ -1235,7 +1229,7 @@
 									title={pendingIsSpoiler ? "Unmark spoiler" : "Mark as spoiler"}
 									onclick={toggleSpoiler}
 								>
-									<TriangleAlert size={16} strokeWidth={2} />
+									<EyeOff size={16} strokeWidth={2} />
 								</button>
 							{/if}
 							<button type="button" title="Remove" onclick={clearPendingFile}>
