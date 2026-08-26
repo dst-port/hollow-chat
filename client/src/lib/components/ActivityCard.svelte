@@ -10,14 +10,24 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { gameCover } from "$lib/api/client";
 
-	let { label, application, details, activityState, image, startedAt }: {
+	let { label, application, details, activityState, image, smallImage, smallText, startedAt, partySize, partyMax }: {
 		label: string;
 		application: string;
 		details?: string | null;
 		activityState?: string | null;
 		image?: string | null;
+		smallImage?: string | null;
+		smallText?: string | null;
 		startedAt?: string | null;
+		partySize?: number | null;
+		partyMax?: number | null;
 	} = $props();
+
+	let smallImageFailed = $state(false);
+	$effect(() => {
+		smallImage;
+		smallImageFailed = false;
+	});
 
 	let now = $state(Date.now());
 
@@ -99,11 +109,17 @@
 			{:else}
 				<Gamepad2 size={22} strokeWidth={1.5} />
 			{/if}
+			{#if smallImage && !smallImageFailed}
+				<img class="badge" src={smallImage} alt="" title={smallText ?? undefined} onerror={() => (smallImageFailed = true)} />
+			{/if}
 		</div>
 		<div class="info">
 			<p class="title">{application}</p>
 			{#if details}<p class="line">{details}</p>{/if}
 			{#if activityState}<p class="line">{activityState}</p>{/if}
+			{#if partySize}
+				<p class="line">{partySize}{partyMax ? ` of ${partyMax}` : ""} in party</p>
+			{/if}
 			{#if elapsed}
 				<p class="line elapsed">
 					<Clock size={12} strokeWidth={2} />
@@ -138,6 +154,7 @@
 	}
 
 	.cover {
+		position: relative;
 		flex-shrink: 0;
 		width: 48px;
 		height: 48px;
@@ -153,6 +170,18 @@
 	.cover img {
 		width: 100%;
 		height: 100%;
+		object-fit: cover;
+	}
+
+	.cover .badge {
+		position: absolute;
+		right: -3px;
+		bottom: -3px;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		border: 2px solid var(--panel);
+		background: var(--void);
 		object-fit: cover;
 	}
 
