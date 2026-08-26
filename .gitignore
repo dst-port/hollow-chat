@@ -7,3 +7,4 @@ client/.svelte-kit
 client/build
 /data
 crates/server/data/
+*.tauri-updater-key.txt*

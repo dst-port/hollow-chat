@@ -159,7 +159,11 @@
 				details={profile.activity_details}
 				activityState={profile.activity_state}
 				image={profile.activity_image}
+				smallImage={profile.activity_small_image}
+				smallText={profile.activity_small_text}
 				startedAt={profile.activity_started_at}
+				partySize={profile.activity_party_size}
+				partyMax={profile.activity_party_max}
 			/>
 		{/if}
 		{#if profile?.media_details}

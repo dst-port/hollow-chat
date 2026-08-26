@@ -71,7 +71,11 @@ fn build_update(body: &MediaPresenceBody) -> Option<PresenceUpdate> {
             .map(truncate),
         large_text: Some(source_label(&body.source).to_string()),
         large_image: None,
+        small_image: None,
+        small_text: None,
         start_timestamp: None,
+        party_size: None,
+        party_max: None,
     })
 }
 

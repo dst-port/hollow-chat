@@ -18,6 +18,10 @@
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import Phone from "@lucide/svelte/icons/phone";
 	import AtSign from "@lucide/svelte/icons/at-sign";
+	import Eye from "@lucide/svelte/icons/eye";
+	import Pencil from "@lucide/svelte/icons/pencil";
+	import Trash2 from "@lucide/svelte/icons/trash-2";
+	import CropAttachmentModal from "$lib/components/CropAttachmentModal.svelte";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
@@ -550,6 +554,13 @@
 
 	function clearPendingFile() {
 		pendingFile = null;
+	}
+
+	let cropModalOpen = $state(false);
+
+	function onCropped(file: File) {
+		pendingFile = file;
+		cropModalOpen = false;
 	}
 
 	let pendingFilePreviewUrl = $state<string | null>(null);
@@ -1142,18 +1153,40 @@
 	{/if}
 
 	{#if pendingFile}
-		<div class="pending-file" transition:fly={{ y: 8, duration: 140 }}>
-			{#if pendingFilePreviewUrl}
-				<img class="pending-thumb" src={pendingFilePreviewUrl} alt="" />
-			{:else}
-				<FileIcon size={16} strokeWidth={2} />
-			{/if}
-			<span class="pending-name">{pendingFile.name}</span>
-			<span class="pending-size">{formatSize(pendingFile.size)}</span>
-			<button type="button" class="cancel-reply" onclick={clearPendingFile} title="Remove file">
-				<X size={14} strokeWidth={2} />
-			</button>
+		<div class="attachment-preview-row" transition:fly={{ y: 8, duration: 140 }}>
+			<div class="attachment-card">
+				<div class="attachment-thumb">
+					{#if pendingFilePreviewUrl}
+						<img src={pendingFilePreviewUrl} alt={pendingFile.name} />
+					{:else}
+						<FileIcon size={22} strokeWidth={1.5} />
+					{/if}
+					<div class="attachment-hover-actions">
+						{#if pendingFilePreviewUrl}
+							{@const previewUrl = pendingFilePreviewUrl}
+							<button type="button" title="Preview" onclick={() => window.open(previewUrl, "_blank", "noreferrer")}>
+								<Eye size={16} strokeWidth={2} />
+							</button>
+							<button type="button" title="Edit" onclick={() => (cropModalOpen = true)}>
+								<Pencil size={16} strokeWidth={2} />
+							</button>
+						{/if}
+						<button type="button" title="Remove" onclick={clearPendingFile}>
+							<Trash2 size={16} strokeWidth={2} />
+						</button>
+					</div>
+				</div>
+				<span class="attachment-name">{pendingFile.name}</span>
+			</div>
 		</div>
+	{/if}
+
+	{#if cropModalOpen && pendingFile && pendingFilePreviewUrl}
+		<CropAttachmentModal src={pendingFilePreviewUrl} filename={pendingFile.name} onCancel={() => (cropModalOpen = false)} onConfirm={onCropped} />
+	{/if}
+
+	{#if cropModalOpen && pendingFile && pendingFilePreviewUrl}
+		<CropAttachmentModal src={pendingFilePreviewUrl} filename={pendingFile.name} onCancel={() => (cropModalOpen = false)} onConfirm={onCropped} />
 	{/if}
 
 	<form class="composer" onsubmit={send}>
@@ -1861,40 +1894,79 @@
 		object-fit: cover;
 	}
 
-	.pending-file {
+	.attachment-preview-row {
 		flex-shrink: 0;
 		display: flex;
-		align-items: center;
-		gap: 8px;
+		flex-wrap: wrap;
+		gap: 12px;
 		margin: 0 16px;
-		padding: 8px 12px;
-		background: var(--active);
-		border-radius: 8px 8px 0 0;
-		font-size: 12px;
-		color: var(--ink-dim);
+		padding-top: 10px;
 	}
 
-	.pending-thumb {
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 4px;
+	.attachment-card {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		width: 140px;
+	}
+
+	.attachment-thumb {
+		position: relative;
+		width: 140px;
+		height: 100px;
+		border-radius: 10px;
+		background: var(--active);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--ink-faint);
+		overflow: hidden;
+	}
+
+	.attachment-thumb img {
+		width: 100%;
+		height: 100%;
 		object-fit: cover;
 	}
 
-	.pending-name {
-		flex: 1;
-		min-width: 0;
-		color: var(--ink);
-		font-weight: 600;
+	.attachment-hover-actions {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		background: rgba(0, 0, 0, 0.55);
+		opacity: 0;
+		transition: opacity 0.15s ease;
+	}
+
+	.attachment-thumb:hover .attachment-hover-actions {
+		opacity: 1;
+	}
+
+	.attachment-hover-actions button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		background: rgba(255, 255, 255, 0.12);
+		color: white;
+		transition: background-color 0.15s ease;
+	}
+
+	.attachment-hover-actions button:hover {
+		background: rgba(255, 255, 255, 0.24);
+	}
+
+	.attachment-name {
+		font-size: 12px;
+		color: var(--ink-faint);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-
-	.pending-size {
-		color: var(--ink-faint);
-		flex-shrink: 0;
 	}
 
 	.reactions {

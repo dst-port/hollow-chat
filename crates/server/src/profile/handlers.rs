@@ -109,7 +109,11 @@ pub struct ProfileDto {
     pub activity_details: Option<String>,
     pub activity_state: Option<String>,
     pub activity_image: Option<String>,
+    pub activity_small_image: Option<String>,
+    pub activity_small_text: Option<String>,
     pub activity_started_at: Option<DateTime<Utc>>,
+    pub activity_party_size: Option<i16>,
+    pub activity_party_max: Option<i16>,
     pub media_application: Option<String>,
     pub media_details: Option<String>,
     pub media_state: Option<String>,
@@ -135,7 +139,11 @@ struct ProfileRow {
     activity_details: Option<String>,
     activity_state: Option<String>,
     activity_image: Option<String>,
+    activity_small_image: Option<String>,
+    activity_small_text: Option<String>,
     activity_started_at: Option<DateTime<Utc>>,
+    activity_party_size: Option<i16>,
+    activity_party_max: Option<i16>,
     media_application: Option<String>,
     media_details: Option<String>,
     media_state: Option<String>,
@@ -159,7 +167,8 @@ async fn load_profile(
                 CASE WHEN users.status_clear_at IS NOT NULL AND users.status_clear_at < now() \
                      THEN NULL ELSE users.status_text END AS status_text, \
                 users.presence, users.activity_application, users.activity_details, users.activity_state, \
-                users.activity_image, users.activity_started_at, \
+                users.activity_image, users.activity_small_image, users.activity_small_text, \
+                users.activity_started_at, users.activity_party_size, users.activity_party_max, \
                 users.media_application, users.media_details, users.media_state, \
                 users.share_activity, \
                 users.accent_color, users.banner_color, users.created_at AS member_since, \
@@ -198,8 +207,20 @@ async fn load_profile(
         activity_image: (row.share_activity || viewer_id == user_id)
             .then_some(row.activity_image)
             .flatten(),
+        activity_small_image: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_small_image)
+            .flatten(),
+        activity_small_text: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_small_text)
+            .flatten(),
         activity_started_at: (row.share_activity || viewer_id == user_id)
             .then_some(row.activity_started_at)
+            .flatten(),
+        activity_party_size: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_party_size)
+            .flatten(),
+        activity_party_max: (row.share_activity || viewer_id == user_id)
+            .then_some(row.activity_party_max)
             .flatten(),
         media_application: (row.share_activity || viewer_id == user_id)
             .then_some(row.media_application)
@@ -332,7 +353,11 @@ pub async fn update_profile(
                 activity_details: None,
                 activity_state: None,
                 activity_image: None,
+                activity_small_image: None,
+                activity_small_text: None,
                 activity_started_at: None,
+                activity_party_size: None,
+                activity_party_max: None,
                 media_application: None,
                 media_details: None,
                 media_state: None,
@@ -377,7 +402,11 @@ pub async fn set_presence(
             activity_details: profile.share_activity.then(|| profile.activity_details.clone()).flatten(),
             activity_state: profile.share_activity.then(|| profile.activity_state.clone()).flatten(),
             activity_image: profile.share_activity.then(|| profile.activity_image.clone()).flatten(),
+            activity_small_image: profile.share_activity.then(|| profile.activity_small_image.clone()).flatten(),
+            activity_small_text: profile.share_activity.then(|| profile.activity_small_text.clone()).flatten(),
             activity_started_at: profile.share_activity.then_some(profile.activity_started_at).flatten(),
+            activity_party_size: profile.share_activity.then_some(profile.activity_party_size).flatten(),
+            activity_party_max: profile.share_activity.then_some(profile.activity_party_max).flatten(),
             media_application: profile.share_activity.then(|| profile.media_application.clone()).flatten(),
             media_details: profile.share_activity.then(|| profile.media_details.clone()).flatten(),
             media_state: profile.share_activity.then(|| profile.media_state.clone()).flatten(),
@@ -399,7 +428,15 @@ pub struct SetActivityRequest {
     #[serde(default)]
     pub image: Option<String>,
     #[serde(default)]
+    pub small_image: Option<String>,
+    #[serde(default)]
+    pub small_text: Option<String>,
+    #[serde(default)]
     pub started_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub party_size: Option<i16>,
+    #[serde(default)]
+    pub party_max: Option<i16>,
     /// "game" (default, from the Discord-IPC bridge) or "media" (from the
     /// browser extension bridge) - the two run independently so watching a
     /// YouTube video doesn't clobber a game's activity or vice versa.
@@ -424,6 +461,9 @@ pub async fn set_activity(
     let details = clean(payload.details, MAX_ACTIVITY_FIELD_LEN)?;
     let activity_state = clean(payload.state, MAX_ACTIVITY_FIELD_LEN)?;
     let image = clean(payload.image, MAX_ACTIVITY_IMAGE_LEN)?.filter(|url| url.starts_with("https://"));
+    let small_image =
+        clean(payload.small_image, MAX_ACTIVITY_IMAGE_LEN)?.filter(|url| url.starts_with("https://"));
+    let small_text = clean(payload.small_text, MAX_ACTIVITY_FIELD_LEN)?;
     let is_media = payload.kind == "media";
 
     if is_media {
@@ -447,14 +487,22 @@ pub async fn set_activity(
                 activity_details = $2, \
                 activity_state = $3, \
                 activity_image = $4, \
-                activity_started_at = $5 \
-             WHERE id = $6",
+                activity_small_image = $5, \
+                activity_small_text = $6, \
+                activity_started_at = $7, \
+                activity_party_size = $8, \
+                activity_party_max = $9 \
+             WHERE id = $10",
         )
         .bind(&application)
         .bind(&details)
         .bind(&activity_state)
         .bind(&image)
+        .bind(&small_image)
+        .bind(&small_text)
         .bind(payload.started_at)
+        .bind(payload.party_size)
+        .bind(payload.party_max)
         .bind(session.user_id)
         .execute(&state.pool)
         .await?;
@@ -474,7 +522,11 @@ pub async fn set_activity(
                 activity_details: profile.activity_details.clone(),
                 activity_state: profile.activity_state.clone(),
                 activity_image: profile.activity_image.clone(),
+                activity_small_image: profile.activity_small_image.clone(),
+                activity_small_text: profile.activity_small_text.clone(),
                 activity_started_at: profile.activity_started_at,
+                activity_party_size: profile.activity_party_size,
+                activity_party_max: profile.activity_party_max,
                 media_application: profile.media_application.clone(),
                 media_details: profile.media_details.clone(),
                 media_state: profile.media_state.clone(),
