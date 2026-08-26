@@ -254,13 +254,17 @@
 <style>
 	.app {
 		display: flex;
+		height: 100%;
+		align-items: stretch;
 	}
 
 	.left-column {
 		display: flex;
 		flex-direction: column;
-		height: 100%;
+		align-self: stretch;
+		width: 312px;
 		flex-shrink: 0;
+		min-height: 0;
 	}
 
 	.upper {
@@ -283,6 +287,7 @@
 		display: flex;
 		flex: 1;
 		min-width: 0;
-		height: 100%;
+		min-height: 0;
+		align-self: stretch;
 	}
 </style>
