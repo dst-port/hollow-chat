@@ -1,9 +1,20 @@
 import { call } from "$lib/webrtc/call.svelte";
 
+function applyOutputSettings(node: HTMLMediaElement) {
+	node.volume = call.outputVolume;
+	const sinkCapable = node as HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
+	if (call.outputDeviceId && typeof sinkCapable.setSinkId === "function") {
+		sinkCapable.setSinkId(call.outputDeviceId).catch(() => {
+			// device unavailable or platform doesn't support setSinkId (WebKitGTK on Linux)
+		});
+	}
+}
+
 export function attachRemoteStream(node: HTMLMediaElement, userId: string) {
 	function update() {
 		const stream = call.getRemoteStream(userId);
 		if (stream && node.srcObject !== stream) node.srcObject = stream;
+		applyOutputSettings(node);
 	}
 	update();
 	const unsubscribe = call.onStreamsChanged(update);

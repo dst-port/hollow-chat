@@ -7,6 +7,7 @@
 	import UserPen from "@lucide/svelte/icons/user-pen";
 	import ShieldCheck from "@lucide/svelte/icons/shield-check";
 	import Bell from "@lucide/svelte/icons/bell";
+	import Mic from "@lucide/svelte/icons/mic";
 	import Palette from "@lucide/svelte/icons/palette";
 	import Accessibility from "@lucide/svelte/icons/accessibility";
 	import Monitor from "@lucide/svelte/icons/monitor";
@@ -36,6 +37,7 @@
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import Badges from "$lib/components/Badges.svelte";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
+	import VoiceSettingsPanel from "$lib/components/VoiceSettingsPanel.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, onClose, onLogout, initialSection = "account" }: {
@@ -50,6 +52,7 @@
 		| "account"
 		| "privacy"
 		| "notifications"
+		| "voice"
 		| "appearance"
 		| "accessibility"
 		| "sessions"
@@ -641,6 +644,12 @@
 					Notifications
 				</button>
 			{/if}
+			{#if matchesSearch("Voice & Video")}
+				<button class="nav-item" class:active={section === "voice"} onclick={() => (section = "voice")}>
+					<Mic size={16} strokeWidth={2} />
+					Voice &amp; Video
+				</button>
+			{/if}
 			{#if matchesSearch("Devices")}
 				<button class="nav-item" class:active={section === "sessions"} onclick={() => (section = "sessions")}>
 					<Monitor size={16} strokeWidth={2} />
@@ -1160,6 +1169,11 @@
 							<span class="track"><span class="thumb"></span></span>
 						</label>
 					</div>
+				</div>
+			{:else if section === "voice"}
+				<h2>Voice &amp; Video</h2>
+				<div class="card">
+					<VoiceSettingsPanel focus="all" />
 				</div>
 			{:else if section === "appearance"}
 				<h2>Appearance</h2>

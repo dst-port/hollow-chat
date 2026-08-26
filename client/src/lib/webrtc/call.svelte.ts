@@ -24,6 +24,38 @@ const SPEAKING_THRESHOLD = 7;
 const SPEAKING_HOLD_MS = 250;
 const SPEAKING_POLL_MS = 70;
 
+const SETTINGS_KEY = "hollowchat.voice-settings";
+
+type VoiceSettings = {
+	inputDeviceId: string | null;
+	outputDeviceId: string | null;
+	outputVolume: number;
+	noiseSuppression: boolean;
+	pushToTalk: boolean;
+	pushToTalkKey: string;
+};
+
+function defaultVoiceSettings(): VoiceSettings {
+	return {
+		inputDeviceId: null,
+		outputDeviceId: null,
+		outputVolume: 1,
+		noiseSuppression: true,
+		pushToTalk: false,
+		pushToTalkKey: "Space"
+	};
+}
+
+function loadVoiceSettings(): VoiceSettings {
+	try {
+		const raw = localStorage.getItem(SETTINGS_KEY);
+		if (!raw) return defaultVoiceSettings();
+		return { ...defaultVoiceSettings(), ...JSON.parse(raw) };
+	} catch {
+		return defaultVoiceSettings();
+	}
+}
+
 class CallStore {
 	roomId = $state<string | null>(null);
 	label = $state("");
@@ -36,6 +68,17 @@ class CallStore {
 	streamsVersion = $state(0);
 	selfSpeaking = $state(false);
 	speakingUserIds = $state<Set<string>>(new Set());
+
+	inputDevices = $state<MediaDeviceInfo[]>([]);
+	outputDevices = $state<MediaDeviceInfo[]>([]);
+	private settings = loadVoiceSettings();
+	inputDeviceId = $state(this.settings.inputDeviceId);
+	outputDeviceId = $state(this.settings.outputDeviceId);
+	outputVolume = $state(this.settings.outputVolume);
+	noiseSuppression = $state(this.settings.noiseSuppression);
+	pushToTalk = $state(this.settings.pushToTalk);
+	pushToTalkKey = $state(this.settings.pushToTalkKey);
+	pushToTalkActive = $state(false);
 
 	private mutedBeforeDeafen = false;
 	private audioCtx: AudioContext | null = null;
@@ -79,6 +122,124 @@ class CallStore {
 		return this.localScreenStream;
 	}
 
+	private persistSettings() {
+		const settings: VoiceSettings = {
+			inputDeviceId: this.inputDeviceId,
+			outputDeviceId: this.outputDeviceId,
+			outputVolume: this.outputVolume,
+			noiseSuppression: this.noiseSuppression,
+			pushToTalk: this.pushToTalk,
+			pushToTalkKey: this.pushToTalkKey
+		};
+		try {
+			localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+		} catch {
+			// storage unavailable, setting just won't survive a reload
+		}
+	}
+
+	/// Device labels are only populated once mic permission has been
+	/// granted at least once - fine here since this is only ever useful
+	/// from inside a call (or right after one), by which point that's
+	/// already true.
+	async refreshDevices(): Promise<void> {
+		try {
+			const devices = await navigator.mediaDevices.enumerateDevices();
+			this.inputDevices = devices.filter((d) => d.kind === "audioinput");
+			this.outputDevices = devices.filter((d) => d.kind === "audiooutput");
+		} catch {
+			// enumeration unsupported/blocked - quick settings just won't offer a picker
+		}
+	}
+
+	async setInputDevice(deviceId: string | null): Promise<void> {
+		this.inputDeviceId = deviceId;
+		this.persistSettings();
+		if (!this.localStream || this.status === "idle") return;
+
+		try {
+			const constraints: MediaTrackConstraints = { noiseSuppression: this.noiseSuppression };
+			if (deviceId) constraints.deviceId = { exact: deviceId };
+			const newStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+			const newTrack = newStream.getAudioTracks()[0];
+			if (!newTrack) return;
+
+			const oldTrack = this.localStream.getAudioTracks()[0];
+			for (const pc of this.pcs.values()) {
+				const sender = pc.getSenders().find((s) => s.track === oldTrack);
+				if (sender) await sender.replaceTrack(newTrack);
+			}
+
+			this.detachSpeakingAnalyser(SELF_KEY);
+			if (oldTrack) {
+				oldTrack.stop();
+				this.localStream.removeTrack(oldTrack);
+			}
+			this.localStream.addTrack(newTrack);
+			this.applyMuted();
+			this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
+			this.notify();
+		} catch {
+			// couldn't switch - keep using the current input rather than dropping audio
+		}
+	}
+
+	setOutputDevice(deviceId: string | null) {
+		this.outputDeviceId = deviceId;
+		this.persistSettings();
+		this.notify();
+	}
+
+	setOutputVolume(volume: number) {
+		this.outputVolume = Math.min(1, Math.max(0, volume));
+		this.persistSettings();
+		this.notify();
+	}
+
+	async setNoiseSuppression(enabled: boolean): Promise<void> {
+		this.noiseSuppression = enabled;
+		this.persistSettings();
+		const track = this.localStream?.getAudioTracks()[0];
+		if (!track) return;
+		try {
+			await track.applyConstraints({ noiseSuppression: enabled });
+		} catch {
+			// device/browser doesn't support live constraint changes - takes effect on next join
+		}
+	}
+
+	setPushToTalk(enabled: boolean) {
+		this.pushToTalk = enabled;
+		this.persistSettings();
+		if (enabled) {
+			this.pushToTalkActive = false;
+			this.muted = true;
+			this.applyMuted();
+		} else {
+			this.muted = false;
+			this.applyMuted();
+		}
+	}
+
+	setPushToTalkKey(code: string) {
+		this.pushToTalkKey = code;
+		this.persistSettings();
+	}
+
+	handlePushToTalkKeydown(code: string) {
+		if (!this.pushToTalk || code !== this.pushToTalkKey || this.pushToTalkActive) return;
+		this.pushToTalkActive = true;
+		this.muted = false;
+		this.applyMuted();
+	}
+
+	handlePushToTalkKeyup(code: string) {
+		if (!this.pushToTalk || code !== this.pushToTalkKey) return;
+		this.pushToTalkActive = false;
+		this.muted = true;
+		this.applyMuted();
+	}
+
 	async join(token: string, roomId: string, label: string): Promise<void> {
 		if (this.roomId === roomId) return;
 		if (this.roomId) await this.leave();
@@ -99,10 +260,17 @@ class CallStore {
 		}
 
 		try {
-			this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			const constraints: MediaTrackConstraints = { noiseSuppression: this.noiseSuppression };
+			if (this.inputDeviceId) constraints.deviceId = { exact: this.inputDeviceId };
+			this.localStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
 		} catch {
 			this.teardown();
 			throw new Error("Microphone access was denied");
+		}
+		this.refreshDevices();
+		if (this.pushToTalk) {
+			this.muted = true;
+			this.pushToTalkActive = false;
 		}
 		this.applyMuted();
 		this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
@@ -464,3 +632,12 @@ class CallStore {
 }
 
 export const call = new CallStore();
+
+if (typeof window !== "undefined") {
+	window.addEventListener("keydown", (e) => {
+		if (e.repeat) return;
+		call.handlePushToTalkKeydown(e.code);
+	});
+	window.addEventListener("keyup", (e) => call.handlePushToTalkKeyup(e.code));
+	window.addEventListener("blur", () => call.handlePushToTalkKeyup(call.pushToTalkKey));
+}

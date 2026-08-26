@@ -4,9 +4,12 @@
 	import Headphones from "@lucide/svelte/icons/headphones";
 	import HeadphoneOff from "@lucide/svelte/icons/headphone-off";
 	import Settings from "@lucide/svelte/icons/settings";
+	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import SettingsModal from "$lib/components/SettingsModal.svelte";
 	import EditProfileModal from "$lib/components/EditProfileModal.svelte";
 	import OwnProfilePopover from "$lib/components/OwnProfilePopover.svelte";
+	import VoiceSettingsPanel from "$lib/components/VoiceSettingsPanel.svelte";
+	import { clickOutside } from "$lib/actions/clickOutside";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { call } from "$lib/webrtc/call.svelte";
@@ -18,9 +21,16 @@
 	} = $props();
 
 	let settingsOpen = $state(false);
-	let settingsInitialSection = $state<"account" | "profile">("account");
+	let settingsInitialSection = $state<"account" | "profile" | "voice">("account");
 	let profileAnchor = $state<HTMLElement | null>(null);
 	let editProfileOpen = $state(false);
+	let voicePanel = $state<"input" | "output" | null>(null);
+
+	function openVoiceSettings() {
+		voicePanel = null;
+		settingsInitialSection = "voice";
+		settingsOpen = true;
+	}
 
 	function openEditProfile() {
 		editProfileOpen = true;
@@ -79,24 +89,54 @@
 		</div>
 	</button>
 	<div class="controls">
-		<button
-			class="icon-button"
-			class:muted-active={call.muted}
-			aria-label={call.muted ? "Unmute" : "Mute"}
-			onclick={() => call.toggleMute()}
-		>
-			{#if call.muted}<MicOff size={18} strokeWidth={2} />{:else}<Mic size={18} strokeWidth={2} />{/if}
-			<span class="tooltip">{call.muted ? "Unmute" : "Mute"}</span>
-		</button>
-		<button
-			class="icon-button"
-			class:muted-active={call.deafened}
-			aria-label={call.deafened ? "Undeafen" : "Deafen"}
-			onclick={() => call.toggleDeafen()}
-		>
-			{#if call.deafened}<HeadphoneOff size={18} strokeWidth={2} />{:else}<Headphones size={18} strokeWidth={2} />{/if}
-			<span class="tooltip">{call.deafened ? "Undeafen" : "Deafen"}</span>
-		</button>
+		<div class="control-group">
+			<button
+				class="icon-button"
+				class:muted-active={call.muted}
+				aria-label={call.muted ? "Unmute" : "Mute"}
+				onclick={() => call.toggleMute()}
+			>
+				{#if call.muted}<MicOff size={18} strokeWidth={2} />{:else}<Mic size={18} strokeWidth={2} />{/if}
+				<span class="tooltip">{call.muted ? "Unmute" : "Mute"}</span>
+			</button>
+			<button
+				class="chevron-btn"
+				aria-label="Input Options"
+				onclick={() => (voicePanel = voicePanel === "input" ? null : "input")}
+			>
+				<ChevronDown size={12} strokeWidth={2.5} />
+				<span class="tooltip">Input Options</span>
+			</button>
+			{#if voicePanel === "input"}
+				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)}>
+					<VoiceSettingsPanel focus="input" onOpenFullSettings={openVoiceSettings} />
+				</div>
+			{/if}
+		</div>
+		<div class="control-group">
+			<button
+				class="icon-button"
+				class:muted-active={call.deafened}
+				aria-label={call.deafened ? "Undeafen" : "Deafen"}
+				onclick={() => call.toggleDeafen()}
+			>
+				{#if call.deafened}<HeadphoneOff size={18} strokeWidth={2} />{:else}<Headphones size={18} strokeWidth={2} />{/if}
+				<span class="tooltip">{call.deafened ? "Undeafen" : "Deafen"}</span>
+			</button>
+			<button
+				class="chevron-btn"
+				aria-label="Output Options"
+				onclick={() => (voicePanel = voicePanel === "output" ? null : "output")}
+			>
+				<ChevronDown size={12} strokeWidth={2.5} />
+				<span class="tooltip">Output Options</span>
+			</button>
+			{#if voicePanel === "output"}
+				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)}>
+					<VoiceSettingsPanel focus="output" onOpenFullSettings={openVoiceSettings} />
+				</div>
+			{/if}
+		</div>
 		<button class="icon-button" aria-label="User Settings" onclick={() => { settingsInitialSection = "account"; settingsOpen = true; }}>
 			<Settings size={18} strokeWidth={2} />
 			<span class="tooltip">User Settings</span>
@@ -257,6 +297,53 @@
 	.icon-button:hover {
 		background: var(--active);
 		color: var(--ink);
+	}
+
+	.control-group {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.chevron-btn {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 24px;
+		margin-left: -4px;
+		border-radius: 4px;
+		color: var(--ink-faint);
+		opacity: 0;
+		transition: opacity 0.1s ease, background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.control-group:hover .chevron-btn,
+	.control-group:focus-within .chevron-btn {
+		opacity: 1;
+	}
+
+	.chevron-btn:hover {
+		background: var(--active);
+		color: var(--ink);
+	}
+
+	.chevron-btn:hover .tooltip {
+		opacity: 1;
+	}
+
+	.voice-popover {
+		position: absolute;
+		bottom: calc(100% + 10px);
+		left: 50%;
+		transform: translateX(-50%);
+		width: 260px;
+		padding: 14px;
+		border-radius: 10px;
+		background: var(--panel);
+		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+		z-index: 60;
 	}
 
 	.icon-button.muted-active {
