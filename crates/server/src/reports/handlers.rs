@@ -148,3 +148,77 @@ pub async fn create_report(
 
     Ok(Json(CreateReportResponse { id: id.0 }))
 }
+
+async fn require_staff(pool: &sqlx::PgPool, user_id: Uuid) -> Result<(), AppError> {
+    let row: Option<(i32,)> = sqlx::query_as(
+        "SELECT 1 FROM user_badges WHERE user_id = $1 AND badge_slug IN ('owner', 'staff') LIMIT 1",
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(|_| ()).ok_or(AppError::Unauthorized)
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct ReportSummaryDto {
+    pub id: Uuid,
+    pub reporter_username: String,
+    pub reported_username: String,
+    pub context_kind: String,
+    pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Deliberately metadata-only: who reported whom, when, about what kind of
+/// context. The actual complaint text stays sealed to a key this server
+/// never holds - staff read it offline via tools/decrypt-report.mjs, then
+/// come back here just to triage status and reply as Hollow Support.
+pub async fn list_reports(
+    State(state): State<AppState>,
+    session: AuthSession,
+) -> Result<Json<Vec<ReportSummaryDto>>, AppError> {
+    require_staff(&state.pool, session.user_id).await?;
+
+    let rows: Vec<ReportSummaryDto> = sqlx::query_as(
+        "SELECT reports.id, reporter.username AS reporter_username, \
+                reported.username AS reported_username, \
+                reports.context_kind, reports.status, reports.created_at \
+         FROM reports \
+         JOIN users reporter ON reporter.id = reports.reporter_id \
+         JOIN users reported ON reported.id = reports.reported_user_id \
+         ORDER BY reports.created_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateReportStatusRequest {
+    pub status: String,
+}
+
+const REPORT_STATUSES: &[&str] = &["open", "reviewing", "resolved", "dismissed"];
+
+pub async fn update_report_status(
+    State(state): State<AppState>,
+    session: AuthSession,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+    Json(payload): Json<UpdateReportStatusRequest>,
+) -> Result<(), AppError> {
+    require_staff(&state.pool, session.user_id).await?;
+
+    if !REPORT_STATUSES.contains(&payload.status.as_str()) {
+        return Err(AppError::InvalidReport);
+    }
+
+    sqlx::query("UPDATE reports SET status = $1 WHERE id = $2")
+        .bind(&payload.status)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(())
+}

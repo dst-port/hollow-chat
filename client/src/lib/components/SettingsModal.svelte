@@ -19,6 +19,8 @@
 	import Smartphone from "@lucide/svelte/icons/smartphone";
 	import ImagePlus from "@lucide/svelte/icons/image-plus";
 	import Pencil from "@lucide/svelte/icons/pencil";
+	import ShieldAlert from "@lucide/svelte/icons/shield-alert";
+	import MessageSquare from "@lucide/svelte/icons/message-square";
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import QRCode from "qrcode";
 	import { renameLocalIdentity } from "$lib/crypto/identity";
@@ -31,6 +33,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { themeStore, COLOR_GROUPS, COLOR_LABELS } from "$lib/stores/theme.svelte";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
+	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import Badges from "$lib/components/Badges.svelte";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import * as api from "$lib/api/client";
@@ -50,7 +53,8 @@
 		| "appearance"
 		| "accessibility"
 		| "sessions"
-		| "billing";
+		| "billing"
+		| "moderation";
 	let section = $state<Section>(initialSection);
 	let navSearch = $state("");
 
@@ -105,6 +109,45 @@
 			})
 			.catch(() => {});
 	});
+
+	let reports = $state<api.ReportSummary[]>([]);
+	let reportsLoading = $state(false);
+	let reportStatusFilter = $state<api.ReportStatus | "all">("open");
+
+	$effect(() => {
+		const token = session.token;
+		if (!token || section !== "moderation" || !isStaff) return;
+		reportsLoading = true;
+		api
+			.listReports(token)
+			.then((rows) => (reports = rows))
+			.catch(() => toast.push("Couldn't load reports"))
+			.finally(() => (reportsLoading = false));
+	});
+
+	const visibleReports = $derived(
+		reportStatusFilter === "all" ? reports : reports.filter((r) => r.status === reportStatusFilter)
+	);
+
+	async function setReportStatus(report: api.ReportSummary, status: api.ReportStatus) {
+		const token = session.token;
+		if (!token) return;
+		const previous = report.status;
+		report.status = status;
+		try {
+			await api.updateReportStatus(token, report.id, status);
+		} catch {
+			report.status = previous;
+			toast.push("Couldn't update report");
+		}
+	}
+
+	function messageReporter(username: string) {
+		pendingDm.request(username);
+		onClose();
+	}
+
+	const REPORT_FILTERS: (api.ReportStatus | "all")[] = ["open", "reviewing", "resolved", "dismissed", "all"];
 
 	async function toggleBoost(serverId: string) {
 		const token = session.token;
@@ -419,6 +462,14 @@
 	});
 
 	$effect(() => {
+		if (session.token) badgeStore.loadForUser(session.token, username);
+	});
+
+	const isStaff = $derived(
+		badgeStore.forUser(username).includes("owner") || badgeStore.forUser(username).includes("staff")
+	);
+
+	$effect(() => {
 		if (section === "sessions" && session.token) loadSessions();
 		if (section === "privacy" && session.token) loadBlocked();
 		if (section === "account" && session.token) loadTotpStatus();
@@ -607,6 +658,14 @@
 				<button class="nav-item" class:active={section === "billing"} onclick={() => (section = "billing")}>
 					<CreditCard size={16} strokeWidth={2} />
 					Billing
+				</button>
+			{/if}
+
+			{#if isStaff && matchesSearch("Moderation")}
+				<p class="nav-label">Staff</p>
+				<button class="nav-item" class:active={section === "moderation"} onclick={() => (section = "moderation")}>
+					<ShieldAlert size={16} strokeWidth={2} />
+					Moderation
 				</button>
 			{/if}
 
@@ -1168,7 +1227,7 @@
 						</div>
 					{/each}
 				</div>
-			{:else}
+			{:else if section === "billing"}
 				<h2>Billing</h2>
 
 				<div class="card plan-card" class:premium={billing?.tier === "premium"}>
@@ -1238,6 +1297,65 @@
 								{/each}
 							</div>
 						{/if}
+					</div>
+				{/if}
+			{:else if section === "moderation" && isStaff}
+				<h2>Moderation</h2>
+				<div class="card">
+					<p class="row-value muted" style="margin-bottom: 12px;">
+						Report contents are sealed to a key this app never holds — decrypt them offline with
+						<code>tools/decrypt-report.mjs</code>. This just tracks who reported whom and lets you
+						open a reply DM as Hollow Support.
+					</p>
+					<div class="report-filter">
+						{#each REPORT_FILTERS as filter (filter)}
+							<button
+								type="button"
+								class="filter-chip"
+								class:active={reportStatusFilter === filter}
+								onclick={() => (reportStatusFilter = filter)}
+							>
+								{filter}
+							</button>
+						{/each}
+					</div>
+				</div>
+				{#if reportsLoading}
+					<p class="row-value muted">Loading…</p>
+				{:else if visibleReports.length === 0}
+					<p class="row-value muted">No reports here.</p>
+				{:else}
+					<div class="report-list">
+						{#each visibleReports as report (report.id)}
+							<div class="report-row">
+								<div class="report-main">
+									<p class="report-line">
+										<strong>{report.reporter_username}</strong> reported
+										<strong>{report.reported_username}</strong>
+									</p>
+									<p class="report-meta">
+										{report.context_kind} · {new Date(report.created_at).toLocaleString()}
+									</p>
+								</div>
+								<select
+									value={report.status}
+									onchange={(e) => setReportStatus(report, e.currentTarget.value as api.ReportStatus)}
+								>
+									<option value="open">Open</option>
+									<option value="reviewing">Reviewing</option>
+									<option value="resolved">Resolved</option>
+									<option value="dismissed">Dismissed</option>
+								</select>
+								<button
+									type="button"
+									class="save"
+									onclick={() => messageReporter(report.reporter_username)}
+								>
+									<MessageSquare size={14} strokeWidth={2} />
+									Message
+								</button>
+							</div>
+						{/each}
 					</div>
 				{/if}
 			{/if}
@@ -1693,6 +1811,77 @@
 	.boost-toggle:disabled {
 		opacity: 0.5;
 		cursor: default;
+	}
+
+	.report-filter {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.filter-chip {
+		padding: 5px 12px;
+		border-radius: 999px;
+		background: var(--active);
+		color: var(--ink-dim);
+		font-size: 12px;
+		font-weight: 600;
+		text-transform: capitalize;
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.filter-chip:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.filter-chip.active {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
+	}
+
+	.report-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.report-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 12px;
+		border-radius: 8px;
+		background: var(--sidebar);
+	}
+
+	.report-main {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.report-line {
+		margin: 0;
+		font-size: 13px;
+		color: var(--ink);
+	}
+
+	.report-meta {
+		margin: 2px 0 0;
+		font-size: 11px;
+		color: var(--ink-faint);
+		text-transform: capitalize;
+	}
+
+	.report-row select {
+		flex-shrink: 0;
+	}
+
+	.report-row .save {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 5px;
 	}
 
 	.ghost {

@@ -1217,6 +1217,31 @@ export function submitReport(token: string, body: SubmitReportBody) {
 	});
 }
 
+export type ReportStatus = "open" | "reviewing" | "resolved" | "dismissed";
+
+export type ReportSummary = {
+	id: string;
+	reporter_username: string;
+	reported_username: string;
+	context_kind: string;
+	status: ReportStatus;
+	created_at: string;
+};
+
+export function listReports(token: string) {
+	return request<ReportSummary[]>("/reports", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function updateReportStatus(token: string, id: string, status: ReportStatus) {
+	return request<void>(`/reports/${id}/status`, {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ status })
+	});
+}
+
 export function gameCover(token: string, name: string) {
 	return request<{ url: string | null }>(`/games/cover?name=${encodeURIComponent(name)}`, {
 		headers: { authorization: `Bearer ${token}` }

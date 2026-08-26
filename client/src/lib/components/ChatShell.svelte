@@ -122,6 +122,10 @@
 		activeServerId = null;
 	}
 
+	$effect(() => {
+		if (pendingDm.username && activeServerId !== null) activeServerId = null;
+	});
+
 	function selectChannel(id: string) {
 		activeChannelId = id;
 		if (activeServer) {
