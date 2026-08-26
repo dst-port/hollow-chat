@@ -55,10 +55,41 @@
 
 	const ownProfile = $derived(profileStore.forUser(session.username ?? ""));
 
-	const stageCount = $derived(1 + call.participants.length);
-	const gridCols = $derived(
-		stageCount <= 1 ? 1 : stageCount <= 4 ? 2 : stageCount <= 9 ? 3 : 4
+	const hasSpotlight = $derived(
+		call.screenSharing || sharingUserIds.size > 0 || call.cameraEnabled || camUserIds.size > 0
 	);
+
+	type QuietEntry = { key: string; name: string; avatarUrl?: string; speaking: boolean; isSelf: boolean };
+
+	const quietParticipants = $derived.by(() => {
+		const entries: QuietEntry[] = [];
+		if (!call.cameraEnabled) {
+			entries.push({
+				key: "self",
+				name: ownProfile?.display_name || session.username || "",
+				avatarUrl: ownProfile?.avatar_url ? api.resolveUrl(ownProfile.avatar_url, session.token) : undefined,
+				speaking: call.selfSpeaking && !call.muted,
+				isSelf: true
+			});
+		}
+		for (const participant of call.participants) {
+			if (camUserIds.has(participant.userId)) continue;
+			const remoteProfile = profileStore.forUser(participant.username);
+			entries.push({
+				key: participant.userId,
+				name: remoteProfile?.display_name || participant.username,
+				avatarUrl: remoteProfile?.avatar_url ? api.resolveUrl(remoteProfile.avatar_url, session.token) : undefined,
+				speaking: call.speakingUserIds.has(participant.userId),
+				isSelf: false
+			});
+		}
+		return entries;
+	});
+
+	const gridCols = $derived.by(() => {
+		const n = quietParticipants.length;
+		return n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+	});
 
 	function initials(name: string) {
 		return name.slice(0, 2).toUpperCase();
@@ -79,68 +110,64 @@
 			<span>{server.name} / {channel.name}</span>
 		</div>
 
-		{#if call.screenSharing || sharingUserIds.size > 0}
-			<div class="screen-row">
+		{#if hasSpotlight}
+			<div class="spotlight-row">
 				{#if call.screenSharing}
-					<div class="screen-tile">
+					<div class="spotlight-tile screen">
 						<video use:attachLocalScreenStream autoplay playsinline muted></video>
 						<span class="tile-name">Your screen</span>
 					</div>
 				{/if}
 				{#each call.participants as participant (participant.userId)}
 					{#if sharingUserIds.has(participant.userId)}
-						<div class="screen-tile">
+						<div class="spotlight-tile screen">
 							<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline></video>
 							<span class="tile-name">{participant.username}'s screen</span>
+						</div>
+					{/if}
+				{/each}
+				{#if call.cameraEnabled}
+					<div class="spotlight-tile" class:speaking={call.selfSpeaking && !call.muted}>
+						<video use:attachLocalStream autoplay playsinline muted></video>
+						<span class="tile-name">
+							{#if call.muted}<MicOff size={12} strokeWidth={2.25} />{:else}<Mic size={12} strokeWidth={2.25} />{/if}
+							{ownProfile?.display_name || session.username} (you)
+						</span>
+					</div>
+				{/if}
+				{#each call.participants as participant (participant.userId)}
+					{#if camUserIds.has(participant.userId)}
+						{@const remoteProfile = profileStore.forUser(participant.username)}
+						<div class="spotlight-tile" class:speaking={call.speakingUserIds.has(participant.userId)}>
+							<video use:attachRemoteStream={participant.userId} autoplay playsinline muted></video>
+							<span class="tile-name">{remoteProfile?.display_name || participant.username}</span>
 						</div>
 					{/if}
 				{/each}
 			</div>
 		{/if}
 
-		<div class="grid" style:grid-template-columns={`repeat(${gridCols}, 1fr)`}>
-			<div class="cell" class:speaking={call.selfSpeaking && !call.muted}>
-				{#if call.cameraEnabled}
-					<video class="cell-video" use:attachLocalStream autoplay playsinline muted></video>
-				{:else}
-					<div
-						class="cell-avatar"
-						style:background={ownProfile?.avatar_url ? undefined : "var(--accent-fill)"}
-						style:background-image={ownProfile?.avatar_url
-							? `url(${api.resolveUrl(ownProfile.avatar_url, session.token)})`
-							: undefined}
-					>
-						{#if !ownProfile?.avatar_url}<span>{initials(session.username ?? "")}</span>{/if}
-					</div>
-				{/if}
-				<div class="cell-tag">
-					{#if call.muted}<MicOff size={13} strokeWidth={2.25} />{:else}<Mic size={13} strokeWidth={2.25} />{/if}
-					<span>{ownProfile?.display_name || session.username} (you)</span>
-				</div>
-			</div>
-
-			{#each call.participants as participant (participant.userId)}
-				{@const remoteProfile = profileStore.forUser(participant.username)}
-				<div class="cell" class:speaking={call.speakingUserIds.has(participant.userId)}>
-					{#if camUserIds.has(participant.userId)}
-						<video class="cell-video" use:attachRemoteStream={participant.userId} autoplay playsinline muted></video>
-					{:else}
+		{#if quietParticipants.length > 0}
+			<div class="grid" style:grid-template-columns={`repeat(${gridCols}, 1fr)`}>
+				{#each quietParticipants as entry (entry.key)}
+					<div class="cell" class:speaking={entry.speaking}>
 						<div
 							class="cell-avatar"
-							style:background={remoteProfile?.avatar_url ? undefined : "var(--accent-fill)"}
-							style:background-image={remoteProfile?.avatar_url
-								? `url(${api.resolveUrl(remoteProfile.avatar_url, session.token)})`
-								: undefined}
+							style:background={entry.avatarUrl ? undefined : "var(--accent-fill)"}
+							style:background-image={entry.avatarUrl ? `url(${entry.avatarUrl})` : undefined}
 						>
-							{#if !remoteProfile?.avatar_url}<span>{initials(participant.username)}</span>{/if}
+							{#if !entry.avatarUrl}<span>{initials(entry.name)}</span>{/if}
 						</div>
-					{/if}
-					<div class="cell-tag">
-						<span>{remoteProfile?.display_name || participant.username}</span>
+						<div class="cell-tag">
+							{#if entry.isSelf}
+								{#if call.muted}<MicOff size={13} strokeWidth={2.25} />{:else}<Mic size={13} strokeWidth={2.25} />{/if}
+							{/if}
+							<span>{entry.name}{entry.isSelf ? " (you)" : ""}</span>
+						</div>
 					</div>
-				</div>
-			{/each}
-		</div>
+				{/each}
+			</div>
+		{/if}
 
 		<div class="controls">
 			<button class="ctrl" class:active-danger={call.muted} aria-label={call.muted ? "Unmute" : "Mute"} onclick={() => call.toggleMute()}>
@@ -241,38 +268,58 @@
 		font-size: 13px;
 	}
 
-	.screen-row {
+	.spotlight-row {
 		flex-shrink: 0;
 		display: flex;
 		gap: 10px;
 		padding: 16px 20px 0;
 		flex-wrap: wrap;
+		max-height: 60%;
 	}
 
-	.screen-tile {
+	.spotlight-tile {
 		position: relative;
-		flex: 1;
-		min-width: 320px;
+		flex: 1 1 320px;
+		min-width: 280px;
 		aspect-ratio: 16 / 9;
 		border-radius: 10px;
 		overflow: hidden;
 		background: black;
+		box-shadow: 0 0 0 2px transparent;
+		transition: box-shadow 0.12s ease;
 	}
 
-	.screen-tile video {
+	.spotlight-tile.speaking {
+		box-shadow: 0 0 0 2px var(--online);
+	}
+
+	.spotlight-tile video {
 		width: 100%;
 		height: 100%;
+		object-fit: cover;
+	}
+
+	.spotlight-tile.screen {
+		background: black;
+	}
+
+	.spotlight-tile.screen video {
 		object-fit: contain;
 	}
 
-	.screen-tile .tile-name {
+	.spotlight-tile .tile-name {
 		position: absolute;
 		left: 10px;
 		bottom: 8px;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding: 3px 8px;
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.55);
 		font-size: 12px;
 		font-weight: 600;
 		color: white;
-		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 	}
 
 	.grid {

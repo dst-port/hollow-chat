@@ -57,6 +57,11 @@
 		return Array.from(groups.entries()).map(([name, channels]) => ({ name, channels }));
 	});
 
+	const sharingUserIds = $derived.by(() => {
+		call.streamsVersion;
+		return new Set(call.participants.filter((p) => call.getRemoteScreenStream(p.userId)).map((p) => p.userId));
+	});
+
 	function selectChannel(id: string) {
 		onSelectChannel(id);
 	}
@@ -165,6 +170,7 @@
 										<span class="voice-name" style:color={ownProfile?.accent_color || undefined}>
 											{ownProfile?.display_name || username}
 										</span>
+										{#if call.screenSharing}<span class="live-badge">LIVE</span>{/if}
 										<span class="voice-mic-state">
 											{#if call.muted}<MicOff size={13} strokeWidth={2} class="muted" />{:else}<Mic size={13} strokeWidth={2} />{/if}
 										</span>
@@ -183,6 +189,7 @@
 											<span class="voice-name" style:color={remoteProfile?.accent_color || undefined}>
 												{remoteProfile?.display_name || participant.username}
 											</span>
+											{#if sharingUserIds.has(participant.userId)}<span class="live-badge">LIVE</span>{/if}
 										</div>
 									{/each}
 									<button class="invite-to-voice" onclick={() => (inviteOpen = true)}>
@@ -408,6 +415,17 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.live-badge {
+		flex-shrink: 0;
+		padding: 1px 5px;
+		border-radius: 3px;
+		background: var(--danger);
+		color: white;
+		font-size: 9px;
+		font-weight: 800;
+		letter-spacing: 0.03em;
 	}
 
 	.voice-mic-state {

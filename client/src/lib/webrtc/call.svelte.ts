@@ -20,9 +20,9 @@ type ClientMsg =
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302"] }];
 
 const SELF_KEY = "__self__";
-const SPEAKING_THRESHOLD = 12;
-const SPEAKING_HOLD_MS = 350;
-const SPEAKING_POLL_MS = 120;
+const SPEAKING_THRESHOLD = 7;
+const SPEAKING_HOLD_MS = 250;
+const SPEAKING_POLL_MS = 70;
 
 class CallStore {
 	roomId = $state<string | null>(null);
