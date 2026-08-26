@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { fly } from "svelte/transition";
+	import { cubicOut } from "svelte/easing";
 	import Mic from "@lucide/svelte/icons/mic";
 	import MicOff from "@lucide/svelte/icons/mic-off";
 	import Headphones from "@lucide/svelte/icons/headphones";
@@ -108,7 +110,7 @@
 				<span class="tooltip">Input Options</span>
 			</button>
 			{#if voicePanel === "input"}
-				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)}>
+				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)} transition:fly={{ y: 6, duration: 140, easing: cubicOut }}>
 					<VoiceSettingsPanel focus="input" onOpenFullSettings={openVoiceSettings} />
 				</div>
 			{/if}
@@ -132,7 +134,7 @@
 				<span class="tooltip">Output Options</span>
 			</button>
 			{#if voicePanel === "output"}
-				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)}>
+				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)} transition:fly={{ y: 6, duration: 140, easing: cubicOut }}>
 					<VoiceSettingsPanel focus="output" onOpenFullSettings={openVoiceSettings} />
 				</div>
 			{/if}

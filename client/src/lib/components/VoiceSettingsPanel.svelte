@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import Check from "@lucide/svelte/icons/check";
+	import Dropdown from "$lib/components/Dropdown.svelte";
 	import { call } from "$lib/webrtc/call.svelte";
 
 	let { focus = "all", onOpenFullSettings }: {
@@ -31,18 +32,17 @@
 		<div class="section">
 			{#if focus === "all"}<p class="section-title">Input</p>{/if}
 
-			<label class="field">
+			<div class="field">
 				<span class="field-label">Input Device</span>
-				<select
+				<Dropdown
 					value={call.inputDeviceId ?? ""}
-					onchange={(e) => call.setInputDevice(e.currentTarget.value || null)}
-				>
-					<option value="">System Default</option>
-					{#each call.inputDevices as device (device.deviceId)}
-						<option value={device.deviceId}>{device.label || "Microphone"}</option>
-					{/each}
-				</select>
-			</label>
+					options={[
+						{ value: "", label: "System Default" },
+						...call.inputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Microphone" }))
+					]}
+					onChange={(v) => call.setInputDevice(v || null)}
+				/>
+			</div>
 
 			<div class="field">
 				<span class="field-label">Noise Suppression</span>
@@ -81,14 +81,10 @@
 			</label>
 
 			{#if call.pushToTalk}
-				<label class="field">
+				<div class="field">
 					<span class="field-label">Push to Talk Key</span>
-					<select value={call.pushToTalkKey} onchange={(e) => call.setPushToTalkKey(e.currentTarget.value)}>
-						{#each PTT_KEYS as key (key.code)}
-							<option value={key.code}>{key.label}</option>
-						{/each}
-					</select>
-				</label>
+					<Dropdown value={call.pushToTalkKey} options={PTT_KEYS.map((k) => ({ value: k.code, label: k.label }))} onChange={(v) => call.setPushToTalkKey(v)} />
+				</div>
 				<p class="hint">Hold {keyLabel(call.pushToTalkKey)} to transmit.</p>
 			{/if}
 		</div>
@@ -98,18 +94,17 @@
 		<div class="section">
 			{#if focus === "all"}<p class="section-title">Output</p>{/if}
 
-			<label class="field">
+			<div class="field">
 				<span class="field-label">Output Device</span>
-				<select
+				<Dropdown
 					value={call.outputDeviceId ?? ""}
-					onchange={(e) => call.setOutputDevice(e.currentTarget.value || null)}
-				>
-					<option value="">System Default</option>
-					{#each call.outputDevices as device (device.deviceId)}
-						<option value={device.deviceId}>{device.label || "Speaker"}</option>
-					{/each}
-				</select>
-			</label>
+					options={[
+						{ value: "", label: "System Default" },
+						...call.outputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Speaker" }))
+					]}
+					onChange={(v) => call.setOutputDevice(v || null)}
+				/>
+			</div>
 
 			<label class="field">
 				<span class="field-label">Output Volume</span>
@@ -161,15 +156,6 @@
 		font-size: 12px;
 		font-weight: 600;
 		color: var(--ink-dim);
-	}
-
-	select {
-		width: 100%;
-		padding: 7px 9px;
-		border-radius: 6px;
-		background: var(--active);
-		color: var(--ink);
-		font-size: 13px;
 	}
 
 	input[type="range"] {
