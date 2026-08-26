@@ -20,6 +20,8 @@
 	import AtSign from "@lucide/svelte/icons/at-sign";
 	import Eye from "@lucide/svelte/icons/eye";
 	import EyeOff from "@lucide/svelte/icons/eye-off";
+	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+	import Loader2 from "@lucide/svelte/icons/loader-2";
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import CropAttachmentModal from "$lib/components/CropAttachmentModal.svelte";
@@ -1213,25 +1215,38 @@
 					{#if pendingIsSpoiler}
 						<span class="spoiler-tag">Spoiler</span>
 					{/if}
-					<div class="attachment-hover-actions">
-						{#if pendingFilePreviewUrl}
-							{@const previewUrl = pendingFilePreviewUrl}
-							<button type="button" title="Preview" onclick={() => window.open(previewUrl, "_blank", "noreferrer")}>
-								<Eye size={16} strokeWidth={2} />
+					{#if uploading}
+						<div class="attachment-uploading">
+							<Loader2 size={22} strokeWidth={2} class="spin" />
+						</div>
+					{:else}
+						<div class="attachment-hover-actions">
+							{#if pendingFilePreviewUrl}
+								{@const previewUrl = pendingFilePreviewUrl}
+								<button type="button" title="Preview" onclick={() => window.open(previewUrl, "_blank", "noreferrer")}>
+									<Eye size={16} strokeWidth={2} />
+								</button>
+								<button type="button" title="Edit" onclick={() => (cropModalOpen = true)}>
+									<Pencil size={16} strokeWidth={2} />
+								</button>
+								<button
+									type="button"
+									class:active={pendingIsSpoiler}
+									title={pendingIsSpoiler ? "Unmark spoiler" : "Mark as spoiler"}
+									onclick={toggleSpoiler}
+								>
+									<TriangleAlert size={16} strokeWidth={2} />
+								</button>
+							{/if}
+							<button type="button" title="Remove" onclick={clearPendingFile}>
+								<Trash2 size={16} strokeWidth={2} />
 							</button>
-							<button type="button" title="Edit" onclick={() => (cropModalOpen = true)}>
-								<Pencil size={16} strokeWidth={2} />
-							</button>
-							<button type="button" title={pendingIsSpoiler ? "Unmark spoiler" : "Mark as spoiler"} onclick={toggleSpoiler}>
-								<EyeOff size={16} strokeWidth={2} />
-							</button>
-						{/if}
-						<button type="button" title="Remove" onclick={clearPendingFile}>
-							<Trash2 size={16} strokeWidth={2} />
-						</button>
-					</div>
+						</div>
+					{/if}
 				</div>
-				<span class="attachment-preview-name">{pendingIsSpoiler ? pendingFile.name.slice(SPOILER_PREFIX.length) : pendingFile.name}</span>
+				<span class="attachment-preview-name">
+					{uploading ? "Uploading\u2026" : pendingIsSpoiler ? pendingFile.name.slice(SPOILER_PREFIX.length) : pendingFile.name}
+				</span>
 			</div>
 		</div>
 	{/if}
@@ -1301,7 +1316,11 @@
 			{/if}
 		</div>
 		<button type="submit" disabled={(draft.trim().length === 0 && !pendingFile) || uploading}>
-			<SendHorizontal size={16} strokeWidth={2.25} />
+			{#if uploading}
+				<Loader2 size={16} strokeWidth={2.25} class="spin" />
+			{:else}
+				<SendHorizontal size={16} strokeWidth={2.25} />
+			{/if}
 		</button>
 	</form>
 </section>
@@ -2035,6 +2054,34 @@
 
 	.attachment-hover-actions button:hover {
 		background: rgba(255, 255, 255, 0.24);
+	}
+
+	.attachment-hover-actions button.active {
+		background: var(--danger);
+		color: white;
+	}
+
+	:global(.spin) {
+		animation: spin 0.7s linear infinite;
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.attachment-uploading {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.55);
+		color: white;
 	}
 
 	.attachment-preview-name {
