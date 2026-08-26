@@ -142,14 +142,21 @@
 
 			<div class="field">
 				<span class="field-label">Output Device</span>
-				<Dropdown
-					value={call.outputDeviceId ?? ""}
-					options={[
-						{ value: "", label: "System Default" },
-						...call.outputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Speaker" }))
-					]}
-					onChange={(v) => call.setOutputDevice(v || null)}
-				/>
+				{#if call.outputDeviceSelectionSupported}
+					<Dropdown
+						value={call.outputDeviceId ?? ""}
+						options={[
+							{ value: "", label: "System Default" },
+							...call.outputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Speaker" }))
+						]}
+						onChange={(v) => call.setOutputDevice(v || null)}
+					/>
+				{:else}
+					<p class="hint warn">
+						This platform can't switch output device per-app — change it in your system's sound
+						settings instead.
+					</p>
+				{/if}
 			</div>
 
 			<label class="field">

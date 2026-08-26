@@ -175,6 +175,16 @@ class CallStore {
 
 	noiseSuppressionActive = $state(false);
 
+	/// setSinkId (routing audio output to a chosen device) is a Chromium
+	/// feature - WebKitGTK, our Linux desktop runtime, has never
+	/// implemented it. Enumerating audiooutput devices still half-works
+	/// there (sometimes empty, sometimes unlabeled), but picking one would
+	/// silently do nothing, so the UI should say so instead of offering a
+	/// picker that looks broken.
+	get outputDeviceSelectionSupported(): boolean {
+		return typeof HTMLMediaElement.prototype.setSinkId === "function";
+	}
+
 	async setInputDevice(deviceId: string | null): Promise<void> {
 		this.inputDeviceId = deviceId;
 		this.persistSettings();
