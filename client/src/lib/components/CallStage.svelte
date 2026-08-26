@@ -91,6 +91,8 @@
 		return n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
 	});
 
+	const gridRows = $derived(Math.max(1, Math.ceil(quietParticipants.length / gridCols)));
+
 	function initials(name: string) {
 		return name.slice(0, 2).toUpperCase();
 	}
@@ -148,7 +150,11 @@
 		{/if}
 
 		{#if quietParticipants.length > 0}
-			<div class="grid" style:grid-template-columns={`repeat(${gridCols}, 1fr)`}>
+			<div
+				class="grid"
+				style:grid-template-columns={`repeat(${gridCols}, 1fr)`}
+				style:grid-template-rows={`repeat(${gridRows}, 1fr)`}
+			>
 				{#each quietParticipants as entry (entry.key)}
 					<div class="cell" class:speaking={entry.speaking}>
 						<div
@@ -331,13 +337,12 @@
 		display: grid;
 		gap: 14px;
 		padding: 20px;
-		align-content: center;
-		overflow-y: auto;
+		overflow: hidden;
 	}
 
 	.cell {
 		position: relative;
-		aspect-ratio: 16 / 10;
+		min-height: 0;
 		border-radius: 12px;
 		background: var(--sidebar);
 		display: flex;
