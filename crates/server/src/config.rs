@@ -14,6 +14,8 @@ pub struct Config {
     pub ice_turn_credential: Option<String>,
     pub steamgriddb_api_key: Option<String>,
     pub cors_allowed_origins: Vec<String>,
+    pub telegram_bot_token: Option<String>,
+    pub telegram_chat_id: Option<String>,
 }
 
 impl Config {
@@ -60,6 +62,8 @@ impl Config {
                     .collect()
             })
             .unwrap_or_else(|| vec![app_base_url.clone()]);
+        let telegram_bot_token = std::env::var("TELEGRAM_BOT_TOKEN").ok();
+        let telegram_chat_id = std::env::var("TELEGRAM_CHAT_ID").ok();
 
         Self {
             database_url,
@@ -77,6 +81,8 @@ impl Config {
             ice_turn_credential,
             steamgriddb_api_key,
             cors_allowed_origins,
+            telegram_bot_token,
+            telegram_chat_id,
         }
     }
 }

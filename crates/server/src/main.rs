@@ -28,6 +28,7 @@ mod servers;
 mod session;
 mod social;
 mod state;
+mod telegram;
 mod totp;
 
 use axum::http::{HeaderValue, Method};
@@ -58,6 +59,18 @@ async fn main() {
     dotenvy::dotenv().ok();
 
     let config = Config::from_env();
+    telegram::init(config.telegram_bot_token.clone(), config.telegram_chat_id.clone());
+    if config.telegram_bot_token.is_some() {
+        telegram::notify("HollowChat server starting up");
+    }
+
+    // A panicking request handler only kills that one tokio task by
+    // default - the server keeps running, but silently, unless something's
+    // watching the logs. This turns "silently" into "pings Telegram".
+    std::panic::set_hook(Box::new(|info| {
+        tracing::error!("panic: {info}");
+        telegram::notify(format!("HollowChat server panic:\n{info}"));
+    }));
 
     let cors_origins: Vec<HeaderValue> = config
         .cors_allowed_origins

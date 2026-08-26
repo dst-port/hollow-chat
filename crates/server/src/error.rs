@@ -128,6 +128,11 @@ impl IntoResponse for AppError {
 
         if let AppError::Database(err) = &self {
             tracing::error!("database error: {err}");
+            crate::telegram::notify(format!("HollowChat database error:\n{err}"));
+        }
+        if matches!(&self, AppError::Hashing | AppError::Internal) {
+            tracing::error!("{self}");
+            crate::telegram::notify(format!("HollowChat internal error: {self}"));
         }
 
         let body = Json(json!({ "error": self.to_string() }));

@@ -38,6 +38,8 @@ services:
       ICE_TURN_USERNAME: ${ICE_TURN_USERNAME:-}
       ICE_TURN_CREDENTIAL: ${ICE_TURN_CREDENTIAL:-}
       STEAMGRIDDB_API_KEY: ${STEAMGRIDDB_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - hollowchat_attachments:/home/hollowchat/attachments
 
