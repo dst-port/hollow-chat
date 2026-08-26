@@ -5,9 +5,10 @@ function applyOutputSettings(node: HTMLMediaElement) {
 	const sinkCapable = node as HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
 	if (call.outputDeviceId && typeof sinkCapable.setSinkId === "function") {
 		sinkCapable.setSinkId(call.outputDeviceId).catch(() => {
-			// device unavailable or platform doesn't support setSinkId (WebKitGTK on Linux)
+			// device unavailable
 		});
 	}
+	call.reapplyOutputDevice();
 }
 
 export function attachRemoteStream(node: HTMLMediaElement, userId: string) {

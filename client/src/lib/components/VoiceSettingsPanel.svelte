@@ -147,7 +147,9 @@
 						value={call.outputDeviceId ?? ""}
 						options={[
 							{ value: "", label: "System Default" },
-							...call.outputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Speaker" }))
+							...(call.nativeOutputRouting
+								? call.nativeSinks.map((s) => ({ value: s.name, label: s.description }))
+								: call.outputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Speaker" })))
 						]}
 						onChange={(v) => call.setOutputDevice(v || null)}
 					/>

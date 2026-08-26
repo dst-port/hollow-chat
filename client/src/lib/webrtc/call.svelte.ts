@@ -1,4 +1,11 @@
 import { WS_BASE_URL, fetchIceServers } from "$lib/api/client";
+import {
+	nativeOutputRoutingAvailable,
+	listNativeAudioSinks,
+	setNativeAppAudioSink,
+	getNativeDefaultSink,
+	type AudioSink
+} from "$lib/utils/audioOutput";
 
 type Participant = { userId: string; username: string };
 
@@ -71,6 +78,8 @@ class CallStore {
 
 	inputDevices = $state<MediaDeviceInfo[]>([]);
 	outputDevices = $state<MediaDeviceInfo[]>([]);
+	nativeSinks = $state<AudioSink[]>([]);
+	nativeOutputRouting = $state(false);
 	private settings = loadVoiceSettings();
 	inputDeviceId = $state(this.settings.inputDeviceId);
 	outputDeviceId = $state(this.settings.outputDeviceId);
@@ -163,6 +172,11 @@ class CallStore {
 		} finally {
 			throwaway?.getTracks().forEach((t) => t.stop());
 		}
+
+		this.nativeOutputRouting = await nativeOutputRoutingAvailable();
+		if (this.nativeOutputRouting) {
+			this.nativeSinks = await listNativeAudioSinks();
+		}
 	}
 
 	get noiseSuppressionSupported(): boolean {
@@ -177,12 +191,11 @@ class CallStore {
 
 	/// setSinkId (routing audio output to a chosen device) is a Chromium
 	/// feature - WebKitGTK, our Linux desktop runtime, has never
-	/// implemented it. Enumerating audiooutput devices still half-works
-	/// there (sometimes empty, sometimes unlabeled), but picking one would
-	/// silently do nothing, so the UI should say so instead of offering a
-	/// picker that looks broken.
+	/// implemented it. There we route through PipeWire/PulseAudio directly
+	/// instead (see audio_output.rs + utils/audioOutput.ts), which is the
+	/// real, non-fake fix rather than just admitting defeat.
 	get outputDeviceSelectionSupported(): boolean {
-		return typeof HTMLMediaElement.prototype.setSinkId === "function";
+		return this.nativeOutputRouting || typeof HTMLMediaElement.prototype.setSinkId === "function";
 	}
 
 	async setInputDevice(deviceId: string | null): Promise<void> {
@@ -221,7 +234,27 @@ class CallStore {
 	setOutputDevice(deviceId: string | null) {
 		this.outputDeviceId = deviceId;
 		this.persistSettings();
+		this.reapplyOutputDevice();
 		this.notify();
+	}
+
+	/// Moves every currently-open stream onto the chosen sink - called both
+	/// when the setting changes and whenever a new remote audio element
+	/// attaches (a stream that opened after the last call would otherwise
+	/// stay on the default device). setNativeAppAudioSink no-ops instantly
+	/// if not on Linux, so this is cheap to call liberally. No explicit
+	/// choice ("System Default") still needs an actual sink name to move
+	/// to - PipeWire doesn't have a "reset to default" verb, so this asks
+	/// it what the current default is and targets that directly.
+	reapplyOutputDevice() {
+		if (!this.nativeOutputRouting) return;
+		if (this.outputDeviceId) {
+			void setNativeAppAudioSink(this.outputDeviceId);
+		} else {
+			void getNativeDefaultSink().then((sink) => {
+				if (sink) void setNativeAppAudioSink(sink);
+			});
+		}
 	}
 
 	setOutputVolume(volume: number) {
