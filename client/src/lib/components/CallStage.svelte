@@ -274,13 +274,16 @@
 		gap: 10px;
 		padding: 16px 20px 0;
 		flex-wrap: wrap;
-		max-height: 60%;
+		justify-content: center;
+		height: min(46vh, 420px);
+		overflow: hidden;
 	}
 
 	.spotlight-tile {
 		position: relative;
-		flex: 1 1 320px;
-		min-width: 280px;
+		flex: 0 1 auto;
+		height: 100%;
+		max-width: 100%;
 		aspect-ratio: 16 / 9;
 		border-radius: 10px;
 		overflow: hidden;
