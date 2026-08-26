@@ -29,7 +29,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,13 +36,5 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI2MDA4MTNDQ0QxRUZGQjEKUldTeC94N05QSUVBdG82dHJObERJN1ArS3ZZTWt3cml4ejNOWVYwQzA2c1gzc01HR0o4R05JMmQK",
-      "endpoints": [
-        "https://github.com/dst-port/hollow-chat/releases/latest/download/latest.json"
-      ]
-    }
   }
 }

@@ -3,14 +3,11 @@
 	import ToastHost from "$lib/components/ToastHost.svelte";
 	import TitleBar from "$lib/components/TitleBar.svelte";
 	import ResizeHandles from "$lib/components/ResizeHandles.svelte";
-	import UpdateBanner from "$lib/components/UpdateBanner.svelte";
 	import { themeStore } from "$lib/stores/theme.svelte";
-	import { initAutoUpdateCheck } from "$lib/stores/updater.svelte";
 
 	let { children } = $props();
 
 	themeStore.init();
-	initAutoUpdateCheck();
 
 	function blockNativeContextMenu(event: MouseEvent) {
 		const target = event.target as HTMLElement | null;
@@ -30,7 +27,6 @@
 </div>
 <ResizeHandles />
 <ToastHost />
-<UpdateBanner />
 
 <style>
 	.app-shell {

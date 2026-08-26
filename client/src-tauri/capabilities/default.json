@@ -13,8 +13,6 @@
     "core:window:allow-start-dragging",
     "core:window:allow-start-resize-dragging",
     "clipboard-manager:allow-read-image",
-    "clipboard-manager:allow-read-text",
-    "updater:default",
-    "process:allow-restart"
+    "clipboard-manager:allow-read-text"
   ]
 }

@@ -7,12 +7,6 @@ export type PresenceEvent = {
 	activity_application: string | null;
 	activity_details: string | null;
 	activity_state: string | null;
-	activity_image: string | null;
-	activity_small_image: string | null;
-	activity_small_text: string | null;
-	activity_started_at: string | null;
-	activity_party_size: number | null;
-	activity_party_max: number | null;
 	media_application: string | null;
 	media_details: string | null;
 	media_state: string | null;

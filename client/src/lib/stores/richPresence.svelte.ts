@@ -8,11 +8,7 @@ type PresencePayload = {
 	state: string | null;
 	large_text: string | null;
 	large_image: string | null;
-	small_image: string | null;
-	small_text: string | null;
 	start_timestamp: number | null;
-	party_size: number | null;
-	party_max: number | null;
 };
 
 const KNOWN_APPS: Record<string, string> = {
@@ -50,12 +46,6 @@ function resolveImageUrl(payload: PresencePayload): string | undefined {
 	return `https://cdn.discordapp.com/app-assets/${payload.application_id}/${payload.large_image}.png`;
 }
 
-function resolveSmallImageUrl(payload: PresencePayload): string | undefined {
-	if (!payload.application_id || !payload.small_image) return undefined;
-	if (payload.small_image.startsWith("mp:")) return undefined;
-	return `https://cdn.discordapp.com/app-assets/${payload.application_id}/${payload.small_image}.png`;
-}
-
 /// The spec says `timestamps.start` is milliseconds, but plenty of real
 /// SET_ACTIVITY senders get this wrong and send seconds instead. A
 /// legitimate ms-epoch value for any date after ~2001 is always >= 1e12;
@@ -71,14 +61,10 @@ function toActivityBody(payload: PresencePayload, kind: "game" | "media"): SetAc
 		details: payload.details ?? undefined,
 		state: payload.state ?? undefined,
 		image: kind === "game" ? resolveImageUrl(payload) : undefined,
-		small_image: kind === "game" ? resolveSmallImageUrl(payload) : undefined,
-		small_text: kind === "game" ? (payload.small_text ?? undefined) : undefined,
 		started_at:
 			kind === "game" && payload.start_timestamp
 				? new Date(normalizeStartMs(payload.start_timestamp)).toISOString()
 				: undefined,
-		party_size: kind === "game" ? (payload.party_size ?? undefined) : undefined,
-		party_max: kind === "game" ? (payload.party_max ?? undefined) : undefined,
 		kind
 	};
 }

@@ -911,11 +911,7 @@ export type ApiProfile = {
 	activity_details: string | null;
 	activity_state: string | null;
 	activity_image: string | null;
-	activity_small_image: string | null;
-	activity_small_text: string | null;
 	activity_started_at: string | null;
-	activity_party_size: number | null;
-	activity_party_max: number | null;
 	media_application: string | null;
 	media_details: string | null;
 	media_state: string | null;
@@ -980,11 +976,7 @@ export type SetActivityBody = {
 	details?: string;
 	state?: string;
 	image?: string;
-	small_image?: string;
-	small_text?: string;
 	started_at?: string;
-	party_size?: number;
-	party_max?: number;
 	kind?: "game" | "media";
 };
 
