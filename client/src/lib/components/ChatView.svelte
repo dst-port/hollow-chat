@@ -23,6 +23,8 @@
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import CropAttachmentModal from "$lib/components/CropAttachmentModal.svelte";
+	import Lightbox from "$lib/components/Lightbox.svelte";
+	import Maximize2 from "@lucide/svelte/icons/maximize-2";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
@@ -33,6 +35,7 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { customEmojiStore } from "$lib/stores/customEmoji.svelte";
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import {
 		recordEmojiUse,
@@ -196,6 +199,14 @@
 			return;
 		}
 	}
+
+	$effect(() => {
+		const token = session.token;
+		if (!token || !serverId) return;
+		customEmojiStore.load(token, serverId);
+	});
+
+	const customEmojiMap = $derived(customEmojiStore.mapFor(serverId ?? null, session.token));
 
 	function ensureProfileLoaded(username: string) {
 		const token = session.token;
@@ -498,7 +509,8 @@
 		if (!token) return;
 		for (const message of messages) {
 			const attachment = message.attachment;
-			if (attachment && attachment.mimeType.startsWith("image/") && !imageUrls[attachment.id]) {
+			const isMedia = attachment && (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("video/"));
+			if (attachment && isMedia && !imageUrls[attachment.id]) {
 				const loader =
 					attachment.key && attachment.nonce
 						? loadEncryptedAttachmentBlobUrl(token, attachment.id, attachment.key, attachment.nonce, attachment.mimeType)
@@ -571,6 +583,7 @@
 	}
 
 	let cropModalOpen = $state(false);
+	let lightbox = $state<{ src: string; kind: "image" | "video"; alt?: string } | null>(null);
 
 	function onCropped(file: File) {
 		pendingFile = file;
@@ -1068,7 +1081,7 @@
 							</form>
 						{:else if message.content}
 							<p class="content" use:emojify>
-								{@html renderMarkdown(message.content, session.username ?? undefined)}
+								{@html renderMarkdown(message.content, session.username ?? undefined, customEmojiMap)}
 								{#if message.edited && isGrouped(index)}<span class="edited-flag">(edited)</span>{/if}
 							</p>
 							{@const previewUrl = firstUrl(message.content)}
@@ -1094,22 +1107,55 @@
 						{#if message.attachment}
 							{@const isSpoiler = isSpoilerFilename(message.attachment.filename)}
 							{@const revealed = !isSpoiler || revealedSpoilers.has(message.id)}
+							{@const isVideo = message.attachment.mimeType.startsWith("video/")}
 							{#if message.attachment.mimeType.startsWith("image/") && imageUrls[message.attachment.id]}
 								{#if revealed}
-									<a
+									<button
 										class="attachment-image"
-										href={imageUrls[message.attachment.id]}
-										target="_blank"
-										rel="noreferrer"
+										onclick={() =>
+											(lightbox = {
+												src: imageUrls[message.attachment!.id],
+												kind: "image",
+												alt: displayFilename(message.attachment!.filename)
+											})}
 									>
 										<img src={imageUrls[message.attachment.id]} alt={displayFilename(message.attachment.filename)} />
-									</a>
+									</button>
 								{:else}
 									<button
 										class="attachment-image spoiler-hidden"
 										onclick={() => revealSpoiler(message.id)}
 									>
 										<img src={imageUrls[message.attachment.id]} alt="" />
+										<span class="spoiler-overlay">
+											<EyeOff size={20} strokeWidth={2} />
+											Spoiler — click to reveal
+										</span>
+									</button>
+								{/if}
+							{:else if isVideo && imageUrls[message.attachment.id]}
+								{#if revealed}
+									<div class="attachment-video">
+										<video src={imageUrls[message.attachment.id]} controls></video>
+										<button
+											class="video-expand"
+											title="Open larger"
+											onclick={() =>
+												(lightbox = {
+													src: imageUrls[message.attachment!.id],
+													kind: "video",
+													alt: displayFilename(message.attachment!.filename)
+												})}
+										>
+											<Maximize2 size={14} strokeWidth={2} />
+										</button>
+									</div>
+								{:else}
+									<button
+										class="attachment-image spoiler-hidden"
+										onclick={() => revealSpoiler(message.id)}
+									>
+										<video src={imageUrls[message.attachment.id]} muted></video>
 										<span class="spoiler-overlay">
 											<EyeOff size={20} strokeWidth={2} />
 											Spoiler — click to reveal
@@ -1249,6 +1295,16 @@
 		<CropAttachmentModal src={pendingFilePreviewUrl} filename={pendingFile.name} onCancel={() => (cropModalOpen = false)} onConfirm={onCropped} />
 	{/if}
 
+	{#if lightbox}
+		<Lightbox
+			src={lightbox.src}
+			kind={lightbox.kind}
+			alt={lightbox.alt}
+			onClose={() => (lightbox = null)}
+			onDownload={() => triggerDownload(lightbox!.src, lightbox!.alt ?? "file")}
+		/>
+	{/if}
+
 	<form class="composer" onsubmit={send}>
 		<input
 			type="file"
@@ -1306,7 +1362,11 @@
 				<Smile size={18} strokeWidth={2} />
 			</button>
 			{#if composerEmojiOpen}
-				<EmojiPicker onClose={() => (composerEmojiOpen = false)} onPick={insertEmoji} />
+				<EmojiPicker
+					onClose={() => (composerEmojiOpen = false)}
+					onPick={insertEmoji}
+					customEmoji={customEmojiStore.forServer(serverId ?? null)}
+				/>
 			{/if}
 		</div>
 		<button type="submit" disabled={(draft.trim().length === 0 && !pendingFile) || uploading}>
@@ -1715,6 +1775,13 @@
 		color: var(--ink);
 	}
 
+	.content :global(.md-emoji) {
+		width: 22px;
+		height: 22px;
+		object-fit: contain;
+		vertical-align: bottom;
+	}
+
 	.content :global(a.md-link) {
 		color: var(--accent-fill);
 		text-decoration: none;
@@ -1826,8 +1893,40 @@
 		display: block;
 		max-width: 320px;
 		margin-top: 4px;
+		padding: 0;
 		border-radius: 8px;
 		overflow: hidden;
+	}
+
+	.attachment-video {
+		position: relative;
+		max-width: 320px;
+		margin-top: 4px;
+	}
+
+	.attachment-video video {
+		display: block;
+		max-width: 100%;
+		max-height: 300px;
+		border-radius: 8px;
+	}
+
+	.video-expand {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.6);
+		color: white;
+	}
+
+	.video-expand:hover {
+		background: rgba(0, 0, 0, 0.8);
 	}
 
 	.attachment-image img {
@@ -1843,8 +1942,15 @@
 		cursor: pointer;
 	}
 
-	.attachment-image.spoiler-hidden img {
+	.attachment-image.spoiler-hidden img,
+	.attachment-image.spoiler-hidden video {
 		filter: blur(24px);
+	}
+
+	.attachment-image.spoiler-hidden video {
+		display: block;
+		max-width: 100%;
+		max-height: 300px;
 	}
 
 	.spoiler-overlay {

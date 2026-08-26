@@ -51,6 +51,18 @@ pub enum AppError {
     BillingProvider,
     #[error("couldn't generate an invite code, try again")]
     InviteGenerationFailed,
+    #[error("invalid invite code")]
+    InvalidInviteCode,
+    #[error("void shards are a premium perk")]
+    NotPremium,
+    #[error("all your boost slots are already assigned")]
+    BoostSlotsFull,
+    #[error("this server already has all the custom emoji slots its boost level allows")]
+    EmojiSlotsFull,
+    #[error("that emoji name is already used on this server")]
+    EmojiNameTaken,
+    #[error("invalid emoji name")]
+    InvalidEmojiName,
     #[error("invalid credentials")]
     InvalidCredentials,
     #[error("invalid or expired verification code")]
@@ -97,6 +109,12 @@ impl IntoResponse for AppError {
             AppError::BillingNotConfigured => StatusCode::SERVICE_UNAVAILABLE,
             AppError::BillingProvider => StatusCode::BAD_GATEWAY,
             AppError::InviteGenerationFailed => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::InvalidInviteCode => StatusCode::BAD_REQUEST,
+            AppError::NotPremium => StatusCode::FORBIDDEN,
+            AppError::BoostSlotsFull => StatusCode::CONFLICT,
+            AppError::EmojiSlotsFull => StatusCode::CONFLICT,
+            AppError::EmojiNameTaken => StatusCode::CONFLICT,
+            AppError::InvalidEmojiName => StatusCode::BAD_REQUEST,
             AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
             AppError::InvalidTotpCode => StatusCode::BAD_REQUEST,
             AppError::TotpNotConfigured => StatusCode::BAD_REQUEST,

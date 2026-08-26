@@ -12,6 +12,8 @@
 	import UserX from "@lucide/svelte/icons/user-x";
 	import Plus from "@lucide/svelte/icons/plus";
 	import Check from "@lucide/svelte/icons/check";
+	import Smile from "@lucide/svelte/icons/smile";
+	import Sparkles from "@lucide/svelte/icons/sparkles";
 	import InviteModal from "$lib/components/InviteModal.svelte";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
@@ -34,11 +36,21 @@
 		listBans,
 		banMember,
 		unbanMember,
+		getServerInvite,
+		setVanityInvite,
+		billingStatus,
+		getBoosts,
+		listCustomEmoji,
+		addCustomEmoji,
+		removeCustomEmoji,
+		ApiError,
 		PERMISSION_LABELS,
 		PERMISSIONS,
 		type ApiRole,
 		type ApiMember,
-		type ApiBan
+		type ApiBan,
+		type BoostStatus,
+		type CustomEmoji
 	} from "$lib/api/client";
 	import type { ServerEntry } from "$lib/data/mock";
 
@@ -48,7 +60,7 @@
 		onLeave: () => void;
 	} = $props();
 
-	type Section = "overview" | "channels" | "invites" | "roles" | "members" | "bans" | "moderation";
+	type Section = "overview" | "channels" | "invites" | "emoji" | "roles" | "members" | "bans" | "moderation";
 	const initialName = server.name;
 	const isOwner = server.ownerId === session.userId;
 
@@ -56,6 +68,110 @@
 	let members = $state<ApiMember[]>([]);
 	let bans = $state<ApiBan[]>([]);
 	let newRoleName = $state("");
+
+	let inviteCode = $state<string | null>(null);
+	let vanityCode = $state("");
+	let vanitySaving = $state(false);
+	let isPremiumOwner = $state(false);
+
+	let boostStatus = $state<BoostStatus | null>(null);
+	let customEmoji = $state<CustomEmoji[]>([]);
+	let newEmojiName = $state("");
+	let emojiUploading = $state(false);
+	let emojiInput: HTMLInputElement | undefined;
+
+	async function loadInvite() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			const invite = await getServerInvite(token, server.id);
+			inviteCode = invite.code;
+			vanityCode = invite.code;
+		} catch {
+			toast.push("Couldn't load invite");
+		}
+		if (isOwner) {
+			try {
+				const status = await billingStatus(token);
+				isPremiumOwner = status.tier === "premium";
+			} catch {
+				isPremiumOwner = false;
+			}
+		}
+	}
+
+	async function saveVanityCode() {
+		const token = session.token;
+		const code = vanityCode.trim();
+		if (!token || !code || code === inviteCode) return;
+		vanitySaving = true;
+		try {
+			const invite = await setVanityInvite(token, server.id, code);
+			inviteCode = invite.code;
+			vanityCode = invite.code;
+			toast.push("Invite link updated");
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 403) {
+				toast.push("Void Shards are a Premium perk");
+			} else if (err instanceof ApiError && err.status === 400) {
+				toast.push("3-32 letters, numbers, or dashes");
+			} else {
+				toast.push("That code is already taken");
+			}
+		} finally {
+			vanitySaving = false;
+		}
+	}
+
+	async function loadEmoji() {
+		const token = session.token;
+		if (!token) return;
+		try {
+			const [status, emoji] = await Promise.all([
+				getBoosts(token, server.id),
+				listCustomEmoji(token, server.id)
+			]);
+			boostStatus = status;
+			customEmoji = emoji;
+		} catch {
+			toast.push("Couldn't load emoji");
+		}
+	}
+
+	async function onEmojiFileChosen(event: Event) {
+		const token = session.token;
+		const file = (event.target as HTMLInputElement).files?.[0];
+		const name = newEmojiName.trim();
+		if (!token || !file || !name) return;
+		emojiUploading = true;
+		try {
+			const attachment = await uploadFile(token, file);
+			const emoji = await addCustomEmoji(token, server.id, name, attachment.id);
+			customEmoji = [...customEmoji, emoji];
+			newEmojiName = "";
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 409) {
+				if (err.message.includes("slot")) toast.push("No emoji slots left — boost this server for more");
+				else toast.push("That name is already used");
+			} else {
+				toast.push("Couldn't add emoji — name must be 2-32 letters/numbers/underscores");
+			}
+		} finally {
+			emojiUploading = false;
+			if (emojiInput) emojiInput.value = "";
+		}
+	}
+
+	async function removeEmoji(emoji: CustomEmoji) {
+		const token = session.token;
+		if (!token) return;
+		try {
+			await removeCustomEmoji(token, server.id, emoji.id);
+			customEmoji = customEmoji.filter((e) => e.id !== emoji.id);
+		} catch {
+			toast.push("Couldn't remove emoji");
+		}
+	}
 
 	let iconInput: HTMLInputElement | undefined;
 	let iconUploading = $state(false);
@@ -125,6 +241,8 @@
 			loadMembers();
 		}
 		if (section === "bans") loadBans();
+		if (section === "invites") loadInvite();
+		if (section === "emoji") loadEmoji();
 	});
 
 	async function addRole() {
@@ -319,6 +437,10 @@
 				<UserPlus size={16} strokeWidth={2} />
 				Invites
 			</button>
+			<button class="nav-item" class:active={section === "emoji"} onclick={() => (section = "emoji")}>
+				<Smile size={16} strokeWidth={2} />
+				Emoji
+			</button>
 			<button class="nav-item" class:active={section === "roles"} onclick={() => (section = "roles")}>
 				<ShieldCheck size={16} strokeWidth={2} />
 				Roles
@@ -440,6 +562,73 @@
 					</p>
 					<button class="save" onclick={() => (inviteOpen = true)}>Show Invite Link</button>
 				</div>
+				{#if isOwner}
+					<div class="card">
+						<p class="row-label">Vanity invite code</p>
+						{#if isPremiumOwner}
+							<p class="row-value muted" style="margin-bottom: 12px;">
+								Pick your own code instead of a random one — a Premium perk.
+							</p>
+							<div class="row-input">
+								<input type="text" bind:value={vanityCode} maxlength="32" placeholder="your-server" />
+								<button
+									class="save"
+									disabled={vanitySaving || !vanityCode.trim() || vanityCode === inviteCode}
+									onclick={saveVanityCode}
+								>
+									{vanitySaving ? "Saving…" : "Save"}
+								</button>
+							</div>
+						{:else}
+							<p class="row-value muted">
+								Upgrade to Premium to pick your own invite code instead of a random one.
+							</p>
+						{/if}
+					</div>
+				{/if}
+			{:else if section === "emoji"}
+				<h2>Custom Emoji</h2>
+				<div class="card">
+					<p class="row-label">Slots</p>
+					<p class="row-value muted" style="margin-bottom: 12px;">
+						{#if boostStatus}
+							{customEmoji.length} of {boostStatus.emoji_slots} used.
+							{#if boostStatus.emoji_slots < 30}
+								Boost this server with Void Shards to unlock more.
+							{/if}
+						{:else}
+							Loading…
+						{/if}
+					</p>
+					{#if isOwner}
+						<div class="row-input">
+							<input type="text" placeholder="emoji_name" bind:value={newEmojiName} maxlength="32" />
+							<button
+								class="save"
+								disabled={emojiUploading || !newEmojiName.trim() || (boostStatus ? customEmoji.length >= boostStatus.emoji_slots : true)}
+								onclick={() => emojiInput?.click()}
+							>
+								{emojiUploading ? "Uploading…" : "Upload"}
+							</button>
+							<input bind:this={emojiInput} type="file" accept="image/*" hidden onchange={onEmojiFileChosen} />
+						</div>
+					{/if}
+				</div>
+				{#if customEmoji.length > 0}
+					<div class="card emoji-grid">
+						{#each customEmoji as emoji (emoji.id)}
+							<div class="emoji-item">
+								<img src={resolveUrl(emoji.image_url, session.token)} alt={emoji.name} />
+								<span class="emoji-name">:{emoji.name}:</span>
+								{#if isOwner}
+									<button class="emoji-remove" title="Remove" onclick={() => removeEmoji(emoji)}>
+										<Trash2 size={13} strokeWidth={2} />
+									</button>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
 			{:else if section === "roles"}
 				<h2>Roles</h2>
 				<div class="card">
@@ -687,6 +876,58 @@
 		border-radius: 8px;
 		padding: 20px;
 		margin-bottom: 16px;
+	}
+
+	.emoji-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+		gap: 10px;
+	}
+
+	.emoji-item {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		padding: 10px 6px;
+		border-radius: 8px;
+		background: var(--active);
+	}
+
+	.emoji-item img {
+		width: 36px;
+		height: 36px;
+		object-fit: contain;
+	}
+
+	.emoji-name {
+		font-size: 11px;
+		color: var(--ink-faint);
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.emoji-remove {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background: var(--danger);
+		color: white;
+		opacity: 0;
+		transition: opacity 0.15s ease;
+	}
+
+	.emoji-item:hover .emoji-remove {
+		opacity: 1;
 	}
 
 	.identity {

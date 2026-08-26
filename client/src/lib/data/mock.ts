@@ -14,6 +14,7 @@ export type ServerEntry = {
 	name: string;
 	initials: string;
 	iconUrl?: string | null;
+	boostCount?: number;
 	channels: Channel[];
 	unread?: number;
 	ownerId?: string;

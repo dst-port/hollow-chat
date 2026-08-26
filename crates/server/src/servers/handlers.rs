@@ -48,7 +48,8 @@ async fn owned_image_attachment(
 async fn load_server_dto(pool: &sqlx::PgPool, server_id: Uuid) -> Result<ServerDto, AppError> {
     let row: ServerRow = sqlx::query_as(
         "SELECT servers.id, servers.name, servers.owner_id, \
-                servers.icon_attachment_id, icon.filename AS icon_filename \
+                servers.icon_attachment_id, icon.filename AS icon_filename, \
+                (SELECT count(*) FROM server_boosts WHERE server_boosts.server_id = servers.id) AS boost_count \
          FROM servers \
          LEFT JOIN attachments icon ON icon.id = servers.icon_attachment_id \
          WHERE servers.id = $1",
@@ -90,6 +91,7 @@ pub struct ServerDto {
     pub name: String,
     pub owner_id: Uuid,
     pub icon_url: Option<String>,
+    pub boost_count: i64,
 }
 
 #[derive(sqlx::FromRow)]
@@ -99,6 +101,7 @@ struct ServerRow {
     owner_id: Uuid,
     icon_attachment_id: Option<Uuid>,
     icon_filename: Option<String>,
+    boost_count: i64,
 }
 
 impl From<ServerRow> for ServerDto {
@@ -111,7 +114,20 @@ impl From<ServerRow> for ServerDto {
                 .icon_attachment_id
                 .zip(row.icon_filename)
                 .map(|(id, name)| file_url(id, &name)),
+            boost_count: row.boost_count,
         }
+    }
+}
+
+/// Custom-emoji slots a server gets from its total Void Shards - the boost
+/// count is small at this scale (friend-group servers, not thousands of
+/// boosters), so the tiers stay simple: a modest free allowance, then a
+/// jump at 1 boost and another at 3.
+pub fn emoji_slots_for_boosts(boost_count: i64) -> i64 {
+    match boost_count {
+        0 => 5,
+        1..=2 => 15,
+        _ => 30,
     }
 }
 
@@ -154,7 +170,7 @@ pub async fn create_server(
     .bind(session.user_id)
     .fetch_one(&mut *tx)
     .await?;
-    let server = ServerDto { id, name: saved_name, owner_id, icon_url: None };
+    let server = ServerDto { id, name: saved_name, owner_id, icon_url: None, boost_count: 0 };
 
     sqlx::query("INSERT INTO server_members (server_id, user_id) VALUES ($1, $2)")
         .bind(server.id)
@@ -191,7 +207,8 @@ pub async fn list_servers(
 ) -> Result<Json<Vec<ServerWithChannels>>, AppError> {
     let rows: Vec<ServerRow> = sqlx::query_as(
         "SELECT servers.id, servers.name, servers.owner_id, \
-                servers.icon_attachment_id, icon.filename AS icon_filename \
+                servers.icon_attachment_id, icon.filename AS icon_filename, \
+                (SELECT count(*) FROM server_boosts WHERE server_boosts.server_id = servers.id) AS boost_count \
          FROM servers \
          JOIN server_members ON server_members.server_id = servers.id \
          LEFT JOIN attachments icon ON icon.id = servers.icon_attachment_id \
@@ -607,6 +624,59 @@ pub async fn get_invite(
     Err(AppError::InviteGenerationFailed)
 }
 
+fn validate_vanity_code(code: &str) -> Result<String, AppError> {
+    let trimmed = code.trim();
+    let len = trimmed.chars().count();
+    if !(3..=32).contains(&len) {
+        return Err(AppError::InvalidInviteCode);
+    }
+    if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(AppError::InvalidInviteCode);
+    }
+    Ok(trimmed.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetVanityInviteRequest {
+    pub code: String,
+}
+
+/// Premium perk: a server owner can pick their own invite code instead of
+/// the random one, e.g. hollowchat.app/invite/monkes instead of a 10-char
+/// string. Tied to the *owner's* subscription, not the server's boost
+/// level - boosts are a shared, revocable perk from whoever assigned them,
+/// this is closer to a personal vanity purchase.
+pub async fn set_vanity_invite(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<SetVanityInviteRequest>,
+) -> Result<Json<InviteDto>, AppError> {
+    require_permission(&state.pool, id, session.user_id, MANAGE_SERVER).await?;
+    if !crate::billing::is_premium(&state.pool, session.user_id).await? {
+        return Err(AppError::NotPremium);
+    }
+
+    let code = validate_vanity_code(&payload.code)?;
+
+    let result = sqlx::query(
+        "INSERT INTO server_invites (server_id, code) VALUES ($1, $2) \
+         ON CONFLICT (server_id) DO UPDATE SET code = excluded.code",
+    )
+    .bind(id)
+    .bind(&code)
+    .execute(&state.pool)
+    .await;
+
+    match result {
+        Ok(_) => Ok(Json(InviteDto { code })),
+        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+            Err(AppError::InvalidInviteCode)
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct JoinServerRequest {
     pub code: String,
@@ -652,4 +722,225 @@ pub async fn join_server(
     let channels = load_channels(&state.pool, server.id).await?;
 
     Ok(Json(ServerWithChannels { server, channels }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct BoostStatusDto {
+    pub boost_count: i64,
+    pub boosted_by_me: bool,
+    pub emoji_slots: i64,
+}
+
+pub async fn get_boosts(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BoostStatusDto>, AppError> {
+    require_member(&state.pool, id, session.user_id).await?;
+
+    let (boost_count,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM server_boosts WHERE server_id = $1")
+            .bind(id)
+            .fetch_one(&state.pool)
+            .await?;
+
+    let boosted_by_me: Option<(i32,)> = sqlx::query_as(
+        "SELECT 1 FROM server_boosts WHERE server_id = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(session.user_id)
+    .fetch_optional(&state.pool)
+    .await?;
+
+    Ok(Json(BoostStatusDto {
+        boost_count,
+        boosted_by_me: boosted_by_me.is_some(),
+        emoji_slots: emoji_slots_for_boosts(boost_count),
+    }))
+}
+
+pub async fn add_boost(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BoostStatusDto>, AppError> {
+    require_member(&state.pool, id, session.user_id).await?;
+
+    if !crate::billing::is_premium(&state.pool, session.user_id).await? {
+        return Err(AppError::NotPremium);
+    }
+
+    let (used,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM server_boosts WHERE user_id = $1")
+            .bind(session.user_id)
+            .fetch_one(&state.pool)
+            .await?;
+    if used >= crate::billing::PREMIUM_BOOST_SLOTS {
+        return Err(AppError::BoostSlotsFull);
+    }
+
+    sqlx::query(
+        "INSERT INTO server_boosts (user_id, server_id) VALUES ($1, $2) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(session.user_id)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+
+    get_boosts(State(state), session, Path(id)).await
+}
+
+pub async fn remove_boost(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BoostStatusDto>, AppError> {
+    require_member(&state.pool, id, session.user_id).await?;
+
+    sqlx::query("DELETE FROM server_boosts WHERE user_id = $1 AND server_id = $2")
+        .bind(session.user_id)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    get_boosts(State(state), session, Path(id)).await
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CustomEmojiDto {
+    pub id: Uuid,
+    pub name: String,
+    pub image_url: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct CustomEmojiRow {
+    id: Uuid,
+    name: String,
+    attachment_id: Uuid,
+    filename: String,
+}
+
+impl From<CustomEmojiRow> for CustomEmojiDto {
+    fn from(row: CustomEmojiRow) -> Self {
+        CustomEmojiDto {
+            id: row.id,
+            name: row.name,
+            image_url: file_url(row.attachment_id, &row.filename),
+        }
+    }
+}
+
+pub async fn list_custom_emoji(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<CustomEmojiDto>>, AppError> {
+    require_member(&state.pool, id, session.user_id).await?;
+
+    let rows: Vec<CustomEmojiRow> = sqlx::query_as(
+        "SELECT custom_emoji.id, custom_emoji.name, custom_emoji.attachment_id, \
+                attachments.filename \
+         FROM custom_emoji \
+         JOIN attachments ON attachments.id = custom_emoji.attachment_id \
+         WHERE custom_emoji.server_id = $1 \
+         ORDER BY custom_emoji.created_at",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(rows.into_iter().map(CustomEmojiDto::from).collect()))
+}
+
+fn validate_emoji_name(name: &str) -> Result<String, AppError> {
+    let trimmed = name.trim().trim_matches(':');
+    let len = trimmed.chars().count();
+    if !(2..=32).contains(&len) {
+        return Err(AppError::InvalidEmojiName);
+    }
+    if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(AppError::InvalidEmojiName);
+    }
+    Ok(trimmed.to_lowercase())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddCustomEmojiRequest {
+    pub name: String,
+    pub attachment_id: Uuid,
+}
+
+pub async fn add_custom_emoji(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<AddCustomEmojiRequest>,
+) -> Result<Json<CustomEmojiDto>, AppError> {
+    require_permission(&state.pool, id, session.user_id, MANAGE_SERVER).await?;
+    owned_image_attachment(&state.pool, session.user_id, payload.attachment_id).await?;
+
+    let name = validate_emoji_name(&payload.name)?;
+
+    let (boost_count,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM server_boosts WHERE server_id = $1")
+            .bind(id)
+            .fetch_one(&state.pool)
+            .await?;
+    let (used,): (i64,) = sqlx::query_as("SELECT count(*) FROM custom_emoji WHERE server_id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    if used >= emoji_slots_for_boosts(boost_count) {
+        return Err(AppError::EmojiSlotsFull);
+    }
+
+    let inserted: Result<(Uuid,), sqlx::Error> = sqlx::query_as(
+        "INSERT INTO custom_emoji (server_id, name, attachment_id, created_by) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
+    )
+    .bind(id)
+    .bind(&name)
+    .bind(payload.attachment_id)
+    .bind(session.user_id)
+    .fetch_one(&state.pool)
+    .await;
+
+    let (emoji_id,) = match inserted {
+        Ok(row) => row,
+        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+            return Err(AppError::EmojiNameTaken)
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    let row: CustomEmojiRow = sqlx::query_as(
+        "SELECT custom_emoji.id, custom_emoji.name, custom_emoji.attachment_id, \
+                attachments.filename \
+         FROM custom_emoji \
+         JOIN attachments ON attachments.id = custom_emoji.attachment_id \
+         WHERE custom_emoji.id = $1",
+    )
+    .bind(emoji_id)
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(Json(row.into()))
+}
+
+pub async fn remove_custom_emoji(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((id, emoji_id)): Path<(Uuid, Uuid)>,
+) -> Result<(), AppError> {
+    require_permission(&state.pool, id, session.user_id, MANAGE_SERVER).await?;
+
+    sqlx::query("DELETE FROM custom_emoji WHERE id = $1 AND server_id = $2")
+        .bind(emoji_id)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(())
 }

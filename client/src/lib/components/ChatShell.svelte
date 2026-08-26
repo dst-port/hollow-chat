@@ -31,6 +31,7 @@
 			name: server.name,
 			initials: server.name.slice(0, 2).toUpperCase(),
 			iconUrl: server.icon_url,
+			boostCount: server.boost_count,
 			ownerId: server.owner_id,
 			channels: server.channels.map((c) => ({
 				id: c.id,

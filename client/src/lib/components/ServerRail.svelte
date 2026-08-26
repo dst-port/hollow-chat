@@ -72,6 +72,7 @@
 				<button
 					class="server"
 					class:active={server.id === activeId}
+					class:boosted={!!server.boostCount}
 					aria-label={server.name}
 					onclick={() => onSelect(server.id)}
 					onmouseenter={show(server.name)}
@@ -205,6 +206,10 @@
 		border-radius: 16px;
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
+	}
+
+	.server.boosted {
+		box-shadow: 0 0 0 2px var(--rail), 0 0 0 4px var(--online);
 	}
 
 	.pill {

@@ -244,7 +244,20 @@ export type ApiServer = {
 	name: string;
 	owner_id: string;
 	icon_url: string | null;
+	boost_count: number;
 	channels: ApiChannel[];
+};
+
+export type BoostStatus = {
+	boost_count: number;
+	boosted_by_me: boolean;
+	emoji_slots: number;
+};
+
+export type CustomEmoji = {
+	id: string;
+	name: string;
+	image_url: string;
 };
 
 export type ApiAttachment = {
@@ -621,6 +634,8 @@ export function sendThreadMessage(
 export type BillingStatus = {
 	tier: "free" | "premium";
 	subscription_status: string | null;
+	boost_slots_used: number;
+	boost_slots_total: number;
 };
 
 export function billingStatus(token: string) {
@@ -841,6 +856,55 @@ export function fetchIceServers(token: string) {
 
 export function getServerInvite(token: string, serverId: string) {
 	return request<{ code: string }>(`/servers/${serverId}/invite`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function setVanityInvite(token: string, serverId: string, code: string) {
+	return request<{ code: string }>(`/servers/${serverId}/invite`, {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ code })
+	});
+}
+
+export function getBoosts(token: string, serverId: string) {
+	return request<BoostStatus>(`/servers/${serverId}/boosts`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function addBoost(token: string, serverId: string) {
+	return request<BoostStatus>(`/servers/${serverId}/boosts`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function removeBoost(token: string, serverId: string) {
+	return request<BoostStatus>(`/servers/${serverId}/boosts`, {
+		method: "DELETE",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function listCustomEmoji(token: string, serverId: string) {
+	return request<CustomEmoji[]>(`/servers/${serverId}/emoji`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function addCustomEmoji(token: string, serverId: string, name: string, attachmentId: string) {
+	return request<CustomEmoji>(`/servers/${serverId}/emoji`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ name, attachment_id: attachmentId })
+	});
+}
+
+export function removeCustomEmoji(token: string, serverId: string, emojiId: string) {
+	return request<void>(`/servers/${serverId}/emoji/${emojiId}`, {
+		method: "DELETE",
 		headers: { authorization: `Bearer ${token}` }
 	});
 }

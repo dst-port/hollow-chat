@@ -78,6 +78,9 @@
 
 	let billing = $state<api.BillingStatus | null>(null);
 	let checkoutLoading = $state(false);
+	let myServers = $state<api.ApiServer[]>([]);
+	let boostedServerIds = $state<Set<string>>(new Set());
+	let boostBusyId = $state<string | null>(null);
 
 	$effect(() => {
 		const token = session.token;
@@ -87,6 +90,50 @@
 			.then((status) => (billing = status))
 			.catch(() => {});
 	});
+
+	$effect(() => {
+		const token = session.token;
+		if (!token || section !== "billing") return;
+		api
+			.listServers(token)
+			.then((servers) => {
+				myServers = servers;
+				return Promise.all(servers.map((s) => api.getBoosts(token, s.id).then((b) => [s.id, b.boosted_by_me] as const)));
+			})
+			.then((pairs) => {
+				boostedServerIds = new Set(pairs.filter(([, boosted]) => boosted).map(([id]) => id));
+			})
+			.catch(() => {});
+	});
+
+	async function toggleBoost(serverId: string) {
+		const token = session.token;
+		if (!token || boostBusyId) return;
+		boostBusyId = serverId;
+		const wasBoosted = boostedServerIds.has(serverId);
+		try {
+			const status = wasBoosted
+				? await api.removeBoost(token, serverId)
+				: await api.addBoost(token, serverId);
+			const next = new Set(boostedServerIds);
+			if (status.boosted_by_me) next.add(serverId);
+			else next.delete(serverId);
+			boostedServerIds = next;
+			if (billing) {
+				billing = { ...billing, boost_slots_used: billing.boost_slots_used + (wasBoosted ? -1 : 1) };
+			}
+		} catch (err) {
+			if (err instanceof api.ApiError && err.status === 409) {
+				toast.push("All your Void Shards are already assigned");
+			} else if (err instanceof api.ApiError && err.status === 403) {
+				toast.push("Void Shards are a Premium perk");
+			} else {
+				toast.push("Couldn't update boost");
+			}
+		} finally {
+			boostBusyId = null;
+		}
+	}
 
 	async function upgrade() {
 		const token = session.token;
@@ -1149,11 +1196,48 @@
 					<div class="card">
 						<p class="row-label">Upgrade to Premium</p>
 						<p class="row-value muted" style="margin-bottom: 12px;">
-							Raise your file upload limit from 50MB to 2GB per file.
+							2GB uploads, up to 8 linked devices, a Supporter badge, and 2 Void Shards to boost
+							servers with.
 						</p>
 						<button class="edit" onclick={upgrade} disabled={checkoutLoading}>
 							{checkoutLoading ? "Opening checkout…" : "Upgrade"}
 						</button>
+					</div>
+				{:else}
+					<div class="card">
+						<p class="row-label">Void Shards</p>
+						<p class="row-value muted" style="margin-bottom: 12px;">
+							{billing.boost_slots_used} of {billing.boost_slots_total} assigned. Boosting a server
+							raises its custom emoji slots for everyone in it.
+						</p>
+						{#if myServers.length === 0}
+							<p class="row-value muted">You're not in any servers yet.</p>
+						{:else}
+							<div class="boost-list">
+								{#each myServers as server (server.id)}
+									{@const boosted = boostedServerIds.has(server.id)}
+									{@const outOfSlots = !boosted && billing.boost_slots_used >= billing.boost_slots_total}
+									<div class="boost-row">
+										<span class="boost-name">{server.name}</span>
+										{#if server.boost_count > 0}
+											<span class="boost-count">
+												<Sparkles size={12} strokeWidth={2.25} />
+												{server.boost_count}
+											</span>
+										{/if}
+										<button
+											type="button"
+											class="boost-toggle"
+											class:active={boosted}
+											disabled={boostBusyId === server.id || outOfSlots}
+											onclick={() => toggleBoost(server.id)}
+										>
+											{boosted ? "Boosted" : "Boost"}
+										</button>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/if}
 			{/if}
@@ -1548,6 +1632,67 @@
 
 	.plan-header .row-label {
 		margin: 0;
+	}
+
+	.boost-list {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.boost-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 10px;
+		border-radius: 8px;
+		background: var(--active);
+	}
+
+	.boost-name {
+		flex: 1;
+		min-width: 0;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.boost-count {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+		font-size: 12px;
+		font-weight: 700;
+		color: var(--online);
+	}
+
+	.boost-toggle {
+		flex-shrink: 0;
+		padding: 5px 12px;
+		border-radius: 6px;
+		background: var(--hover);
+		color: var(--ink-dim);
+		font-size: 12px;
+		font-weight: 700;
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.boost-toggle:hover:not(:disabled) {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
+	}
+
+	.boost-toggle.active {
+		background: var(--online);
+		color: var(--void);
+	}
+
+	.boost-toggle:disabled {
+		opacity: 0.5;
+		cursor: default;
 	}
 
 	.ghost {

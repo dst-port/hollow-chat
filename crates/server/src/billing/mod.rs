@@ -5,6 +5,8 @@ use axum::Router;
 
 use crate::state::AppState;
 
+pub use handlers::{is_premium, PREMIUM_BOOST_SLOTS};
+
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/checkout", post(handlers::create_checkout))

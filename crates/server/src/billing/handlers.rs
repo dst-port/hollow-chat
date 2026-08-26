@@ -192,21 +192,54 @@ pub async fn webhook(
     Ok(())
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+/// Boost slots a premium subscription includes - Nitro-style: not a
+/// spend-once currency, just "while premium, you can have up to N servers
+/// boosted at a time", freely reassignable. Revalidated against live tier
+/// on every allocation, so a lapsed subscription can't keep boosts active.
+pub const PREMIUM_BOOST_SLOTS: i64 = 2;
+
+pub async fn user_tier(pool: &sqlx::PgPool, user_id: Uuid) -> Result<String, AppError> {
+    let row: Option<(String,)> = sqlx::query_as("SELECT tier FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|r| r.0).unwrap_or_else(|| "free".to_string()))
+}
+
+pub async fn is_premium(pool: &sqlx::PgPool, user_id: Uuid) -> Result<bool, AppError> {
+    Ok(user_tier(pool, user_id).await? == "premium")
+}
+
+#[derive(Debug, Serialize)]
 pub struct StatusResponse {
     pub tier: String,
     pub subscription_status: Option<String>,
+    pub boost_slots_used: i64,
+    pub boost_slots_total: i64,
 }
 
 pub async fn status(
     State(state): State<AppState>,
     session: AuthSession,
 ) -> Result<Json<StatusResponse>, AppError> {
-    let row: StatusResponse =
+    let row: (String, Option<String>) =
         sqlx::query_as("SELECT tier, subscription_status FROM users WHERE id = $1")
             .bind(session.user_id)
             .fetch_one(&state.pool)
             .await?;
 
-    Ok(Json(row))
+    let (used,): (i64,) =
+        sqlx::query_as("SELECT count(*) FROM server_boosts WHERE user_id = $1")
+            .bind(session.user_id)
+            .fetch_one(&state.pool)
+            .await?;
+
+    let boost_slots_total = if row.0 == "premium" { PREMIUM_BOOST_SLOTS } else { 0 };
+
+    Ok(Json(StatusResponse {
+        tier: row.0,
+        subscription_status: row.1,
+        boost_slots_used: used,
+        boost_slots_total,
+    }))
 }

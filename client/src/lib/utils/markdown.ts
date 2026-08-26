@@ -46,7 +46,11 @@ function colorForUrl(url: string): string | null {
 
 const MENTION_RE = /@(everyone|here|[a-zA-Z0-9_]{3,32})\b/g;
 
-export function renderMarkdown(raw: string, myUsername?: string): string {
+export function renderMarkdown(
+	raw: string,
+	myUsername?: string,
+	customEmoji?: Record<string, string>
+): string {
 	let text = escapeHtml(raw);
 
 	const blocks: string[] = [];
@@ -60,6 +64,13 @@ export function renderMarkdown(raw: string, myUsername?: string): string {
 		spans.push(`<code class="md-inline">${code}</code>`);
 		return `${SPAN_MARK}${spans.length - 1}${SPAN_MARK}`;
 	});
+
+	if (customEmoji) {
+		text = text.replace(/:([a-zA-Z0-9_]{2,32}):/g, (match: string, name: string) => {
+			const url = customEmoji[name.toLowerCase()];
+			return url ? `<img class="md-emoji" src="${url}" alt="${match}" title="${match}" />` : match;
+		});
+	}
 
 	text = text.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
 	text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");

@@ -12,7 +12,8 @@ use crate::state::AppState;
 
 use super::LinkPeer;
 
-const MAX_ROOM_SIZE: usize = 8;
+const FREE_ROOM_SIZE: usize = 3;
+const PREMIUM_ROOM_SIZE: usize = 8;
 const MAX_BACKLOG: i64 = 500;
 const BACKLOG_RETENTION_DAYS: i64 = 30;
 
@@ -30,12 +31,18 @@ pub async fn join_link(
 ) -> Result<Response, AppError> {
     let session = resolve_token(&state.pool, &query.token).await?;
 
+    let max_room_size = if crate::billing::is_premium(&state.pool, session.user_id).await? {
+        PREMIUM_ROOM_SIZE
+    } else {
+        FREE_ROOM_SIZE
+    };
+
     if state
         .link_rooms
         .get(&session.user_id)
         .map(|room| room.len())
         .unwrap_or(0)
-        >= MAX_ROOM_SIZE
+        >= max_room_size
     {
         return Err(AppError::Unauthorized);
     }
