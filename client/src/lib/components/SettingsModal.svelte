@@ -178,6 +178,17 @@
 		}
 	}
 
+	async function revealExtensionFolder() {
+		try {
+			const { resolveResource } = await import("@tauri-apps/api/path");
+			const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+			const dir = await resolveResource("extension");
+			await revealItemInDir(dir);
+		} catch {
+			toast.push("Couldn't open the extension folder — this only works in the desktop app");
+		}
+	}
+
 	async function upgrade() {
 		const token = session.token;
 		if (!token) return;
@@ -1039,6 +1050,24 @@
 				</div>
 
 				<div class="card">
+					<p class="row-label">Browser extension</p>
+					<p class="row-value muted" style="margin-bottom: 12px;">
+						Adds Rich Presence for YouTube, SoundCloud, Spotify, and Twitch — shows up next to game
+						activity, gated by the same toggle above. Browsers block silent extension installs, so
+						this is a two-minute manual step, not a store listing.
+					</p>
+					<ol class="extension-steps">
+						<li>Click below to reveal the extension folder</li>
+						<li>
+							Open <code>chrome://extensions</code> (or your browser's equivalent), turn on
+							<strong>Developer mode</strong>
+						</li>
+						<li>Click <strong>Load unpacked</strong> and pick that folder</li>
+					</ol>
+					<button class="edit" onclick={revealExtensionFolder}>Open Extension Folder</button>
+				</div>
+
+				<div class="card">
 					<div class="row">
 						<div>
 							<p class="row-label">Data collected</p>
@@ -1647,6 +1676,26 @@
 	.row-value.muted {
 		color: var(--ink-dim);
 		line-height: 1.5;
+	}
+
+	.extension-steps {
+		margin: 0 0 12px;
+		padding-left: 18px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 13px;
+		color: var(--ink-dim);
+		line-height: 1.5;
+	}
+
+	.extension-steps code {
+		padding: 1px 5px;
+		border-radius: 4px;
+		background: var(--active);
+		font-family: var(--font-mono);
+		font-size: 12px;
+		color: var(--ink);
 	}
 
 	.row-actions {
