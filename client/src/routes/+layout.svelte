@@ -6,11 +6,14 @@
 	import UpdateBanner from "$lib/components/UpdateBanner.svelte";
 	import { themeStore } from "$lib/stores/theme.svelte";
 	import { initAutoUpdateCheck } from "$lib/stores/updater.svelte";
+	import { isTauri } from "$lib/utils/isTauri";
 
 	let { children } = $props();
 
+	const inTauri = isTauri();
+
 	themeStore.init();
-	initAutoUpdateCheck();
+	if (inTauri) initAutoUpdateCheck();
 
 	function blockNativeContextMenu(event: MouseEvent) {
 		const target = event.target as HTMLElement | null;
@@ -22,15 +25,15 @@
 
 <svelte:window oncontextmenu={blockNativeContextMenu} />
 
-<div class="app-shell">
-	<TitleBar />
+<div class="app-shell" class:web={!inTauri}>
+	{#if inTauri}<TitleBar />{/if}
 	<div class="app-content">
 		{@render children()}
 	</div>
 </div>
-<ResizeHandles />
+{#if inTauri}<ResizeHandles />{/if}
 <ToastHost />
-<UpdateBanner />
+{#if inTauri}<UpdateBanner />{/if}
 
 <style>
 	.app-shell {
@@ -41,6 +44,10 @@
 		border-radius: 12px;
 		overflow: hidden;
 		background: var(--void);
+	}
+
+	.app-shell.web {
+		border-radius: 0;
 	}
 
 	.app-content {
