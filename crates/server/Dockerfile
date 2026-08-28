@@ -3,7 +3,7 @@
 # embedded into the binary at compile time by sqlx::migrate!, so the image
 # never needs the source tree or a live database at build time.
 
-FROM rust:1.82-slim-bookworm AS builder
+FROM rust:1-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev ca-certificates \
