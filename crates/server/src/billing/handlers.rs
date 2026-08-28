@@ -34,7 +34,11 @@ pub async fn create_checkout(
         .as_ref()
         .ok_or(AppError::BillingNotConfigured)?;
 
-    let placeholder_email = format!("{}@users.hollowchat.local", session.username);
+    // Lava validates the domain against a real-looking TLD - a `.local`
+    // placeholder gets rejected outright ("Invalid customer email"), so this
+    // has to resolve to something that looks real even though nothing ever
+    // gets sent there.
+    let placeholder_email = format!("{}@users.hollowchat.org", session.username);
     let success_url = format!("{}/billing/success", state.billing.app_base_url);
     let failure_url = format!("{}/billing/failure", state.billing.app_base_url);
     let cancel_url = format!("{}/billing/cancel", state.billing.app_base_url);
@@ -64,6 +68,10 @@ pub async fn create_checkout(
         .map_err(|_| AppError::BillingProvider)?;
 
     if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        tracing::error!("lava checkout failed: {status} {body}");
+        crate::telegram::notify(format!("Lava checkout failed: {status} {body}"));
         return Err(AppError::BillingProvider);
     }
 
