@@ -90,6 +90,12 @@
 		border-bottom: 1px solid var(--hairline);
 	}
 
+	.nav-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
 	.brand {
 		display: flex;
 		align-items: center;
@@ -679,7 +685,10 @@
 		</svg>
 		HollowChat
 	</a>
-	<a class="btn btn-primary" href="#download">Download</a>
+	<div class="nav-actions">
+		<a class="btn btn-ghost" href="/app">Open web app</a>
+		<a class="btn btn-primary" href="#download">Download</a>
+	</div>
 </nav>
 
 <header class="hero" id="top">
@@ -695,6 +704,7 @@
 
 	<div class="cta-row">
 		<a class="btn btn-primary" href="#download">Download HollowChat</a>
+		<a class="btn btn-ghost" href="/app">Chat via web</a>
 		<a class="btn btn-ghost" href="#why">See how it's private</a>
 	</div>
 

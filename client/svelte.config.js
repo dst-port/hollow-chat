@@ -5,6 +5,12 @@
 import adapter from "@sveltejs/adapter-static";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 
+// The desktop build (Tauri, served from a custom protocol root) needs an
+// empty base path. The self-hosted web build sits at hollowchat.org/app
+// alongside the landing page at /, so it needs its asset paths prefixed -
+// set only via this env var, which only the web-deploy build script sets.
+const base = process.env.HOLLOWCHAT_WEB_BASE ?? "";
+
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
   preprocess: vitePreprocess(),
@@ -12,6 +18,9 @@ const config = {
     adapter: adapter({
       fallback: "index.html",
     }),
+    paths: {
+      base,
+    },
   },
 };
 

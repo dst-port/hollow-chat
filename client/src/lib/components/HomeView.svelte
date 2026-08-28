@@ -18,6 +18,7 @@
 	import { colorForName } from "$lib/utils/color";
 	import * as api from "$lib/api/client";
 	import { presenceStore } from "$lib/stores/gateway.svelte";
+	import { base } from "$app/paths";
 
 	let { username, onLogout }: {
 		username: string;
@@ -261,7 +262,7 @@
 				<div class="add-friend" in:fade={{ duration: 150 }}>
 					<img
 						class="mascot"
-						src="/mascot/add-friend.png"
+						src={`${base}/mascot/add-friend.png`}
 						alt=""
 						onerror={hideBrokenImage}
 						style:top={`${mascotTop}px`}

@@ -6,6 +6,7 @@
 	import ShieldCheck from "@lucide/svelte/icons/shield-check";
 	import Award from "@lucide/svelte/icons/award";
 	import { badgeStore } from "$lib/stores/badges.svelte";
+	import { base } from "$app/paths";
 
 	let { badges }: { badges: string[] } = $props();
 
@@ -28,9 +29,9 @@
 	const FALLBACK_COLOR = "#8f97a8";
 
 	const ICON_ART: Record<string, string> = {
-		supporter: "/badges/supporter.png",
-		staff: "/badges/staff.png",
-		founder: "/badges/founder.png"
+		supporter: `${base}/badges/supporter.png`,
+		staff: `${base}/badges/staff.png`,
+		founder: `${base}/badges/founder.png`
 	};
 </script>
 
