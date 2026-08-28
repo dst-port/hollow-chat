@@ -116,7 +116,7 @@
 			<p class="hint">Enter an invite below to join an existing server.</p>
 			<label>
 				Invite link
-				<input type="text" bind:value={inviteLink} required placeholder="hollowchat.app/invite/a1b2c3d4" />
+				<input type="text" bind:value={inviteLink} required placeholder="hollowchat.org/invite/a1b2c3d4" />
 			</label>
 			<button type="submit" disabled={!inviteLink.trim() || joining}>
 				{joining ? "Joining…" : "Join Server"}

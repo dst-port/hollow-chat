@@ -30,6 +30,7 @@ jobs:
         run: |
           mkdir -p _site
           cp landing/index.html _site/index.html
+          cp landing/CNAME _site/CNAME
 
       - uses: actions/upload-pages-artifact@v3
         with:

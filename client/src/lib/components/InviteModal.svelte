@@ -15,7 +15,7 @@
 	let copied = $state(false);
 	let code = $state<string | null>(null);
 	let failed = $state(false);
-	const link = $derived(code ? `hollowchat.app/invite/${code}` : "");
+	const link = $derived(code ? `hollowchat.org/invite/${code}` : "");
 
 	$effect(() => {
 		const token = session.token;

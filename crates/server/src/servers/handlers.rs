@@ -642,7 +642,7 @@ pub struct SetVanityInviteRequest {
 }
 
 /// Premium perk: a server owner can pick their own invite code instead of
-/// the random one, e.g. hollowchat.app/invite/monkes instead of a 10-char
+/// the random one, e.g. hollowchat.org/invite/monkes instead of a 10-char
 /// string. Tied to the *owner's* subscription, not the server's boost
 /// level - boosts are a shared, revocable perk from whoever assigned them,
 /// this is closer to a personal vanity purchase.

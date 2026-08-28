@@ -123,7 +123,7 @@
 		sendingInviteTo = server.id;
 		try {
 			const { code } = await api.getServerInvite(token, server.id);
-			const link = `hollowchat.app/invite/${code}`;
+			const link = `hollowchat.org/invite/${code}`;
 			const dm = await api.openDm(token, member.name);
 			const packed = packPayload(`Join ${server.name}: ${link}`);
 			const payload = await encryptForPeer(token, myUsername, member.name, packed);
