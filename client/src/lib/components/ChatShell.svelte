@@ -202,7 +202,7 @@
 </script>
 
 <div class="window-frame app">
-	<div class="left-column">
+	<div class="left-column" class:with-channels={!!(activeServer && activeChannel)}>
 		<div class="upper">
 			<ServerRail
 				servers={serverList}
@@ -267,9 +267,13 @@
 		display: flex;
 		flex-direction: column;
 		align-self: stretch;
-		width: 312px;
+		width: 72px;
 		flex-shrink: 0;
 		min-height: 0;
+	}
+
+	.left-column.with-channels {
+		width: 312px;
 	}
 
 	.upper {
