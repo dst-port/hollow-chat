@@ -39,6 +39,8 @@ pub enum AppError {
     InvalidAttachment,
     #[error("attachment not found")]
     AttachmentNotFound,
+    #[error("this attachment has expired and is no longer available")]
+    AttachmentExpired,
     #[error("invalid profile field")]
     InvalidProfileField,
     #[error("this link isn't allowed")]
@@ -103,6 +105,7 @@ impl IntoResponse for AppError {
             AppError::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::InvalidAttachment => StatusCode::BAD_REQUEST,
             AppError::AttachmentNotFound => StatusCode::NOT_FOUND,
+            AppError::AttachmentExpired => StatusCode::GONE,
             AppError::InvalidProfileField => StatusCode::BAD_REQUEST,
             AppError::LinkNotAllowed => StatusCode::BAD_REQUEST,
             AppError::LinkPreviewUnavailable => StatusCode::BAD_GATEWAY,

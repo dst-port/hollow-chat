@@ -107,6 +107,11 @@ async fn main() {
     std::fs::create_dir_all(&config.attachments_dir)
         .expect("failed to create attachments directory");
 
+    if let Some(days) = config.attachment_retention_days {
+        attachments::retention::spawn(pool.clone(), config.attachments_dir.clone(), days);
+        tracing::info!("attachment retention sweep enabled: {days} days");
+    }
+
     let state = AppState {
         pool,
         pepper: Arc::from(config.pepper.into_boxed_slice()),

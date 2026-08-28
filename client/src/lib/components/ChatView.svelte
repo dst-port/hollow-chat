@@ -85,7 +85,7 @@
 	import { encryptFile, genericUploadName } from "$lib/crypto/attachment";
 	import { packPayload, unpackPayload } from "$lib/crypto/messagePayload";
 	import { call } from "$lib/webrtc/call.svelte";
-	import { loadAttachmentBlobUrl, loadEncryptedAttachmentBlobUrl, triggerDownload } from "$lib/utils/attachment";
+	import { loadAttachmentBlobUrl, loadEncryptedAttachmentBlobUrl, triggerDownload, AttachmentExpiredError } from "$lib/utils/attachment";
 	import { renderMarkdown } from "$lib/utils/markdown";
 	import type { Channel, Message, MessageAttachment } from "$lib/data/mock";
 
@@ -493,6 +493,7 @@
 	});
 
 	let imageUrls = $state<Record<string, string>>({});
+	let expiredAttachments = $state<Set<string>>(new Set());
 	let revealedSpoilers = $state<Set<string>>(new Set());
 
 	function isSpoilerFilename(name: string): boolean {
@@ -522,7 +523,11 @@
 					.then((url) => {
 						imageUrls[attachment.id] = url;
 					})
-					.catch(() => {});
+					.catch((err) => {
+						if (err instanceof AttachmentExpiredError) {
+							expiredAttachments = new Set(expiredAttachments).add(attachment.id);
+						}
+					});
 			}
 		}
 	});
@@ -1111,7 +1116,15 @@
 							{@const isSpoiler = isSpoilerFilename(message.attachment.filename)}
 							{@const revealed = !isSpoiler || revealedSpoilers.has(message.id)}
 							{@const isVideo = message.attachment.mimeType.startsWith("video/")}
-							{#if message.attachment.mimeType.startsWith("image/") && imageUrls[message.attachment.id]}
+							{#if expiredAttachments.has(message.attachment.id)}
+								<div class="attachment-file expired">
+									<FileIcon size={20} strokeWidth={2} />
+									<span class="attachment-info">
+										<span class="attachment-name">{displayFilename(message.attachment.filename)}</span>
+										<span class="attachment-size">Expired — no longer stored on the server</span>
+									</span>
+								</div>
+							{:else if message.attachment.mimeType.startsWith("image/") && imageUrls[message.attachment.id]}
 								{#if revealed}
 									<button
 										class="attachment-image"
@@ -1986,6 +1999,15 @@
 
 	.attachment-file:hover {
 		background: var(--hover);
+	}
+
+	.attachment-file.expired {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	.attachment-file.expired:hover {
+		background: var(--sidebar);
 	}
 
 	.attachment-file :global(svg:first-child) {

@@ -3,6 +3,12 @@ import { decryptBlob } from "$lib/crypto/attachment";
 
 const blobUrlCache = new Map<string, string>();
 
+export class AttachmentExpiredError extends Error {
+	constructor() {
+		super("attachment expired");
+	}
+}
+
 export async function loadAttachmentBlobUrl(
 	token: string,
 	id: string,
@@ -14,6 +20,7 @@ export async function loadAttachmentBlobUrl(
 	const response = await fetch(fileUrl(id, filename), {
 		headers: { authorization: `Bearer ${token}` }
 	});
+	if (response.status === 410) throw new AttachmentExpiredError();
 	if (!response.ok) throw new Error("failed to load attachment");
 
 	const blob = await response.blob();
@@ -35,6 +42,7 @@ export async function loadEncryptedAttachmentBlobUrl(
 	const response = await fetch(fileUrl(id, "file.bin"), {
 		headers: { authorization: `Bearer ${token}` }
 	});
+	if (response.status === 410) throw new AttachmentExpiredError();
 	if (!response.ok) throw new Error("failed to load attachment");
 
 	const ciphertext = await response.arrayBuffer();

@@ -16,6 +16,7 @@ pub struct Config {
     pub cors_allowed_origins: Vec<String>,
     pub telegram_bot_token: Option<String>,
     pub telegram_chat_id: Option<String>,
+    pub attachment_retention_days: Option<u32>,
 }
 
 impl Config {
@@ -64,6 +65,14 @@ impl Config {
             .unwrap_or_else(|| vec![app_base_url.clone()]);
         let telegram_bot_token = std::env::var("TELEGRAM_BOT_TOKEN").ok();
         let telegram_chat_id = std::env::var("TELEGRAM_CHAT_ID").ok();
+        // Unset means "keep forever" - purging people's chat history by
+        // default, without an explicit opt-in, isn't a call this makes for
+        // a self-hoster. Only ever applies to attachments sent in messages;
+        // avatars/banners/server icons/emoji/widget images are never swept
+        // regardless of this setting (see attachments::retention).
+        let attachment_retention_days = std::env::var("ATTACHMENT_RETENTION_DAYS")
+            .ok()
+            .and_then(|s| s.parse().ok());
 
         Self {
             database_url,
@@ -83,6 +92,7 @@ impl Config {
             cors_allowed_origins,
             telegram_bot_token,
             telegram_chat_id,
+            attachment_retention_days,
         }
     }
 }

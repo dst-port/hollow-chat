@@ -40,6 +40,7 @@ services:
       STEAMGRIDDB_API_KEY: ${STEAMGRIDDB_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      ATTACHMENT_RETENTION_DAYS: ${ATTACHMENT_RETENTION_DAYS:-}
     volumes:
       - hollowchat_attachments:/home/hollowchat/attachments
 

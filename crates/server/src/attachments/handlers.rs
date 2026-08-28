@@ -110,6 +110,7 @@ struct AttachmentRow {
     filename: String,
     mime_type: String,
     storage_key: String,
+    purged_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 pub async fn download(
@@ -118,13 +119,16 @@ pub async fn download(
     Path((id, _filename)): Path<(Uuid, String)>,
 ) -> Result<Response, AppError> {
     let attachment: Option<AttachmentRow> = sqlx::query_as(
-        "SELECT uploader_id, filename, mime_type, storage_key FROM attachments WHERE id = $1",
+        "SELECT uploader_id, filename, mime_type, storage_key, purged_at FROM attachments WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
     .await?;
 
     let attachment = attachment.ok_or(AppError::AttachmentNotFound)?;
+    if attachment.purged_at.is_some() {
+        return Err(AppError::AttachmentExpired);
+    }
 
     if attachment.uploader_id != session.user_id {
         let authorized: Option<(i32,)> = sqlx::query_as(
