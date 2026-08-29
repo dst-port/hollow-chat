@@ -697,7 +697,9 @@
 		dragDepth = 0;
 		dragActive = false;
 		const file = event.dataTransfer?.files?.[0];
-		if (file) pendingFile = file;
+		if (!file) return;
+		pendingFile = file;
+		if (event.shiftKey) submitPending();
 	}
 
 	function formatSize(bytes: number): string {
@@ -709,6 +711,10 @@
 
 	async function send(event: SubmitEvent) {
 		event.preventDefault();
+		await submitPending();
+	}
+
+	async function submitPending() {
 		mentionQuery = null;
 		const content = draft.trim();
 		const token = session.token;
@@ -952,8 +958,12 @@
 >
 	{#if dragActive}
 		<div class="drop-overlay">
-			<UploadCloud size={32} strokeWidth={1.75} />
-			<span>Drop to upload</span>
+			<div class="drop-card">
+				<UploadCloud size={30} strokeWidth={1.75} class="drop-card-bg-icon" />
+				<h3>Upload to {isDm ? channel.name : `#${channel.name}`}</h3>
+				<p>You can add comments before uploading. Hold shift to upload directly.</p>
+				<span class="drop-card-badge"><FileIcon size={18} strokeWidth={2} /></span>
+			</div>
 		</div>
 	{/if}
 	<header class="header">
@@ -1442,16 +1452,61 @@
 		inset: 0;
 		z-index: 50;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 10px;
 		background: rgba(0, 0, 0, 0.55);
-		border: 2px dashed var(--accent-fill);
-		color: var(--ink);
-		font-size: 14px;
-		font-weight: 700;
 		pointer-events: none;
+	}
+
+	.drop-card {
+		position: relative;
+		width: min(320px, 80%);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		gap: 4px;
+		padding: 36px 28px 28px;
+		border-radius: 12px;
+		border: 2px dashed color-mix(in srgb, var(--accent-fill) 70%, white);
+		background: color-mix(in srgb, var(--accent-fill) 22%, var(--panel));
+		overflow: hidden;
+	}
+
+	.drop-card :global(.drop-card-bg-icon) {
+		position: absolute;
+		top: -14px;
+		right: -14px;
+		width: 90px;
+		height: 90px;
+		opacity: 0.16;
+		color: var(--accent-fill);
+	}
+
+	.drop-card h3 {
+		margin: 4px 0 0;
+		font-size: 16px;
+		font-weight: 800;
+		color: var(--ink);
+	}
+
+	.drop-card p {
+		margin: 0;
+		font-size: 12px;
+		line-height: 1.4;
+		color: var(--ink-dim);
+	}
+
+	.drop-card-badge {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		margin-top: 10px;
+		border-radius: 9px;
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
 	}
 
 	.header {
