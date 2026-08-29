@@ -46,25 +46,36 @@
 	let avatarUploading = $state(false);
 	let bannerUploading = $state(false);
 	let styleOpen = $state(false);
+	let colorWayOpen = $state(false);
 	let accentDraft = $state("#5b96c9");
+	let bannerColorDraft = $state("#5865f2");
+	let bannerGradientEndDraft = $state("#1c1815");
 	let initialized = false;
 
 	$effect(() => {
 		const p = profile;
 		if (!p || initialized) return;
 		accentDraft = p.accent_color ?? "#5b96c9";
+		bannerColorDraft = p.banner_color ?? "#5865f2";
+		bannerGradientEndDraft = p.banner_gradient_end ?? "#1c1815";
 		initialized = true;
 	});
 
 	$effect(() => {
 		accentDraft;
+		bannerColorDraft;
+		bannerGradientEndDraft;
 		if (!initialized) return;
 		const token = session.token;
 		if (!token) return;
 		api
-			.updateProfile(token, { accent_color: accentDraft })
+			.updateProfile(token, {
+				accent_color: accentDraft,
+				banner_color: bannerColorDraft,
+				banner_gradient_end: bannerGradientEndDraft
+			})
 			.then((updated) => profileStore.set(updated))
-			.catch(() => toast.push("Couldn't update name color"));
+			.catch(() => toast.push("Couldn't update profile colors"));
 	});
 
 	async function onAvatarChosen(event: Event) {
@@ -412,7 +423,7 @@
 		</section>
 
 		<section class="section">
-			<p class="section-label">Avatar &amp; Decoration</p>
+			<p class="section-label">Avatar / Banner</p>
 			<div class="slot-row">
 				<button class="slot" onclick={() => avatarInput?.click()} disabled={avatarUploading} title="Change avatar">
 					<div
@@ -423,15 +434,24 @@
 					</div>
 				</button>
 				<input bind:this={avatarInput} type="file" accept="image/*" hidden onchange={onAvatarChosen} />
-				<button class="slot" onclick={() => notAvailable("Avatar decorations")} title="Avatar decorations aren't available yet">
-					<Plus size={16} strokeWidth={2} />
+				<button
+					class="slot theme-slot active"
+					onclick={() => bannerInput?.click()}
+					disabled={bannerUploading}
+					title="Change banner"
+					style:background={profile?.banner_url
+						? `url(${api.resolveUrl(profile.banner_url, session.token)}) center/cover`
+						: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+				>
+					<span class="theme-check"><Check size={11} strokeWidth={3} /></span>
 				</button>
+				<input bind:this={bannerInput} type="file" accept="image/*" hidden onchange={onBannerChosen} />
 			</div>
 		</section>
 
 		<section class="section">
 			<div class="section-header-row">
-				<p class="section-label">Display Name Style</p>
+				<p class="section-label">Display Name Color</p>
 				<button class="icon-btn" onclick={() => (styleOpen = !styleOpen)} title="Name color">
 					<Settings2 size={13} strokeWidth={2} />
 				</button>
@@ -447,24 +467,24 @@
 		</section>
 
 		<section class="section">
-			<p class="section-label">Theme &amp; Banner</p>
-			<div class="slot-row">
-				<button
-					class="slot theme-slot active"
-					onclick={() => bannerInput?.click()}
-					disabled={bannerUploading}
-					title="Change banner"
-					style:background={profile?.banner_url
-						? `url(${api.resolveUrl(profile.banner_url, session.token)}) center/cover`
-						: profile?.banner_color || accentDraft}
-				>
-					<span class="theme-check"><Check size={11} strokeWidth={3} /></span>
-				</button>
-				<input bind:this={bannerInput} type="file" accept="image/*" hidden onchange={onBannerChosen} />
-				<button class="slot theme-slot" onclick={() => notAvailable("Alternate themes")} title="More themes aren't available yet">
-					<Plus size={16} strokeWidth={2} />
+			<div class="section-header-row">
+				<p class="section-label">Profile Colors</p>
+				<button class="icon-btn" onclick={() => (colorWayOpen = !colorWayOpen)} title="Color way">
+					<Settings2 size={13} strokeWidth={2} />
 				</button>
 			</div>
+			<div class="color-way-row">
+				<div class="color-way-swatch" style:background={bannerColorDraft}></div>
+				<div class="color-way-swatch" style:background={bannerGradientEndDraft}></div>
+			</div>
+			{#if colorWayOpen}
+				<div class="style-popover">
+					<p class="color-way-label">Color Way — start</p>
+					<ColorPicker bind:value={bannerColorDraft} />
+					<p class="color-way-label">Color Way — end</p>
+					<ColorPicker bind:value={bannerGradientEndDraft} />
+				</div>
+			{/if}
 		</section>
 	</div>
 
@@ -473,7 +493,7 @@
 			class="preview-banner"
 			style:background={profile?.banner_url
 				? `url(${api.resolveUrl(profile.banner_url, session.token)}) center/cover`
-				: profile?.banner_color || profile?.accent_color || "#5865f2"}
+				: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
 		></div>
 		<div class="preview-body">
 			<div class="preview-identity">
@@ -870,6 +890,31 @@
 		height: 32px;
 		border-radius: var(--radius-sm);
 		opacity: 0.85;
+	}
+
+	.color-way-row {
+		display: flex;
+		gap: 8px;
+	}
+
+	.color-way-swatch {
+		flex: 1;
+		height: 32px;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--hairline);
+	}
+
+	.color-way-label {
+		margin: 0 0 4px;
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--ink-faint);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.color-way-label:not(:first-child) {
+		margin-top: 10px;
 	}
 
 	.slot {

@@ -5,6 +5,7 @@
 	import ResizeHandles from "$lib/components/ResizeHandles.svelte";
 	import UpdateBanner from "$lib/components/UpdateBanner.svelte";
 	import { themeStore } from "$lib/stores/theme.svelte";
+	import { fontStore } from "$lib/stores/font.svelte";
 	import { initAutoUpdateCheck } from "$lib/stores/updater.svelte";
 	import { isTauri } from "$lib/utils/isTauri";
 
@@ -13,6 +14,7 @@
 	const inTauri = isTauri();
 
 	themeStore.init();
+	fontStore.init();
 	if (inTauri) initAutoUpdateCheck();
 
 	function blockNativeContextMenu(event: MouseEvent) {

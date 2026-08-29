@@ -60,12 +60,21 @@ export function resolveUrl(path: string, token?: string | null): string {
 }
 
 export function bannerBackground(
-	profile: { banner_url: string | null; banner_color: string | null; accent_color: string | null } | null | undefined,
+	profile:
+		| {
+				banner_url: string | null;
+				banner_color: string | null;
+				banner_gradient_end?: string | null;
+				accent_color: string | null;
+		  }
+		| null
+		| undefined,
 	token?: string | null
 ): string {
 	if (profile?.banner_url) return `url(${resolveUrl(profile.banner_url, token)}) center/cover`;
-	const base = profile?.banner_color || profile?.accent_color || "#5865f2";
-	return `linear-gradient(135deg, ${base}, color-mix(in srgb, ${base} 45%, black))`;
+	const start = profile?.banner_color || profile?.accent_color || "#5865f2";
+	const end = profile?.banner_gradient_end || `color-mix(in srgb, ${start} 45%, black)`;
+	return `linear-gradient(135deg, ${start}, ${end})`;
 }
 
 export async function uploadFile(token: string, file: File): Promise<ApiAttachment> {
@@ -986,6 +995,7 @@ export type ApiProfile = {
 	share_activity: boolean;
 	accent_color: string | null;
 	banner_color: string | null;
+	banner_gradient_end: string | null;
 	avatar_url: string | null;
 	banner_url: string | null;
 	member_since: string;
@@ -1005,6 +1015,7 @@ export type UpdateProfileBody = {
 	status_clear_minutes?: number;
 	accent_color?: string;
 	banner_color?: string;
+	banner_gradient_end?: string;
 	share_activity?: boolean;
 };
 

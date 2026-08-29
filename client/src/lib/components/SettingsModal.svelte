@@ -33,6 +33,7 @@
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { themeStore, COLOR_GROUPS, COLOR_LABELS } from "$lib/stores/theme.svelte";
+	import { fontStore, FONT_STACKS, FONT_LABELS, type FontId } from "$lib/stores/font.svelte";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import Badges from "$lib/components/Badges.svelte";
@@ -1188,6 +1189,27 @@
 							<input type="checkbox" bind:checked={compactMode} onchange={() => toggle((v) => (compactMode = v), !compactMode, "Compact mode")} />
 							<span class="track"><span class="thumb"></span></span>
 						</label>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="row">
+						<div>
+							<p class="row-label">Font</p>
+							<p class="row-value muted">Changes the interface font everywhere in HollowChat.</p>
+						</div>
+					</div>
+					<div class="theme-options">
+						{#each Object.entries(FONT_LABELS) as [id, label] (id)}
+							<button
+								class="theme-option"
+								class:active={fontStore.current === id}
+								style:font-family={FONT_STACKS[id as FontId]}
+								onclick={() => fontStore.set(id as FontId)}
+							>
+								{label}
+							</button>
+						{/each}
 					</div>
 				</div>
 

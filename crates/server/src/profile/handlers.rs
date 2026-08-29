@@ -120,6 +120,7 @@ pub struct ProfileDto {
     pub share_activity: bool,
     pub accent_color: Option<String>,
     pub banner_color: Option<String>,
+    pub banner_gradient_end: Option<String>,
     #[sqlx(skip)]
     pub avatar_url: Option<String>,
     #[sqlx(skip)]
@@ -150,6 +151,7 @@ struct ProfileRow {
     share_activity: bool,
     accent_color: Option<String>,
     banner_color: Option<String>,
+    banner_gradient_end: Option<String>,
     member_since: DateTime<Utc>,
     avatar_attachment_id: Option<Uuid>,
     avatar_filename: Option<String>,
@@ -171,7 +173,7 @@ async fn load_profile(
                 users.activity_started_at, users.activity_party_size, users.activity_party_max, \
                 users.media_application, users.media_details, users.media_state, \
                 users.share_activity, \
-                users.accent_color, users.banner_color, users.created_at AS member_since, \
+                users.accent_color, users.banner_color, users.banner_gradient_end, users.created_at AS member_since, \
                 users.avatar_attachment_id, avatar.filename AS avatar_filename, \
                 users.banner_attachment_id, banner.filename AS banner_filename \
          FROM users \
@@ -234,6 +236,7 @@ async fn load_profile(
         share_activity: row.share_activity,
         accent_color: row.accent_color,
         banner_color: row.banner_color,
+        banner_gradient_end: row.banner_gradient_end,
         avatar_url: row
             .avatar_attachment_id
             .zip(row.avatar_filename)
@@ -271,6 +274,8 @@ pub struct UpdateProfileRequest {
     pub accent_color: Option<String>,
     #[serde(default)]
     pub banner_color: Option<String>,
+    #[serde(default)]
+    pub banner_gradient_end: Option<String>,
     #[serde(default)]
     pub share_activity: Option<bool>,
 }
@@ -311,6 +316,7 @@ pub async fn update_profile(
     let status_text = clean(payload.status_text, MAX_STATUS_TEXT_LEN)?;
     let accent_color = clean_color(payload.accent_color)?;
     let banner_color = clean_color(payload.banner_color)?;
+    let banner_gradient_end = clean_color(payload.banner_gradient_end)?;
     let clear_minutes = payload.status_clear_minutes.filter(|m| *m >= 0);
 
     sqlx::query(
@@ -321,6 +327,7 @@ pub async fn update_profile(
             status_text = CASE WHEN $4 IS NULL THEN status_text WHEN $4 = '' THEN NULL ELSE $4 END, \
             accent_color = CASE WHEN $5 IS NULL THEN accent_color WHEN $5 = '' THEN NULL ELSE $5 END, \
             banner_color = CASE WHEN $6 IS NULL THEN banner_color WHEN $6 = '' THEN NULL ELSE $6 END, \
+            banner_gradient_end = CASE WHEN $10 IS NULL THEN banner_gradient_end WHEN $10 = '' THEN NULL ELSE $10 END, \
             share_activity = CASE WHEN $9::boolean IS NULL THEN share_activity ELSE $9::boolean END, \
             status_clear_at = CASE WHEN $8::bigint IS NULL THEN status_clear_at \
                                     WHEN $8::bigint = 0 THEN NULL \
@@ -336,6 +343,7 @@ pub async fn update_profile(
     .bind(session.user_id)
     .bind(clear_minutes)
     .bind(payload.share_activity)
+    .bind(&banner_gradient_end)
     .execute(&state.pool)
     .await?;
 
