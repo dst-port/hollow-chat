@@ -454,10 +454,19 @@ export function declineFriendRequest(token: string, requestId: string) {
 	});
 }
 
+export type ApiDmMember = {
+	id: string;
+	username: string;
+};
+
 export type ApiDmChannel = {
 	id: string;
-	peer_id: string;
-	peer_username: string;
+	is_group: boolean;
+	name: string | null;
+	owner_id: string | null;
+	peer_id: string | null;
+	peer_username: string | null;
+	members: ApiDmMember[];
 };
 
 export function listDms(token: string) {
@@ -471,6 +480,37 @@ export function openDm(token: string, username: string) {
 		method: "POST",
 		headers: { authorization: `Bearer ${token}` },
 		body: JSON.stringify({ username })
+	});
+}
+
+export function createGroupDm(token: string, usernames: string[], name?: string) {
+	return request<ApiDmChannel>("/dms/group", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ usernames, name })
+	});
+}
+
+export function addDmMember(token: string, dmId: string, username: string) {
+	return request<ApiDmChannel>(`/dms/${dmId}/members`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ username })
+	});
+}
+
+export function leaveDm(token: string, dmId: string) {
+	return request<void>(`/dms/${dmId}/leave`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function renameDm(token: string, dmId: string, name: string | null) {
+	return request<ApiDmChannel>(`/dms/${dmId}`, {
+		method: "PATCH",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ name })
 	});
 }
 
@@ -723,6 +763,24 @@ export function publishSenderKeys(
 
 export function listSenderKeys(token: string, channelId: string) {
 	return request<ApiSenderKey[]>(`/channels/${channelId}/sender-keys`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function publishDmSenderKeys(
+	token: string,
+	dmId: string,
+	entries: { recipient_id: string; ciphertext: string }[]
+) {
+	return request<void>(`/dms/${dmId}/sender-keys`, {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ entries })
+	});
+}
+
+export function listDmSenderKeys(token: string, dmId: string) {
+	return request<ApiSenderKey[]>(`/dms/${dmId}/sender-keys`, {
 		headers: { authorization: `Bearer ${token}` }
 	});
 }

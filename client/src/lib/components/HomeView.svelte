@@ -15,6 +15,8 @@
 	import CallStage from "$lib/components/CallStage.svelte";
 	import DmProfilePanel from "$lib/components/DmProfilePanel.svelte";
 	import FullProfileModal from "$lib/components/FullProfileModal.svelte";
+	import CreateGroupDmModal from "$lib/components/CreateGroupDmModal.svelte";
+	import GroupDmMembersPanel from "$lib/components/GroupDmMembersPanel.svelte";
 	import { call } from "$lib/webrtc/call.svelte";
 	import type { Member, Channel } from "$lib/data/mock";
 	import { toast } from "$lib/stores/toast.svelte";
@@ -36,6 +38,7 @@
 	let dmChannels = $state<api.ApiDmChannel[]>([]);
 	let activeDmId = $state<string | null>(null);
 	let mobileDetailOpen = $state(false);
+	let groupModalOpen = $state(false);
 	let showDmProfile = $state(false);
 	let viewingProfile = $state<string | null>(null);
 
@@ -105,12 +108,23 @@
 		return () => clearInterval(interval);
 	});
 
+	function dmDisplayName(dm: api.ApiDmChannel): string {
+		if (!dm.is_group) return dm.peer_username ?? "Unknown";
+		return dm.name || dm.members.map((m) => m.username).filter((u) => u !== username).join(", ") || "Group";
+	}
+
+	function dmMemberKey(dm: api.ApiDmChannel): string {
+		return dm.is_group
+			? `g:${dm.name ?? ""}:${dm.members.map((m) => m.username).sort().join(",")}`
+			: (dm.peer_username ?? "");
+	}
+
 	async function startDmCallFromCallBar() {
 		const token = session.token;
 		const dm = activeDm;
 		if (!token || !dm) return;
 		try {
-			await call.join(token, dm.id, dm.peer_username);
+			await call.join(token, dm.id, dmDisplayName(dm));
 		} catch {
 			toast.push("Couldn't start the call — check microphone permissions");
 		}
@@ -123,15 +137,25 @@
 	// ChatView see it as a different channel prop and reload the
 	// conversation from scratch every few seconds.
 	let memoDmChannel: Channel | null = null;
+	let memoDmKey: string | null = null;
 	const activeDmChannel = $derived.by<Channel | null>(() => {
 		if (!activeDm) {
 			memoDmChannel = null;
+			memoDmKey = null;
 			return null;
 		}
-		if (memoDmChannel && memoDmChannel.id === activeDm.id && memoDmChannel.name === activeDm.peer_username) {
+		const key = dmMemberKey(activeDm);
+		if (memoDmChannel && memoDmChannel.id === activeDm.id && memoDmKey === key) {
 			return memoDmChannel;
 		}
-		memoDmChannel = { id: activeDm.id, name: activeDm.peer_username, type: "text" };
+		memoDmChannel = {
+			id: activeDm.id,
+			name: dmDisplayName(activeDm),
+			type: "text",
+			isGroupDm: activeDm.is_group,
+			dmMembers: activeDm.members.filter((m) => m.username !== username)
+		};
+		memoDmKey = key;
 		return memoDmChannel;
 	});
 
@@ -268,16 +292,27 @@
 			<Users size={16} strokeWidth={2} />
 			Friends
 		</button>
-		<p class="label">Direct Messages</p>
+		<div class="label-row">
+			<p class="label">Direct Messages</p>
+			<button class="new-group" title="Create group DM" onclick={() => (groupModalOpen = true)}>
+				<UserPlus size={13} strokeWidth={2.25} />
+			</button>
+		</div>
 		{#if dmChannels.length === 0}
 			<p class="dm-empty">No conversations yet. Message a friend to start one.</p>
 		{:else}
 			{#each dmChannels as dm (dm.id)}
 				<button class="nav-item dm-item" class:active={activeDmId === dm.id} onclick={() => selectDm(dm.id)}>
-					<div class="dm-avatar" style:background={colorForName(dm.peer_username)}>
-						{dm.peer_username.slice(0, 2).toUpperCase()}
-					</div>
-					{dm.peer_username}
+					{#if dm.is_group}
+						<div class="dm-avatar group">
+							<Users size={14} strokeWidth={2} />
+						</div>
+					{:else}
+						<div class="dm-avatar" style:background={colorForName(dm.peer_username ?? "")}>
+							{(dm.peer_username ?? "?").slice(0, 2).toUpperCase()}
+						</div>
+					{/if}
+					{dmDisplayName(dm)}
 				</button>
 			{/each}
 		{/if}
@@ -304,13 +339,25 @@
 			<ChatView
 				channel={activeDmChannel}
 				isDm={true}
-				peerId={activeDm?.peer_id}
+				peerId={activeDm?.peer_id ?? undefined}
 				onToggleMembers={() => (showDmProfile = !showDmProfile)}
 			/>
 		</div>
-		{#if showDmProfile}
+		{#if showDmProfile && activeDm}
 			<div class="dm-profile-wrap" class:mobile-overlay={viewport.isMobile}>
-				<DmProfilePanel username={activeDmChannel.name} onViewFullProfile={() => (viewingProfile = activeDmChannel!.name)} />
+				{#if activeDm.is_group}
+					<GroupDmMembersPanel
+						dm={activeDm}
+						onChanged={(updated) => (dmChannels = dmChannels.map((d) => (d.id === updated.id ? updated : d)))}
+						onLeft={() => {
+							dmChannels = dmChannels.filter((d) => d.id !== activeDm!.id);
+							activeDmId = null;
+							showDmProfile = false;
+						}}
+					/>
+				{:else}
+					<DmProfilePanel username={activeDmChannel.name} onViewFullProfile={() => (viewingProfile = activeDmChannel!.name)} />
+				{/if}
 			</div>
 		{/if}
 	{:else}
@@ -479,6 +526,19 @@
 	/>
 {/if}
 
+{#if groupModalOpen && session.token}
+	<CreateGroupDmModal
+		token={session.token}
+		friends={rawFriends}
+		onClose={() => (groupModalOpen = false)}
+		onCreated={(dm) => {
+			dmChannels = [dm, ...dmChannels.filter((d) => d.id !== dm.id)];
+			activeDmId = dm.id;
+			if (viewport.isMobile) mobileDetailOpen = true;
+		}}
+	/>
+{/if}
+
 <style>
 	.home {
 		flex: 1;
@@ -608,6 +668,38 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--ink-faint);
+	}
+
+	.label-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.label-row .label {
+		margin: 8px 0 4px;
+	}
+
+	.new-group {
+		margin-right: 8px;
+		width: 20px;
+		height: 20px;
+		border-radius: 5px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--ink-faint);
+		background: var(--panel);
+	}
+
+	.new-group:hover {
+		color: var(--ink);
+		background: var(--hover);
+	}
+
+	.dm-avatar.group {
+		background: var(--active);
+		color: var(--ink-dim);
 	}
 
 	.dm-empty {

@@ -62,6 +62,8 @@
 		listMembers as apiListMembers,
 		publishSenderKeys,
 		listSenderKeys,
+		publishDmSenderKeys,
+		listDmSenderKeys,
 		fetchLinkPreview,
 		PERMISSIONS,
 		ApiError,
@@ -82,7 +84,8 @@
 		markDistributedTo,
 		getOrCreateSendState,
 		packageDistribution,
-		absorbSenderKeyFor
+		absorbSenderKeyFor,
+		absorbDmSenderKeyFor
 	} from "$lib/crypto/group";
 	import { rememberDecrypted, recallDecrypted } from "$lib/crypto/sent-cache";
 	import { encryptFile, genericUploadName } from "$lib/crypto/attachment";
@@ -144,8 +147,10 @@
 			return "[sent from another device]";
 		}
 
+		const isGroupDm = isDm && !!channel.isGroupDm;
+
 		try {
-			const content = isDm
+			const content = isDm && !isGroupDm
 				? await decryptFromPeer(myUsername, channel.name, blob)
 				: await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
 			rememberDecrypted(messageId, content);
@@ -153,7 +158,9 @@
 		} catch {
 			const token = session.token;
 			let absorbed = false;
-			if (!isDm && token) {
+			if (isGroupDm && token) {
+				absorbed = await absorbDmSenderKeyFor(token, myUsername, channel.id, authorUsername);
+			} else if (!isDm && token) {
 				absorbed = await absorbSenderKeyFor(token, myUsername, channel.id, authorUsername);
 			}
 			if (absorbed) {
@@ -179,22 +186,28 @@
 	}
 
 	async function encryptOutgoing(myUsername: string, token: string, content: string): Promise<string> {
+		if (isDm && channel.isGroupDm) return encryptForChannel(myUsername, channel.id, content);
 		return isDm
 			? encryptForPeer(token, myUsername, channel.name, content)
 			: encryptForChannel(myUsername, channel.id, content);
 	}
 
 	async function bootstrapChannelKeys(token: string, myUsername: string) {
-		if (isDm || !serverId) return;
+		if (isDm && !channel.isGroupDm) return;
+		if (!isDm && !serverId) return;
 
-		const pending = await listSenderKeys(token, channel.id).catch(() => []);
+		const listKeys = isDm ? listDmSenderKeys : listSenderKeys;
+		const publishKeys = isDm ? publishDmSenderKeys : publishSenderKeys;
+
+		const pending = await listKeys(token, channel.id).catch(() => []);
 		for (const entry of pending) {
 			await absorbDistribution(myUsername, entry.sender_username, entry.ciphertext).catch(() => {});
 		}
 
 		try {
-			const members = await apiListMembers(token, serverId);
-			const others = members.filter((m) => m.username !== myUsername);
+			const others = isDm
+				? (channel.dmMembers ?? []).filter((m) => m.username !== myUsername)
+				: (await apiListMembers(token, serverId!)).filter((m) => m.username !== myUsername);
 			const memberIds = others.map((m) => m.id);
 			if (needsRedistribution(myUsername, channel.id, memberIds)) {
 				const state = await getOrCreateSendState(myUsername, channel.id);
@@ -203,7 +216,7 @@
 					const ciphertext = await packageDistribution(token, myUsername, channel.id, state, member.username);
 					entries.push({ recipient_id: member.id, ciphertext });
 				}
-				if (entries.length > 0) await publishSenderKeys(token, channel.id, entries);
+				if (entries.length > 0) await publishKeys(token, channel.id, entries);
 				await markDistributedTo(myUsername, channel.id, memberIds);
 			}
 		} catch {

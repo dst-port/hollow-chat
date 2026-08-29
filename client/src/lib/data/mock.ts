@@ -7,6 +7,8 @@ export type Channel = {
 	unread?: boolean;
 	category?: string;
 	slowmodeSeconds?: number;
+	isGroupDm?: boolean;
+	dmMembers?: { id: string; username: string }[];
 };
 
 export type ServerEntry = {
