@@ -1,0 +1,1 @@
+ALTER TABLE attachments ADD COLUMN on_cdn BOOLEAN NOT NULL DEFAULT false;

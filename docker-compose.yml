@@ -41,6 +41,10 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       ATTACHMENT_RETENTION_DAYS: ${ATTACHMENT_RETENTION_DAYS:-}
+      BUNNY_STORAGE_ZONE: ${BUNNY_STORAGE_ZONE:-}
+      BUNNY_STORAGE_API_KEY: ${BUNNY_STORAGE_API_KEY:-}
+      BUNNY_STORAGE_REGION_HOST: ${BUNNY_STORAGE_REGION_HOST:-storage.bunnycdn.com}
+      BUNNY_CDN_BASE_URL: ${BUNNY_CDN_BASE_URL:-}
     volumes:
       - hollowchat_attachments:/home/hollowchat/attachments
 

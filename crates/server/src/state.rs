@@ -25,6 +25,14 @@ pub struct BillingConfig {
 }
 
 #[derive(Clone)]
+pub struct BunnyConfig {
+    pub storage_zone: Arc<str>,
+    pub storage_api_key: Arc<str>,
+    pub storage_region_host: Arc<str>,
+    pub cdn_base_url: Arc<str>,
+}
+
+#[derive(Clone)]
 pub struct IceConfig {
     pub stun_urls: Arc<[String]>,
     pub turn_url: Option<Arc<str>>,
@@ -38,6 +46,7 @@ pub struct AppState {
     pub pepper: Arc<[u8]>,
     pub message_limiter: UserRateLimiter,
     pub attachments_dir: Arc<str>,
+    pub bunny: Option<BunnyConfig>,
     pub http_client: reqwest::Client,
     pub billing: BillingConfig,
     pub ice: IceConfig,

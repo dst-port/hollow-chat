@@ -17,6 +17,10 @@ pub struct Config {
     pub telegram_bot_token: Option<String>,
     pub telegram_chat_id: Option<String>,
     pub attachment_retention_days: Option<u32>,
+    pub bunny_storage_zone: Option<String>,
+    pub bunny_storage_api_key: Option<String>,
+    pub bunny_storage_region_host: String,
+    pub bunny_cdn_base_url: Option<String>,
 }
 
 impl Config {
@@ -74,6 +78,16 @@ impl Config {
             .ok()
             .and_then(|s| s.parse().ok());
 
+        // All three unset means "store on local disk" (the original
+        // behavior, still the default for anyone self-hosting without a
+        // CDN). Set together to route new uploads through Bunny Storage and
+        // serve them from its Pull Zone edge instead of this VPS.
+        let bunny_storage_zone = std::env::var("BUNNY_STORAGE_ZONE").ok();
+        let bunny_storage_api_key = std::env::var("BUNNY_STORAGE_API_KEY").ok();
+        let bunny_storage_region_host = std::env::var("BUNNY_STORAGE_REGION_HOST")
+            .unwrap_or_else(|_| "storage.bunnycdn.com".to_string());
+        let bunny_cdn_base_url = std::env::var("BUNNY_CDN_BASE_URL").ok();
+
         Self {
             database_url,
             pepper,
@@ -93,6 +107,10 @@ impl Config {
             telegram_bot_token,
             telegram_chat_id,
             attachment_retention_days,
+            bunny_storage_zone,
+            bunny_storage_api_key,
+            bunny_storage_region_host,
+            bunny_cdn_base_url,
         }
     }
 }

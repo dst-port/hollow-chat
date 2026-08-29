@@ -1,3 +1,4 @@
+pub mod bunny;
 mod handlers;
 pub mod retention;
 

@@ -1,12 +1,13 @@
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State};
 use axum::http::header;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
+use crate::attachments::bunny;
 use crate::auth::AuthSession;
 use crate::error::AppError;
 use crate::state::AppState;
@@ -88,9 +89,28 @@ pub async fn upload(
         return Err(AppError::InvalidAttachment);
     }
 
+    let on_cdn = if let Some(bunny) = &state.bunny {
+        let upload_file = tokio::fs::File::open(&path)
+            .await
+            .map_err(|_| AppError::InvalidAttachment)?;
+        let body = reqwest::Body::wrap_stream(tokio_util::io::ReaderStream::new(upload_file));
+        let uploaded = bunny::upload(&state.http_client, bunny, &storage_key, body).await;
+        // The local temp copy was only ever a write buffer once Bunny is
+        // configured - drop it either way so a successful CDN upload
+        // doesn't double up disk usage, and a failed one doesn't leave
+        // orphaned partial files lying around.
+        let _ = tokio::fs::remove_file(&path).await;
+        if uploaded.is_err() {
+            return Err(AppError::InvalidAttachment);
+        }
+        true
+    } else {
+        false
+    };
+
     let attachment: AttachmentDto = sqlx::query_as(
-        "INSERT INTO attachments (uploader_id, filename, mime_type, size_bytes, storage_key) \
-         VALUES ($1, $2, $3, $4, $5) \
+        "INSERT INTO attachments (uploader_id, filename, mime_type, size_bytes, storage_key, on_cdn) \
+         VALUES ($1, $2, $3, $4, $5, $6) \
          RETURNING id, filename, mime_type, size_bytes",
     )
     .bind(session.user_id)
@@ -98,6 +118,7 @@ pub async fn upload(
     .bind(&mime_type)
     .bind(total as i64)
     .bind(&storage_key)
+    .bind(on_cdn)
     .fetch_one(&state.pool)
     .await?;
 
@@ -111,6 +132,7 @@ struct AttachmentRow {
     mime_type: String,
     storage_key: String,
     purged_at: Option<chrono::DateTime<chrono::Utc>>,
+    on_cdn: bool,
 }
 
 pub async fn download(
@@ -119,7 +141,7 @@ pub async fn download(
     Path((id, _filename)): Path<(Uuid, String)>,
 ) -> Result<Response, AppError> {
     let attachment: Option<AttachmentRow> = sqlx::query_as(
-        "SELECT uploader_id, filename, mime_type, storage_key, purged_at FROM attachments WHERE id = $1",
+        "SELECT uploader_id, filename, mime_type, storage_key, purged_at, on_cdn FROM attachments WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -153,6 +175,13 @@ pub async fn download(
 
         if authorized.is_none() {
             return Err(AppError::AttachmentNotFound);
+        }
+    }
+
+    if attachment.on_cdn {
+        if let Some(bunny) = &state.bunny {
+            let url = bunny::public_url(bunny, &attachment.storage_key);
+            return Ok(axum::response::Redirect::temporary(&url).into_response());
         }
     }
 

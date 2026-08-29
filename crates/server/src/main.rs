@@ -107,8 +107,36 @@ async fn main() {
     std::fs::create_dir_all(&config.attachments_dir)
         .expect("failed to create attachments directory");
 
+    let bunny = match (
+        config.bunny_storage_zone,
+        config.bunny_storage_api_key,
+        config.bunny_cdn_base_url,
+    ) {
+        (Some(storage_zone), Some(storage_api_key), Some(cdn_base_url)) => {
+            tracing::info!("attachments will be stored on Bunny CDN ({cdn_base_url})");
+            Some(state::BunnyConfig {
+                storage_zone: Arc::from(storage_zone.into_boxed_str()),
+                storage_api_key: Arc::from(storage_api_key.into_boxed_str()),
+                storage_region_host: Arc::from(config.bunny_storage_region_host.into_boxed_str()),
+                cdn_base_url: Arc::from(cdn_base_url.trim_end_matches('/').to_string().into_boxed_str()),
+            })
+        }
+        (None, None, None) => None,
+        _ => panic!(
+            "BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY and BUNNY_CDN_BASE_URL must be set together or not at all"
+        ),
+    };
+
+    let http_client = reqwest::Client::new();
+
     if let Some(days) = config.attachment_retention_days {
-        attachments::retention::spawn(pool.clone(), config.attachments_dir.clone(), days);
+        attachments::retention::spawn(
+            pool.clone(),
+            config.attachments_dir.clone(),
+            bunny.clone(),
+            http_client.clone(),
+            days,
+        );
         tracing::info!("attachment retention sweep enabled: {days} days");
     }
 
@@ -117,7 +145,8 @@ async fn main() {
         pepper: Arc::from(config.pepper.into_boxed_slice()),
         message_limiter: UserRateLimiter::new(MESSAGE_LIMIT_PER_WINDOW, MESSAGE_LIMIT_WINDOW),
         attachments_dir: Arc::from(config.attachments_dir.into_boxed_str()),
-        http_client: reqwest::Client::new(),
+        bunny,
+        http_client,
         billing: BillingConfig {
             lava_api_key: config.lava_api_key.map(|s| Arc::from(s.into_boxed_str())),
             lava_offer_id: config.lava_offer_id.map(|s| Arc::from(s.into_boxed_str())),
