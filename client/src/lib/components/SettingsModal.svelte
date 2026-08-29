@@ -22,6 +22,7 @@
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import ShieldAlert from "@lucide/svelte/icons/shield-alert";
 	import MessageSquare from "@lucide/svelte/icons/message-square";
+	import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import QRCode from "qrcode";
 	import { renameLocalIdentity } from "$lib/crypto/identity";
@@ -33,7 +34,7 @@
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { themeStore, COLOR_GROUPS, COLOR_LABELS, THEME_PRESETS } from "$lib/stores/theme.svelte";
-	import { fontStore, FONT_STACKS, FONT_LABELS, type FontId } from "$lib/stores/font.svelte";
+	import { fontStore, FONT_STACKS, FONT_LABELS, PRESET_FONT_IDS, type FontId } from "$lib/stores/font.svelte";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import Badges from "$lib/components/Badges.svelte";
@@ -117,6 +118,7 @@
 	let reports = $state<api.ReportSummary[]>([]);
 	let reportsLoading = $state(false);
 	let reportStatusFilter = $state<api.ReportStatus | "all">("open");
+	let openReportId = $state<string | null>(null);
 
 	$effect(() => {
 		const token = session.token;
@@ -149,6 +151,24 @@
 	function messageReporter(username: string) {
 		pendingDm.request(username);
 		onClose();
+	}
+
+	function copyReportId(id: string) {
+		navigator.clipboard.writeText(id);
+		toast.push("Report ID copied");
+	}
+
+	function copyFetchCommand(id: string) {
+		const cmd =
+			`psql "$DATABASE_URL" -c "SELECT ` +
+			`encode(sealed_key_ephemeral_public, 'base64') AS sealed_key_ephemeral_public, ` +
+			`encode(sealed_key_nonce, 'base64') AS sealed_key_nonce, ` +
+			`encode(sealed_key_ciphertext, 'base64') AS sealed_key_ciphertext, ` +
+			`encode(payload_nonce, 'base64') AS payload_nonce, ` +
+			`encode(payload_ciphertext, 'base64') AS payload_ciphertext ` +
+			`FROM reports WHERE id = '${id}'\\gx"`;
+		navigator.clipboard.writeText(cmd);
+		toast.push("psql command copied");
 	}
 
 	const REPORT_FILTERS: (api.ReportStatus | "all")[] = ["open", "reviewing", "resolved", "dismissed", "all"];
@@ -225,6 +245,9 @@
 
 	let reducedMotion = $state(false);
 	let compactMode = $state(false);
+
+	let customFontFamilyDraft = $state(fontStore.settings.customFamily);
+	let customFontUrlDraft = $state(fontStore.settings.customUrl);
 
 	type TotpStage = "idle" | "enabled" | "setting-up" | "backup-codes" | "disabling" | "regenerating";
 	let totpStage = $state<TotpStage>("idle");
@@ -1200,17 +1223,62 @@
 						</div>
 					</div>
 					<div class="theme-options">
-						{#each Object.entries(FONT_LABELS) as [id, label] (id)}
+						<button
+							class="theme-option"
+							class:active={fontStore.current === "default"}
+							onclick={() => fontStore.setMode("default")}
+						>
+							Default
+						</button>
+						<button
+							class="theme-option"
+							class:active={fontStore.current === "preset"}
+							onclick={() => fontStore.setMode("preset")}
+						>
+							Preset
+						</button>
+						<button
+							class="theme-option"
+							class:active={fontStore.current === "link"}
+							onclick={() => fontStore.setMode("link")}
+						>
+							Link
+						</button>
+					</div>
+
+					{#if fontStore.current === "preset"}
+						<select
+							class="font-select"
+							value={fontStore.settings.presetId}
+							onchange={(e) => fontStore.setPreset((e.currentTarget as HTMLSelectElement).value as FontId)}
+						>
+							{#each PRESET_FONT_IDS as id (id)}
+								<option value={id} style:font-family={FONT_STACKS[id]}>{FONT_LABELS[id]}</option>
+							{/each}
+						</select>
+					{:else if fontStore.current === "link"}
+						<div class="font-link-form">
+							<input
+								type="text"
+								class="font-link-input"
+								placeholder="Font family name (e.g. Fira Code)"
+								bind:value={customFontFamilyDraft}
+							/>
+							<input
+								type="text"
+								class="font-link-input"
+								placeholder="Stylesheet URL (e.g. Google Fonts CSS link)"
+								bind:value={customFontUrlDraft}
+							/>
 							<button
 								class="theme-option"
-								class:active={fontStore.current === id}
-								style:font-family={FONT_STACKS[id as FontId]}
-								onclick={() => fontStore.set(id as FontId)}
+								disabled={!customFontFamilyDraft.trim() || !customFontUrlDraft.trim()}
+								onclick={() => fontStore.setCustom(customFontFamilyDraft.trim(), customFontUrlDraft.trim())}
 							>
-								{label}
+								Apply
 							</button>
-						{/each}
-					</div>
+						</div>
+					{/if}
 				</div>
 
 				<div class="card">
@@ -1385,63 +1453,112 @@
 					</div>
 				{/if}
 			{:else if section === "moderation" && isStaff}
-				<h2>Moderation</h2>
-				<div class="card">
-					<p class="row-value muted" style="margin-bottom: 12px;">
-						Report contents are sealed to a key this app never holds — decrypt them offline with
-						<code>tools/decrypt-report.mjs</code>. This just tracks who reported whom and lets you
-						open a reply DM as Hollow Support.
-					</p>
-					<div class="report-filter">
-						{#each REPORT_FILTERS as filter (filter)}
-							<button
-								type="button"
-								class="filter-chip"
-								class:active={reportStatusFilter === filter}
-								onclick={() => (reportStatusFilter = filter)}
+				{@const openReport = reports.find((r) => r.id === openReportId) ?? null}
+				{#if openReport}
+					<button type="button" class="back-link" onclick={() => (openReportId = null)}>
+						<ArrowLeft size={14} strokeWidth={2.25} />
+						Back to reports
+					</button>
+
+					<div class="card ticket-card">
+						<p class="ticket-field">
+							<span class="ticket-label">Report from</span>
+							<span class="ticket-value">{openReport.reporter_username}</span>
+						</p>
+						<p class="ticket-field">
+							<span class="ticket-label">Reported</span>
+							<span class="ticket-value">{openReport.reported_username}</span>
+						</p>
+						<p class="ticket-field">
+							<span class="ticket-label">Context</span>
+							<span class="ticket-value">{openReport.context_kind}</span>
+						</p>
+						<p class="ticket-field">
+							<span class="ticket-label">Filed</span>
+							<span class="ticket-value">{new Date(openReport.created_at).toLocaleString()}</span>
+						</p>
+						<p class="ticket-field">
+							<span class="ticket-label">Status</span>
+							<select
+								value={openReport.status}
+								onchange={(e) => setReportStatus(openReport, e.currentTarget.value as api.ReportStatus)}
 							>
-								{filter}
-							</button>
-						{/each}
+								<option value="open">Open</option>
+								<option value="reviewing">Reviewing</option>
+								<option value="resolved">Resolved</option>
+								<option value="dismissed">Dismissed</option>
+							</select>
+						</p>
+						<button type="button" class="save" onclick={() => messageReporter(openReport.reporter_username)}>
+							<MessageSquare size={14} strokeWidth={2} />
+							Message reporter
+						</button>
 					</div>
-				</div>
-				{#if reportsLoading}
-					<p class="row-value muted">Loading…</p>
-				{:else if visibleReports.length === 0}
-					<p class="row-value muted">No reports here.</p>
+
+					<div class="card">
+						<p class="row-label" style="margin-bottom: 8px;">Reason & Messages</p>
+						<p class="row-value muted" style="margin-bottom: 12px;">
+							The reason text, quoted messages, and attachments for this report are end-to-end sealed
+							to an offline moderator key — this panel (and the server) never holds it. Fetch the sealed
+							row and decrypt it on an air-gapped machine with <code>tools/decrypt-report.mjs</code>.
+						</p>
+						<div class="ticket-actions">
+							<button type="button" class="theme-option" onclick={() => copyReportId(openReport.id)}>
+								<Copy size={13} strokeWidth={2} />
+								Copy report ID
+							</button>
+							<button type="button" class="theme-option" onclick={() => copyFetchCommand(openReport.id)}>
+								<Copy size={13} strokeWidth={2} />
+								Copy psql fetch command
+							</button>
+						</div>
+					</div>
 				{:else}
-					<div class="report-list">
-						{#each visibleReports as report (report.id)}
-							<div class="report-row">
-								<div class="report-main">
-									<p class="report-line">
-										<strong>{report.reporter_username}</strong> reported
-										<strong>{report.reported_username}</strong>
-									</p>
-									<p class="report-meta">
-										{report.context_kind} · {new Date(report.created_at).toLocaleString()}
-									</p>
-								</div>
-								<select
-									value={report.status}
-									onchange={(e) => setReportStatus(report, e.currentTarget.value as api.ReportStatus)}
-								>
-									<option value="open">Open</option>
-									<option value="reviewing">Reviewing</option>
-									<option value="resolved">Resolved</option>
-									<option value="dismissed">Dismissed</option>
-								</select>
+					<h2>Moderation</h2>
+					<div class="card">
+						<p class="row-value muted" style="margin-bottom: 12px;">
+							Report contents are sealed to a key this app never holds — decrypt them offline with
+							<code>tools/decrypt-report.mjs</code>. This just tracks who reported whom and lets you
+							open a reply DM as Hollow Support.
+						</p>
+						<div class="report-filter">
+							{#each REPORT_FILTERS as filter (filter)}
 								<button
 									type="button"
-									class="save"
-									onclick={() => messageReporter(report.reporter_username)}
+									class="filter-chip"
+									class:active={reportStatusFilter === filter}
+									onclick={() => (reportStatusFilter = filter)}
 								>
-									<MessageSquare size={14} strokeWidth={2} />
-									Message
+									{filter}
 								</button>
-							</div>
-						{/each}
+							{/each}
+						</div>
 					</div>
+					{#if reportsLoading}
+						<p class="row-value muted">Loading…</p>
+					{:else if visibleReports.length === 0}
+						<p class="row-value muted">No reports here.</p>
+					{:else}
+						<div class="report-list">
+							{#each visibleReports as report (report.id)}
+								<div class="report-row">
+									<div class="report-main">
+										<p class="report-line">
+											<strong>{report.reporter_username}</strong> reported
+											<strong>{report.reported_username}</strong>
+										</p>
+										<p class="report-meta">
+											{report.context_kind} · {new Date(report.created_at).toLocaleString()}
+										</p>
+									</div>
+									<span class="status-pill {report.status}">{report.status}</span>
+									<button type="button" class="save" onclick={() => (openReportId = report.id)}>
+										Open
+									</button>
+								</div>
+							{/each}
+						</div>
+					{/if}
 				{/if}
 			{/if}
 		</div>
@@ -1766,6 +1883,33 @@
 		padding-top: 4px;
 	}
 
+	.font-select {
+		margin-top: 10px;
+		width: 100%;
+		padding: 10px 12px;
+		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		background: var(--panel);
+		color: var(--ink);
+		font-size: 13px;
+	}
+
+	.font-link-form {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-top: 10px;
+	}
+
+	.font-link-input {
+		padding: 10px 12px;
+		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		background: var(--panel);
+		color: var(--ink);
+		font-size: 13px;
+	}
+
 	.theme-option {
 		padding: 8px 14px;
 		border-radius: 6px;
@@ -2036,6 +2180,86 @@
 		display: flex;
 		align-items: center;
 		gap: 5px;
+	}
+
+	.status-pill {
+		flex-shrink: 0;
+		padding: 3px 9px;
+		border-radius: 999px;
+		font-size: 11px;
+		font-weight: 600;
+		text-transform: capitalize;
+		background: var(--active);
+		color: var(--ink-dim);
+	}
+
+	.status-pill.open {
+		background: var(--danger);
+		color: #fff;
+	}
+
+	.status-pill.reviewing {
+		background: var(--idle);
+		color: #1c1815;
+	}
+
+	.status-pill.resolved {
+		background: var(--online);
+		color: #06210f;
+	}
+
+	.back-link {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 12px;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink-dim);
+	}
+
+	.back-link:hover {
+		color: var(--ink);
+	}
+
+	.ticket-card {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.ticket-field {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin: 0;
+	}
+
+	.ticket-label {
+		width: 100px;
+		flex-shrink: 0;
+		font-size: 11px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--ink-faint);
+	}
+
+	.ticket-value {
+		font-size: 13px;
+		color: var(--ink);
+	}
+
+	.ticket-card .save {
+		align-self: flex-start;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.ticket-actions {
+		display: flex;
+		gap: 8px;
 	}
 
 	.ghost {

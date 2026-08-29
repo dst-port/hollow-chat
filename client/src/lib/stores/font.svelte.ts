@@ -1,6 +1,8 @@
 const STORAGE_KEY = "hollowchat.font";
+const CUSTOM_LINK_EL_ID = "hollowchat-custom-font-link";
 
 export type FontId = "default" | "inter" | "poppins" | "comfortaa" | "jetbrains-mono" | "merriweather";
+export type FontMode = "default" | "preset" | "link";
 
 export const FONT_STACKS: Record<FontId, string> = {
 	default: "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
@@ -20,41 +22,122 @@ export const FONT_LABELS: Record<FontId, string> = {
 	merriweather: "Merriweather (Serif)"
 };
 
-function loadStored(): FontId {
+export const PRESET_FONT_IDS: FontId[] = ["inter", "poppins", "comfortaa", "jetbrains-mono", "merriweather"];
+
+type FontSettings = {
+	mode: FontMode;
+	presetId: FontId;
+	customUrl: string;
+	customFamily: string;
+};
+
+function defaultSettings(): FontSettings {
+	return { mode: "default", presetId: "inter", customUrl: "", customFamily: "" };
+}
+
+function loadStored(): FontSettings {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		return raw && raw in FONT_STACKS ? (raw as FontId) : "default";
+		if (!raw) return defaultSettings();
+
+		// Pre-existing installs stored a bare FontId string.
+		if (raw in FONT_STACKS) {
+			return raw === "default"
+				? defaultSettings()
+				: { mode: "preset", presetId: raw as FontId, customUrl: "", customFamily: "" };
+		}
+
+		const parsed = JSON.parse(raw);
+		const settings = defaultSettings();
+		if (parsed?.mode === "preset" || parsed?.mode === "link") settings.mode = parsed.mode;
+		if (typeof parsed?.presetId === "string" && parsed.presetId in FONT_STACKS) {
+			settings.presetId = parsed.presetId;
+		}
+		if (typeof parsed?.customUrl === "string") settings.customUrl = parsed.customUrl;
+		if (typeof parsed?.customFamily === "string") settings.customFamily = parsed.customFamily;
+		return settings;
 	} catch {
-		return "default";
+		return defaultSettings();
 	}
 }
 
 class FontStore {
-	current = $state<FontId>("default");
+	settings = $state<FontSettings>(defaultSettings());
+
+	get current(): FontMode {
+		return this.settings.mode;
+	}
 
 	init() {
-		this.current = loadStored();
+		this.settings = loadStored();
 		this.apply();
 	}
 
 	apply() {
 		if (typeof document === "undefined") return;
 		const root = document.documentElement;
-		if (this.current === "default") {
+
+		if (this.settings.mode === "default") {
 			root.style.removeProperty("--font-body");
+			this.removeCustomLink();
+		} else if (this.settings.mode === "preset") {
+			root.style.setProperty("--font-body", FONT_STACKS[this.settings.presetId]);
+			this.removeCustomLink();
 		} else {
-			root.style.setProperty("--font-body", FONT_STACKS[this.current]);
+			this.ensureCustomLink(this.settings.customUrl);
+			const family = this.settings.customFamily.trim();
+			root.style.setProperty(
+				"--font-body",
+				family ? `"${family}", -apple-system, BlinkMacSystemFont, sans-serif` : ""
+			);
 		}
 	}
 
-	set(id: FontId) {
-		this.current = id;
+	private ensureCustomLink(url: string) {
+		const existing = document.getElementById(CUSTOM_LINK_EL_ID) as HTMLLinkElement | null;
+		if (!url.trim()) {
+			existing?.remove();
+			return;
+		}
+		if (existing) {
+			if (existing.href !== url) existing.href = url;
+			return;
+		}
+		const link = document.createElement("link");
+		link.id = CUSTOM_LINK_EL_ID;
+		link.rel = "stylesheet";
+		link.href = url;
+		document.head.appendChild(link);
+	}
+
+	private removeCustomLink() {
+		document.getElementById(CUSTOM_LINK_EL_ID)?.remove();
+	}
+
+	setMode(mode: FontMode) {
+		this.settings = { ...this.settings, mode };
+		this.persist();
+		this.apply();
+	}
+
+	setPreset(id: FontId) {
+		this.settings = { ...this.settings, mode: "preset", presetId: id };
+		this.persist();
+		this.apply();
+	}
+
+	setCustom(family: string, url: string) {
+		this.settings = { ...this.settings, mode: "link", customFamily: family, customUrl: url };
+		this.persist();
+		this.apply();
+	}
+
+	private persist() {
 		try {
-			localStorage.setItem(STORAGE_KEY, id);
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
 		} catch {
 			// storage unavailable, choice just won't survive a reload
 		}
-		this.apply();
 	}
 }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { fade } from "svelte/transition";
+	import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 	import ServerRail from "$lib/components/ServerRail.svelte";
 	import ChannelSidebar from "$lib/components/ChannelSidebar.svelte";
 	import CallBar from "$lib/components/CallBar.svelte";
@@ -17,6 +18,7 @@
 	import { initGatewayBridge } from "$lib/stores/gateway.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import { call } from "$lib/webrtc/call.svelte";
+	import { viewport } from "$lib/stores/viewport.svelte";
 	import * as api from "$lib/api/client";
 
 	initRichPresenceBridge();
@@ -55,7 +57,8 @@
 	let loaded = $state(false);
 	let activeServerId = $state<string | null>(null);
 	let activeChannelId = $state<string | null>(null);
-	let showMembers = $state(true);
+	let showMembers = $state(!viewport.isMobile);
+	let mobileNavOpen = $state(true);
 	let createServerOpen = $state(false);
 	let memberList = $state<Member[]>([]);
 
@@ -115,11 +118,13 @@
 
 	function selectHome() {
 		activeServerId = null;
+		if (viewport.isMobile) mobileNavOpen = false;
 	}
 
 	function messageUser(username: string) {
 		pendingDm.request(username);
 		activeServerId = null;
+		if (viewport.isMobile) mobileNavOpen = false;
 	}
 
 	$effect(() => {
@@ -132,6 +137,11 @@
 			const channel = activeServer.channels.find((c) => c.id === id);
 			if (channel) channel.unread = false;
 		}
+		if (viewport.isMobile) mobileNavOpen = false;
+	}
+
+	function openMobileNav() {
+		mobileNavOpen = true;
 	}
 
 	async function joinVoiceChannel() {
@@ -202,7 +212,11 @@
 </script>
 
 <div class="window-frame app">
-	<div class="left-column" class:with-channels={!!(activeServer && activeChannel)}>
+	<div
+		class="left-column"
+		class:with-channels={!!(activeServer && activeChannel)}
+		class:mobile-open={mobileNavOpen}
+	>
 		<div class="upper">
 			<ServerRail
 				servers={serverList}
@@ -231,10 +245,17 @@
 	</div>
 	{#key activeServerId}
 		<div class="content" in:fade={{ duration: 140 }}>
+			{#if viewport.isMobile && !mobileNavOpen}
+				<button class="mobile-back" onclick={openMobileNav} aria-label="Back">
+					<ArrowLeft size={18} strokeWidth={2.25} />
+				</button>
+			{/if}
 			{#if activeServer && activeChannel && activeChannel.type === "voice"}
 				<CallStage server={activeServer} channel={activeChannel} onJoin={joinVoiceChannel} />
 				{#if showMembers}
-					<MemberList members={memberList} serverName={activeServer.name} onMessage={messageUser} />
+					<div class="member-list-wrap" class:mobile-overlay={viewport.isMobile}>
+						<MemberList members={memberList} serverName={activeServer.name} onMessage={messageUser} />
+					</div>
 				{/if}
 			{:else if activeServer && activeChannel}
 				<ChatView
@@ -243,7 +264,9 @@
 					onToggleMembers={() => (showMembers = !showMembers)}
 				/>
 				{#if showMembers}
-					<MemberList members={memberList} serverName={activeServer.name} onMessage={messageUser} />
+					<div class="member-list-wrap" class:mobile-overlay={viewport.isMobile}>
+						<MemberList members={memberList} serverName={activeServer.name} onMessage={messageUser} />
+					</div>
 				{/if}
 			{:else}
 				<HomeView username={session.username ?? ""} onLogout={() => session.clear()} />
@@ -298,5 +321,60 @@
 		min-width: 0;
 		min-height: 0;
 		align-self: stretch;
+		position: relative;
+	}
+
+	.mobile-back {
+		display: none;
+	}
+
+	@media (max-width: 860px) {
+		.app {
+			position: relative;
+			overflow: hidden;
+		}
+
+		.left-column,
+		.left-column.with-channels {
+			position: absolute;
+			inset: 0;
+			z-index: 40;
+			width: 100%;
+			transform: translateX(-100%);
+			transition: transform 0.18s ease;
+			background: var(--void);
+		}
+
+		.left-column.mobile-open {
+			transform: translateX(0);
+		}
+
+		.content {
+			width: 100%;
+		}
+
+		.member-list-wrap.mobile-overlay {
+			position: absolute;
+			inset: 0;
+			z-index: 35;
+			width: 100%;
+			background: var(--panel);
+		}
+
+		.mobile-back {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			position: absolute;
+			top: 10px;
+			left: 10px;
+			z-index: 50;
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			background: var(--sidebar);
+			color: var(--ink);
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+		}
 	}
 </style>

@@ -8,6 +8,7 @@
 	import ShieldOff from "@lucide/svelte/icons/shield-off";
 	import Check from "@lucide/svelte/icons/check";
 	import X from "@lucide/svelte/icons/x";
+	import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 	import UserBar from "$lib/components/UserBar.svelte";
 	import CallBar from "$lib/components/CallBar.svelte";
 	import ChatView from "$lib/components/ChatView.svelte";
@@ -22,6 +23,7 @@
 	import { colorForName } from "$lib/utils/color";
 	import * as api from "$lib/api/client";
 	import { presenceStore } from "$lib/stores/gateway.svelte";
+	import { viewport } from "$lib/stores/viewport.svelte";
 	import { base } from "$app/paths";
 
 	let { username, onLogout }: {
@@ -33,6 +35,7 @@
 	let requests = $state<api.ApiFriendRequest[]>([]);
 	let dmChannels = $state<api.ApiDmChannel[]>([]);
 	let activeDmId = $state<string | null>(null);
+	let mobileDetailOpen = $state(false);
 	let showDmProfile = $state(false);
 	let viewingProfile = $state<string | null>(null);
 
@@ -192,10 +195,12 @@
 
 	function selectDm(id: string) {
 		activeDmId = id;
+		if (viewport.isMobile) mobileDetailOpen = true;
 	}
 
 	function backToFriends() {
 		activeDmId = null;
+		if (viewport.isMobile) mobileDetailOpen = true;
 	}
 
 	function sendRequest(event: SubmitEvent) {
@@ -255,7 +260,7 @@
 </script>
 
 <div class="home">
-	<aside class="dm-list">
+	<aside class="dm-list" class:mobile-open={!mobileDetailOpen}>
 		<div class="search-bar">
 			<input type="text" placeholder="Find or start a conversation" />
 		</div>
@@ -283,6 +288,12 @@
 		</div>
 	</aside>
 
+	<div class="detail" class:mobile-open={mobileDetailOpen}>
+	{#if viewport.isMobile && mobileDetailOpen}
+		<button class="mobile-back" onclick={() => (mobileDetailOpen = false)} aria-label="Back">
+			<ArrowLeft size={18} strokeWidth={2.25} />
+		</button>
+	{/if}
 	{#if activeDmChannel}
 		<div class="dm-main">
 			{#if call.roomId === activeDmChannel.id}
@@ -298,7 +309,9 @@
 			/>
 		</div>
 		{#if showDmProfile}
-			<DmProfilePanel username={activeDmChannel.name} onViewFullProfile={() => (viewingProfile = activeDmChannel!.name)} />
+			<div class="dm-profile-wrap" class:mobile-overlay={viewport.isMobile}>
+				<DmProfilePanel username={activeDmChannel.name} onViewFullProfile={() => (viewingProfile = activeDmChannel!.name)} />
+			</div>
 		{/if}
 	{:else}
 	<div class="main">
@@ -453,6 +466,7 @@
 		</div>
 	</aside>
 	{/if}
+	</div>
 </div>
 
 {#if viewingProfile}
@@ -1018,5 +1032,69 @@
 		font-size: 12px;
 		line-height: 1.5;
 		color: var(--ink-faint);
+	}
+
+	.detail {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		min-height: 0;
+	}
+
+	.mobile-back {
+		display: none;
+	}
+
+	@media (max-width: 860px) {
+		.home {
+			position: relative;
+			overflow: hidden;
+		}
+
+		.dm-list {
+			position: absolute;
+			inset: 0;
+			z-index: 30;
+			width: 100%;
+			transform: translateX(-100%);
+			transition: transform 0.18s ease;
+		}
+
+		.dm-list.mobile-open {
+			transform: translateX(0);
+		}
+
+		.detail {
+			width: 100%;
+			position: relative;
+		}
+
+		.active-now {
+			display: none;
+		}
+
+		.dm-profile-wrap.mobile-overlay {
+			position: absolute;
+			inset: 0;
+			z-index: 45;
+			width: 100%;
+			background: var(--panel);
+		}
+
+		.mobile-back {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			position: absolute;
+			top: 10px;
+			left: 10px;
+			z-index: 50;
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			background: var(--sidebar);
+			color: var(--ink);
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+		}
 	}
 </style>

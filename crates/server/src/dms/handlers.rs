@@ -15,21 +15,35 @@ const MAX_LIMIT: i64 = 100;
 const MAX_CONTENT_LEN: usize = 4000;
 const MAX_EMOJI_LEN: usize = 32;
 
+const MAX_GROUP_MEMBERS: usize = 25;
+const MAX_GROUP_NAME_LEN: usize = 100;
+
 async fn require_participant(
     pool: &sqlx::PgPool,
     dm_id: Uuid,
     user_id: Uuid,
 ) -> Result<(), AppError> {
-    let row: Option<(Uuid, Uuid)> =
-        sqlx::query_as("SELECT user_a, user_b FROM dm_channels WHERE id = $1")
-            .bind(dm_id)
-            .fetch_optional(pool)
-            .await?;
+    let exists: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT dm_channel_id FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2",
+    )
+    .bind(dm_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
 
-    match row {
-        Some((a, b)) if a == user_id || b == user_id => Ok(()),
-        Some(_) => Err(AppError::Unauthorized),
-        None => Err(AppError::NotFound),
+    match exists {
+        Some(_) => Ok(()),
+        None => {
+            let channel_exists: Option<(Uuid,)> =
+                sqlx::query_as("SELECT id FROM dm_channels WHERE id = $1")
+                    .bind(dm_id)
+                    .fetch_optional(pool)
+                    .await?;
+            match channel_exists {
+                Some(_) => Err(AppError::Unauthorized),
+                None => Err(AppError::NotFound),
+            }
+        }
     }
 }
 
@@ -43,33 +57,129 @@ fn validate_emoji(emoji: &str) -> Result<(), AppError> {
     }
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
+pub struct DmMemberDto {
+    pub id: Uuid,
+    pub username: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct DmChannelDto {
     pub id: Uuid,
-    pub peer_id: Uuid,
-    pub peer_username: String,
+    pub is_group: bool,
+    pub name: Option<String>,
+    pub owner_id: Option<Uuid>,
+    // Present (and only meaningful) for 1:1 DMs, kept for backward compatibility.
+    pub peer_id: Option<Uuid>,
+    pub peer_username: Option<String>,
+    pub members: Vec<DmMemberDto>,
+}
+
+#[derive(sqlx::FromRow)]
+struct DmChannelRow {
+    id: Uuid,
+    is_group: bool,
+    name: Option<String>,
+    owner_id: Option<Uuid>,
+}
+
+#[derive(sqlx::FromRow)]
+struct DmMemberRow {
+    dm_channel_id: Uuid,
+    id: Uuid,
+    username: String,
+}
+
+async fn load_members(
+    pool: &sqlx::PgPool,
+    channel_ids: &[Uuid],
+) -> Result<HashMap<Uuid, Vec<DmMemberDto>>, AppError> {
+    if channel_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows: Vec<DmMemberRow> = sqlx::query_as(
+        "SELECT dm_channel_members.dm_channel_id, users.id, users.username \
+         FROM dm_channel_members \
+         JOIN users ON users.id = dm_channel_members.user_id \
+         WHERE dm_channel_members.dm_channel_id = ANY($1) \
+         ORDER BY users.username ASC",
+    )
+    .bind(channel_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut map: HashMap<Uuid, Vec<DmMemberDto>> = HashMap::new();
+    for row in rows {
+        map.entry(row.dm_channel_id)
+            .or_default()
+            .push(DmMemberDto { id: row.id, username: row.username });
+    }
+    Ok(map)
+}
+
+fn assemble_dm_dto(row: DmChannelRow, requester_id: Uuid, members: Vec<DmMemberDto>) -> DmChannelDto {
+    let (peer_id, peer_username) = if row.is_group {
+        (None, None)
+    } else {
+        match members.iter().find(|m| m.id != requester_id) {
+            Some(peer) => (Some(peer.id), Some(peer.username.clone())),
+            None => (None, None),
+        }
+    };
+
+    DmChannelDto {
+        id: row.id,
+        is_group: row.is_group,
+        name: row.name,
+        owner_id: row.owner_id,
+        peer_id,
+        peer_username,
+        members,
+    }
 }
 
 pub async fn list_dms(
     State(state): State<AppState>,
     session: AuthSession,
 ) -> Result<Json<Vec<DmChannelDto>>, AppError> {
-    let dms: Vec<DmChannelDto> = sqlx::query_as(
-        "SELECT dm_channels.id, \
-                users.id AS peer_id, \
-                users.username AS peer_username \
+    let rows: Vec<DmChannelRow> = sqlx::query_as(
+        "SELECT dm_channels.id, dm_channels.is_group, dm_channels.name, dm_channels.owner_id \
          FROM dm_channels \
-         JOIN users ON users.id = CASE WHEN dm_channels.user_a = $1 \
-                                        THEN dm_channels.user_b \
-                                        ELSE dm_channels.user_a END \
-         WHERE dm_channels.user_a = $1 OR dm_channels.user_b = $1 \
+         JOIN dm_channel_members ON dm_channel_members.dm_channel_id = dm_channels.id \
+         WHERE dm_channel_members.user_id = $1 \
          ORDER BY dm_channels.created_at DESC",
     )
     .bind(session.user_id)
     .fetch_all(&state.pool)
     .await?;
 
+    let channel_ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let mut members = load_members(&state.pool, &channel_ids).await?;
+
+    let dms = rows
+        .into_iter()
+        .map(|row| {
+            let members = members.remove(&row.id).unwrap_or_default();
+            assemble_dm_dto(row, session.user_id, members)
+        })
+        .collect();
+
     Ok(Json(dms))
+}
+
+async fn load_dm_dto(pool: &sqlx::PgPool, dm_id: Uuid, requester_id: Uuid) -> Result<DmChannelDto, AppError> {
+    let row: DmChannelRow = sqlx::query_as(
+        "SELECT id, is_group, name, owner_id FROM dm_channels WHERE id = $1",
+    )
+    .bind(dm_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let mut members = load_members(pool, &[dm_id]).await?;
+    let members = members.remove(&dm_id).unwrap_or_default();
+    Ok(assemble_dm_dto(row, requester_id, members))
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,27 +205,316 @@ pub async fn open_dm(
 
     let (user_a, user_b) = ordered_pair(session.user_id, peer_id);
 
-    sqlx::query(
+    let dm_id: (Uuid,) = sqlx::query_as(
         "INSERT INTO dm_channels (user_a, user_b) VALUES ($1, $2) \
-         ON CONFLICT (user_a, user_b) DO NOTHING",
+         ON CONFLICT (user_a, user_b) WHERE is_group = false \
+         DO UPDATE SET user_a = EXCLUDED.user_a \
+         RETURNING id",
     )
+    .bind(user_a)
+    .bind(user_b)
+    .fetch_one(&state.pool)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO dm_channel_members (dm_channel_id, user_id) VALUES ($1, $2), ($1, $3) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(dm_id.0)
     .bind(user_a)
     .bind(user_b)
     .execute(&state.pool)
     .await?;
 
-    let dm: DmChannelDto = sqlx::query_as(
-        "SELECT dm_channels.id, $3::uuid AS peer_id, users.username AS peer_username \
-         FROM dm_channels JOIN users ON users.id = $3 \
-         WHERE dm_channels.user_a = $1 AND dm_channels.user_b = $2",
+    let dm = load_dm_dto(&state.pool, dm_id.0, session.user_id).await?;
+    Ok(Json(dm))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateGroupRequest {
+    pub usernames: Vec<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+pub async fn create_group(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Json(payload): Json<CreateGroupRequest>,
+) -> Result<Json<DmChannelDto>, AppError> {
+    let mut member_ids: Vec<Uuid> = Vec::new();
+    for raw in &payload.usernames {
+        let username = raw.trim();
+        if username.is_empty() {
+            continue;
+        }
+        let peer_id = user_id_by_username(&state.pool, username).await?;
+        if peer_id == session.user_id {
+            continue;
+        }
+        if !are_friends(&state.pool, session.user_id, peer_id).await? {
+            return Err(AppError::Unauthorized);
+        }
+        if are_blocked(&state.pool, session.user_id, peer_id).await? {
+            return Err(AppError::Blocked);
+        }
+        if !member_ids.contains(&peer_id) {
+            member_ids.push(peer_id);
+        }
+    }
+
+    if member_ids.len() < 2 {
+        return Err(AppError::InvalidMessage);
+    }
+    if member_ids.len() + 1 > MAX_GROUP_MEMBERS {
+        return Err(AppError::InvalidMessage);
+    }
+
+    let name = payload
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map(|n| n.chars().take(MAX_GROUP_NAME_LEN).collect::<String>());
+
+    let mut tx = state.pool.begin().await?;
+
+    let dm_id: (Uuid,) = sqlx::query_as(
+        "INSERT INTO dm_channels (is_group, name, owner_id) VALUES (true, $1, $2) RETURNING id",
     )
-    .bind(user_a)
-    .bind(user_b)
-    .bind(peer_id)
-    .fetch_one(&state.pool)
+    .bind(&name)
+    .bind(session.user_id)
+    .fetch_one(&mut *tx)
     .await?;
 
+    sqlx::query(
+        "INSERT INTO dm_channel_members (dm_channel_id, user_id) VALUES ($1, $2)",
+    )
+    .bind(dm_id.0)
+    .bind(session.user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    for member_id in &member_ids {
+        sqlx::query(
+            "INSERT INTO dm_channel_members (dm_channel_id, user_id) VALUES ($1, $2)",
+        )
+        .bind(dm_id.0)
+        .bind(member_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    let dm = load_dm_dto(&state.pool, dm_id.0, session.user_id).await?;
     Ok(Json(dm))
+}
+
+async fn require_group(pool: &sqlx::PgPool, dm_id: Uuid) -> Result<(), AppError> {
+    let row: Option<(bool,)> = sqlx::query_as("SELECT is_group FROM dm_channels WHERE id = $1")
+        .bind(dm_id)
+        .fetch_optional(pool)
+        .await?;
+    match row {
+        Some((true,)) => Ok(()),
+        Some((false,)) => Err(AppError::InvalidMessage),
+        None => Err(AppError::NotFound),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddMemberRequest {
+    pub username: String,
+}
+
+pub async fn add_member(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(dm_id): Path<Uuid>,
+    Json(payload): Json<AddMemberRequest>,
+) -> Result<Json<DmChannelDto>, AppError> {
+    require_participant(&state.pool, dm_id, session.user_id).await?;
+    require_group(&state.pool, dm_id).await?;
+
+    let peer_id = user_id_by_username(&state.pool, payload.username.trim()).await?;
+    if !are_friends(&state.pool, session.user_id, peer_id).await? {
+        return Err(AppError::Unauthorized);
+    }
+    if are_blocked(&state.pool, session.user_id, peer_id).await? {
+        return Err(AppError::Blocked);
+    }
+
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM dm_channel_members WHERE dm_channel_id = $1")
+            .bind(dm_id)
+            .fetch_one(&state.pool)
+            .await?;
+    if count.0 as usize >= MAX_GROUP_MEMBERS {
+        return Err(AppError::InvalidMessage);
+    }
+
+    sqlx::query(
+        "INSERT INTO dm_channel_members (dm_channel_id, user_id) VALUES ($1, $2) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(dm_id)
+    .bind(peer_id)
+    .execute(&state.pool)
+    .await?;
+
+    let dm = load_dm_dto(&state.pool, dm_id, session.user_id).await?;
+    Ok(Json(dm))
+}
+
+pub async fn leave_group(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(dm_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    require_participant(&state.pool, dm_id, session.user_id).await?;
+    require_group(&state.pool, dm_id).await?;
+
+    sqlx::query("DELETE FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2")
+        .bind(dm_id)
+        .bind(session.user_id)
+        .execute(&state.pool)
+        .await?;
+
+    let remaining: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM dm_channel_members WHERE dm_channel_id = $1")
+            .bind(dm_id)
+            .fetch_one(&state.pool)
+            .await?;
+
+    if remaining.0 == 0 {
+        sqlx::query("DELETE FROM dm_channels WHERE id = $1")
+            .bind(dm_id)
+            .execute(&state.pool)
+            .await?;
+    } else {
+        let owner: (Option<Uuid>,) =
+            sqlx::query_as("SELECT owner_id FROM dm_channels WHERE id = $1")
+                .bind(dm_id)
+                .fetch_one(&state.pool)
+                .await?;
+        if owner.0 == Some(session.user_id) {
+            sqlx::query(
+                "UPDATE dm_channels SET owner_id = ( \
+                    SELECT user_id FROM dm_channel_members WHERE dm_channel_id = $1 \
+                    ORDER BY added_at ASC LIMIT 1 \
+                 ) WHERE id = $1",
+            )
+            .bind(dm_id)
+            .execute(&state.pool)
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RenameGroupRequest {
+    pub name: Option<String>,
+}
+
+pub async fn rename_group(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(dm_id): Path<Uuid>,
+    Json(payload): Json<RenameGroupRequest>,
+) -> Result<Json<DmChannelDto>, AppError> {
+    require_participant(&state.pool, dm_id, session.user_id).await?;
+    require_group(&state.pool, dm_id).await?;
+
+    let name = payload
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map(|n| n.chars().take(MAX_GROUP_NAME_LEN).collect::<String>());
+
+    sqlx::query("UPDATE dm_channels SET name = $1 WHERE id = $2")
+        .bind(&name)
+        .bind(dm_id)
+        .execute(&state.pool)
+        .await?;
+
+    let dm = load_dm_dto(&state.pool, dm_id, session.user_id).await?;
+    Ok(Json(dm))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct DmSenderKeyDto {
+    pub sender_id: Uuid,
+    pub sender_username: String,
+    pub ciphertext: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DmSenderKeyEntry {
+    pub recipient_id: Uuid,
+    pub ciphertext: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PublishDmSenderKeysRequest {
+    pub entries: Vec<DmSenderKeyEntry>,
+}
+
+pub async fn publish_sender_keys(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(dm_id): Path<Uuid>,
+    Json(payload): Json<PublishDmSenderKeysRequest>,
+) -> Result<(), AppError> {
+    require_participant(&state.pool, dm_id, session.user_id).await?;
+
+    if payload.entries.len() > MAX_GROUP_MEMBERS {
+        return Err(AppError::InvalidMessage);
+    }
+
+    let mut tx = state.pool.begin().await?;
+    for entry in &payload.entries {
+        sqlx::query(
+            "INSERT INTO dm_channel_sender_keys (dm_channel_id, sender_id, recipient_id, ciphertext) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (dm_channel_id, sender_id, recipient_id) \
+             DO UPDATE SET ciphertext = EXCLUDED.ciphertext, created_at = now()",
+        )
+        .bind(dm_id)
+        .bind(session.user_id)
+        .bind(entry.recipient_id)
+        .bind(&entry.ciphertext)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+
+    Ok(())
+}
+
+pub async fn list_sender_keys(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path(dm_id): Path<Uuid>,
+) -> Result<Json<Vec<DmSenderKeyDto>>, AppError> {
+    require_participant(&state.pool, dm_id, session.user_id).await?;
+
+    let rows: Vec<DmSenderKeyDto> = sqlx::query_as(
+        "SELECT dm_channel_sender_keys.sender_id, users.username AS sender_username, \
+                dm_channel_sender_keys.ciphertext \
+         FROM dm_channel_sender_keys \
+         JOIN users ON users.id = dm_channel_sender_keys.sender_id \
+         WHERE dm_channel_sender_keys.dm_channel_id = $1 AND dm_channel_sender_keys.recipient_id = $2",
+    )
+    .bind(dm_id)
+    .bind(session.user_id)
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(rows))
 }
 
 #[derive(Debug, Serialize)]

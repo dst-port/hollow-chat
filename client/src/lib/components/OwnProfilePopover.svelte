@@ -252,6 +252,17 @@
 		z-index: 100;
 	}
 
+	@media (max-width: 640px) {
+		.popover {
+			left: 12px !important;
+			right: 12px;
+			bottom: 12px !important;
+			width: auto !important;
+			max-height: calc(100% - 24px);
+			overflow-y: auto;
+		}
+	}
+
 	.banner {
 		height: 100px;
 		background: var(--active);

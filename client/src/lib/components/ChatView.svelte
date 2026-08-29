@@ -23,6 +23,7 @@
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import CropAttachmentModal from "$lib/components/CropAttachmentModal.svelte";
+	import FullProfileModal from "$lib/components/FullProfileModal.svelte";
 	import Lightbox from "$lib/components/Lightbox.svelte";
 	import AudioPlayer from "$lib/components/AudioPlayer.svelte";
 	import Maximize2 from "@lucide/svelte/icons/maximize-2";
@@ -103,6 +104,13 @@
 	} = $props();
 
 	const scope: MessageScope = isDm ? "dm" : "channel";
+
+	let profileModalUsername = $state<string | null>(null);
+
+	function openAuthorProfile(username: string) {
+		if (username === session.username) return;
+		profileModalUsername = username;
+	}
 
 	function fetchMessages(
 		token: string,
@@ -1099,9 +1107,13 @@
 					{#if !isGrouped(index)}
 						{@const authorAvatarUrl = profileStore.forUser(message.author)?.avatar_url}
 						<div
-							class="avatar"
+							class="avatar clickable"
 							style:background={authorAvatarUrl ? undefined : colorFor(message.author)}
 							style:background-image={authorAvatarUrl ? `url(${resolveUrl(authorAvatarUrl, session.token)})` : undefined}
+							onclick={() => openAuthorProfile(message.author)}
+							role="button"
+							tabindex="0"
+							onkeydown={(e) => e.key === "Enter" && openAuthorProfile(message.author)}
 						>
 							{#if !authorAvatarUrl}{message.author.slice(0, 2).toUpperCase()}{/if}
 						</div>
@@ -1121,7 +1133,14 @@
 						{/if}
 						{#if !isGrouped(index)}
 							<p class="meta">
-								<span class="author" style:color={colorFor(message.author)}>{displayNameFor(message.author)}</span>
+								<span
+									class="author clickable"
+									style:color={colorFor(message.author)}
+									onclick={() => openAuthorProfile(message.author)}
+									role="button"
+									tabindex="0"
+									onkeydown={(e) => e.key === "Enter" && openAuthorProfile(message.author)}
+								>{displayNameFor(message.author)}</span>
 								<span class="time">{formatMessageTime(message)}</span>
 								{#if message.edited}<span class="edited-flag">(edited)</span>{/if}
 								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
@@ -1500,6 +1519,15 @@
 		/>
 	{/if}
 {/if}
+{#if profileModalUsername}
+	<FullProfileModal
+		username={profileModalUsername}
+		member={null}
+		serverName={isDm ? "" : (channel.name ?? "")}
+		onClose={() => (profileModalUsername = null)}
+		onMessage={() => (profileModalUsername = null)}
+	/>
+{/if}
 </div>
 
 <style>
@@ -1807,6 +1835,19 @@
 		color: var(--void);
 		background-size: cover;
 		background-position: center;
+	}
+
+	.clickable {
+		cursor: pointer;
+	}
+
+	.clickable:hover {
+		text-decoration: underline;
+	}
+
+	.avatar.clickable:hover {
+		text-decoration: none;
+		opacity: 0.85;
 	}
 
 	.avatar-spacer {

@@ -178,6 +178,17 @@ input {
 	border-radius: 4px;
 }
 
+@media (max-width: 860px) {
+	.window-frame {
+		height: 100%;
+		width: 100%;
+		margin: 0;
+		border-radius: 0;
+		border: none;
+		box-shadow: none;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

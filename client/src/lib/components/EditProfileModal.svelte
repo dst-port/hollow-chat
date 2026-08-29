@@ -1588,7 +1588,7 @@
 	}
 
 	.connection-label {
-		font-size: 16px;
+		font-size: 13px;
 		color: var(--ink);
 		font-weight: 600;
 	}
