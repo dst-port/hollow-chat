@@ -76,11 +76,24 @@
 			.catch(() => {});
 	}
 
+	const HOME_POLL_INTERVAL_MS = 5000;
+
 	$effect(() => {
 		if (!session.token) return;
 		refreshFriends();
 		refreshRequests();
 		refreshDms();
+
+		// Incoming friend requests and new DM conversations don't have a
+		// gateway push yet (unlike presence), so this is the only way they
+		// show up without a manual reload.
+		const interval = setInterval(() => {
+			refreshFriends();
+			refreshRequests();
+			refreshDms();
+		}, HOME_POLL_INTERVAL_MS);
+
+		return () => clearInterval(interval);
 	});
 
 	const activeDm = $derived(dmChannels.find((d) => d.id === activeDmId) ?? null);
