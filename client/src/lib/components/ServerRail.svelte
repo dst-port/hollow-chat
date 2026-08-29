@@ -194,7 +194,7 @@
 		align-items: center;
 		justify-content: center;
 		background-position: center;
-		background-size: 100% 100%;
+		background-size: cover;
 	}
 
 	.server:hover {
