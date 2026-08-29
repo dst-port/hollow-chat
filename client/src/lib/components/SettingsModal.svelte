@@ -42,6 +42,8 @@
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import VoiceSettingsPanel from "$lib/components/VoiceSettingsPanel.svelte";
 	import * as api from "$lib/api/client";
+	import { openReport, type ReportPayload } from "$lib/crypto/moderation";
+	import { moderationKey } from "$lib/stores/moderationKey.svelte";
 
 	let { username, onClose, onLogout, initialSection = "account" }: {
 		username: string;
@@ -135,6 +137,37 @@
 	const visibleReports = $derived(
 		reportStatusFilter === "all" ? reports : reports.filter((r) => r.status === reportStatusFilter)
 	);
+
+	let decryptedReport = $state<ReportPayload | null>(null);
+	let decrypting = $state(false);
+	let decryptError = $state<string | null>(null);
+	let showKeyInput = $state(false);
+
+	function openReportDetail(id: string) {
+		openReportId = id;
+		decryptedReport = null;
+		decryptError = null;
+		showKeyInput = false;
+	}
+
+	async function decryptReport(id: string) {
+		const token = session.token;
+		if (!token || !moderationKey.present) {
+			showKeyInput = true;
+			return;
+		}
+		decrypting = true;
+		decryptError = null;
+		try {
+			const sealed = await api.getReportSealed(token, id);
+			decryptedReport = await openReport(sealed, moderationKey.value);
+			showKeyInput = false;
+		} catch {
+			decryptError = t("settings.moderation.decryptFailed");
+		} finally {
+			decrypting = false;
+		}
+	}
 
 	async function setReportStatus(report: api.ReportSummary, status: api.ReportStatus) {
 		const token = session.token;
@@ -1511,19 +1544,96 @@
 
 					<div class="card">
 						<p class="row-label" style="margin-bottom: 8px;">{t("settings.moderation.reasonMessages")}</p>
-						<p class="row-value muted" style="margin-bottom: 12px;">
-							{t("settings.moderation.reasonMessagesHint")} <code>tools/decrypt-report.mjs</code>.
-						</p>
-						<div class="ticket-actions">
-							<button type="button" class="theme-option" onclick={() => copyReportId(openReport.id)}>
-								<Copy size={13} strokeWidth={2} />
-								{t("settings.moderation.copyReportId")}
-							</button>
-							<button type="button" class="theme-option" onclick={() => copyFetchCommand(openReport.id)}>
-								<Copy size={13} strokeWidth={2} />
-								{t("settings.moderation.copyPsql")}
-							</button>
-						</div>
+
+						{#if decryptedReport}
+							<div class="ticket-field">
+								<span class="ticket-label">{t("settings.moderation.category")}</span>
+								<span class="ticket-value">{decryptedReport.category}</span>
+							</div>
+							<p class="row-label" style="margin: 12px 0 4px;">{t("settings.moderation.reasonLabel")}</p>
+							<p class="row-value" style="white-space: pre-wrap;">{decryptedReport.reason}</p>
+
+							{#if decryptedReport.messages.length}
+								<p class="row-label" style="margin: 16px 0 8px;">{t("settings.moderation.reportedMessages")}</p>
+								<div class="report-list">
+									{#each decryptedReport.messages as m (m.id)}
+										<div class="mod-message">
+											<p class="report-meta">
+												<strong>{m.senderUsername}</strong> · {new Date(m.timestamp).toLocaleString()}
+											</p>
+											<p class="row-value" style="white-space: pre-wrap;">{m.text}</p>
+											{#if m.attachmentFilename}
+												<p class="report-meta">📎 {m.attachmentFilename}</p>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{/if}
+
+							{#if decryptedReport.screenshot}
+								<p class="row-label" style="margin: 16px 0 8px;">{t("settings.moderation.screenshot")}</p>
+								<img
+									class="mod-screenshot"
+									src={`data:${decryptedReport.screenshot.mimeType};base64,${decryptedReport.screenshot.dataBase64}`}
+									alt={t("settings.moderation.screenshot")}
+								/>
+							{/if}
+						{:else}
+							<p class="row-value muted" style="margin-bottom: 12px;">
+								{t("settings.moderation.decryptIntro")}
+							</p>
+
+							{#if showKeyInput || !moderationKey.present}
+								<input
+									class="inline-input"
+									type="password"
+									autocomplete="off"
+									placeholder={t("settings.moderation.keyPlaceholder")}
+									value={moderationKey.value}
+									oninput={(e) => (moderationKey.value = e.currentTarget.value)}
+								/>
+								<p class="row-value muted" style="margin: 6px 0 12px; font-size: 12px;">
+									{t("settings.moderation.keyHint")}
+								</p>
+							{/if}
+
+							{#if decryptError}
+								<p class="row-value" style="color: var(--danger); margin-bottom: 12px;">{decryptError}</p>
+							{/if}
+
+							<div class="ticket-actions">
+								<button
+									type="button"
+									class="save"
+									disabled={decrypting}
+									onclick={() => decryptReport(openReport.id)}
+								>
+									{decrypting ? t("common.loading") : t("settings.moderation.decryptButton")}
+								</button>
+								{#if moderationKey.present}
+									<button type="button" class="theme-option" onclick={() => moderationKey.clear()}>
+										{t("settings.moderation.forgetKey")}
+									</button>
+								{/if}
+							</div>
+						{/if}
+
+						<details class="mod-offline">
+							<summary>{t("settings.moderation.offlineFallback")}</summary>
+							<p class="row-value muted" style="margin: 8px 0 12px;">
+								{t("settings.moderation.reasonMessagesHint")} <code>tools/decrypt-report.mjs</code>.
+							</p>
+							<div class="ticket-actions">
+								<button type="button" class="theme-option" onclick={() => copyReportId(openReport.id)}>
+									<Copy size={13} strokeWidth={2} />
+									{t("settings.moderation.copyReportId")}
+								</button>
+								<button type="button" class="theme-option" onclick={() => copyFetchCommand(openReport.id)}>
+									<Copy size={13} strokeWidth={2} />
+									{t("settings.moderation.copyPsql")}
+								</button>
+							</div>
+						</details>
 					</div>
 				{:else}
 					<h2>{t("settings.nav.moderation")}</h2>
@@ -1562,7 +1672,7 @@
 										</p>
 									</div>
 									<span class="status-pill {report.status}">{t(`settings.moderation.status.${report.status}`)}</span>
-									<button type="button" class="save" onclick={() => (openReportId = report.id)}>
+									<button type="button" class="save" onclick={() => openReportDetail(report.id)}>
 										{t("settings.moderation.openButton")}
 									</button>
 								</div>
@@ -2243,6 +2353,35 @@
 		align-items: center;
 		gap: 10px;
 		margin: 0;
+	}
+
+	.mod-message {
+		padding: 10px 12px;
+		border-radius: var(--radius-sm, 8px);
+		background: var(--active);
+	}
+
+	.mod-message .report-meta {
+		margin-bottom: 4px;
+	}
+
+	.mod-screenshot {
+		max-width: 100%;
+		border-radius: var(--radius-sm, 8px);
+		border: 1px solid var(--border, var(--ink-faint));
+	}
+
+	.mod-offline {
+		margin-top: 16px;
+		border-top: 1px solid var(--border, var(--ink-faint));
+		padding-top: 12px;
+	}
+
+	.mod-offline summary {
+		cursor: pointer;
+		font-size: 12px;
+		color: var(--ink-dim);
+		user-select: none;
 	}
 
 	.ticket-label {

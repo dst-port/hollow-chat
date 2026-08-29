@@ -195,6 +195,53 @@ pub async fn list_reports(
     Ok(Json(rows))
 }
 
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct SealedReportDto {
+    pub id: Uuid,
+    pub reporter_username: String,
+    pub reported_username: String,
+    pub context_kind: String,
+    pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub sealed_key_ephemeral_public: String,
+    pub sealed_key_nonce: String,
+    pub sealed_key_ciphertext: String,
+    pub payload_nonce: String,
+    pub payload_ciphertext: String,
+}
+
+/// Staff-only. Returns the sealed blob for one report so a moderator can
+/// decrypt it client-side with their offline staff key. The server still
+/// never holds that key or the plaintext - it only hands back the same
+/// ciphertext `tools/decrypt-report.mjs` would read straight from the row.
+pub async fn get_report_sealed(
+    State(state): State<AppState>,
+    session: AuthSession,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> Result<Json<SealedReportDto>, AppError> {
+    require_staff(&state.pool, session.user_id).await?;
+
+    let row: Option<SealedReportDto> = sqlx::query_as(
+        "SELECT reports.id, reporter.username AS reporter_username, \
+                reported.username AS reported_username, \
+                reports.context_kind, reports.status, reports.created_at, \
+                encode(reports.sealed_key_ephemeral_public, 'base64') AS sealed_key_ephemeral_public, \
+                encode(reports.sealed_key_nonce, 'base64') AS sealed_key_nonce, \
+                encode(reports.sealed_key_ciphertext, 'base64') AS sealed_key_ciphertext, \
+                encode(reports.payload_nonce, 'base64') AS payload_nonce, \
+                encode(reports.payload_ciphertext, 'base64') AS payload_ciphertext \
+         FROM reports \
+         JOIN users reporter ON reporter.id = reports.reporter_id \
+         JOIN users reported ON reported.id = reports.reported_user_id \
+         WHERE reports.id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?;
+
+    row.map(Json).ok_or(AppError::NotFound)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdateReportStatusRequest {
     pub status: String,

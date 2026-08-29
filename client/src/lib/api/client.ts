@@ -1303,6 +1303,20 @@ export function listReports(token: string) {
 	});
 }
 
+export type SealedReport = ReportSummary & {
+	sealed_key_ephemeral_public: string;
+	sealed_key_nonce: string;
+	sealed_key_ciphertext: string;
+	payload_nonce: string;
+	payload_ciphertext: string;
+};
+
+export function getReportSealed(token: string, id: string) {
+	return request<SealedReport>(`/reports/${id}/sealed`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
 export function updateReportStatus(token: string, id: string, status: ReportStatus) {
 	return request<void>(`/reports/${id}/status`, {
 		method: "PATCH",

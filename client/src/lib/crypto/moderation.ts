@@ -67,3 +67,45 @@ export async function sealReport(payload: ReportPayload): Promise<SealedReport> 
 		payloadCiphertext: toBase64(ciphertext)
 	};
 }
+
+export type SealedReportFields = {
+	sealed_key_ephemeral_public: string;
+	sealed_key_nonce: string;
+	sealed_key_ciphertext: string;
+	payload_nonce: string;
+	payload_ciphertext: string;
+};
+
+/**
+ * Client-side counterpart of tools/decrypt-report.mjs. Unseals one report
+ * with the staff X25519 private key (base64). The key is supplied per call
+ * and never persisted or sent anywhere by this function.
+ */
+export async function openReport(
+	fields: SealedReportFields,
+	staffPrivateKeyB64: string
+): Promise<ReportPayload> {
+	const staffPrivateKey = fromBase64(staffPrivateKeyB64.trim());
+	if (staffPrivateKey.length !== 32) {
+		throw new Error("staff key must be 32 bytes (base64)");
+	}
+	const ephemeralPublic = fromBase64(fields.sealed_key_ephemeral_public);
+	const shared = dh(staffPrivateKey, ephemeralPublic);
+	const sealKey = await deriveSealKey(shared);
+
+	const dataKey = await aead.decrypt(
+		sealKey,
+		fromBase64(fields.sealed_key_nonce),
+		fromBase64(fields.sealed_key_ciphertext),
+		new Uint8Array(0)
+	);
+
+	const plaintext = await aead.decrypt(
+		dataKey,
+		fromBase64(fields.payload_nonce),
+		fromBase64(fields.payload_ciphertext),
+		new Uint8Array(0)
+	);
+
+	return JSON.parse(new TextDecoder().decode(plaintext)) as ReportPayload;
+}
