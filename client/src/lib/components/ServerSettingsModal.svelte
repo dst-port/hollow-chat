@@ -19,7 +19,6 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { t, tp } from "$lib/i18n/index.svelte";
 	import { session } from "$lib/stores/session.svelte";
-	import { squareCrop } from "$lib/image";
 	import Dropdown from "$lib/components/Dropdown.svelte";
 	import {
 		renameServer,
@@ -185,7 +184,7 @@
 		if (!token || !file) return;
 		iconUploading = true;
 		try {
-			const attachment = await uploadFile(token, await squareCrop(file));
+			const attachment = await uploadFile(token, file);
 			const updated = await setServerIcon(token, server.id, attachment.id);
 			server.iconUrl = updated.icon_url;
 		} catch {
@@ -948,7 +947,7 @@
 		border-radius: 16px;
 		background: var(--accent-fill);
 		background-position: center;
-		background-size: cover;
+		background-size: 100% 100%;
 		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;
