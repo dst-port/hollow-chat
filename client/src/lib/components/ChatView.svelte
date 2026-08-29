@@ -28,6 +28,7 @@
 	import AudioPlayer from "$lib/components/AudioPlayer.svelte";
 	import Maximize2 from "@lucide/svelte/icons/maximize-2";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
+	import SearchPopover from "$lib/components/SearchPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
 	import MessageMenu from "$lib/components/MessageMenu.svelte";
 	import ReportModal from "$lib/components/ReportModal.svelte";
@@ -1000,6 +1001,75 @@
 			pinnedMessages = [];
 		}
 	}
+
+	let searchQuery = $state("");
+	let searchOpen = $state(false);
+	let searchResults = $state<Message[]>([]);
+	let searchLoading = $state(false);
+	let searchExhausted = $state(false);
+	let searchToken = 0;
+	let searchDebounceHandle: ReturnType<typeof setTimeout> | undefined;
+
+	const SEARCH_MAX_RESULTS = 30;
+	const SEARCH_MAX_SCANNED = 1500;
+	const SEARCH_PAGE_SIZE = 100;
+
+	async function runSearch(query: string) {
+		const token = session.token;
+		if (!token) return;
+		const needle = query.trim().toLowerCase();
+		if (!needle) return;
+
+		const myToken = ++searchToken;
+		searchLoading = true;
+		searchExhausted = false;
+		const matches: Message[] = [];
+		let cursor: string | undefined;
+		let scanned = 0;
+
+		try {
+			while (matches.length < SEARCH_MAX_RESULTS && scanned < SEARCH_MAX_SCANNED) {
+				const rows = await fetchMessages(token, channel.id, { before: cursor, limit: SEARCH_PAGE_SIZE });
+				if (myToken !== searchToken) return;
+				if (rows.length === 0) {
+					searchExhausted = true;
+					break;
+				}
+				const decoded = await toMessages(rows);
+				if (myToken !== searchToken) return;
+				for (const message of decoded) {
+					if (message.content && message.content.toLowerCase().includes(needle)) {
+						matches.push(message);
+					}
+				}
+				scanned += rows.length;
+				cursor = rows[0].id;
+				searchResults = [...matches];
+				if (rows.length < SEARCH_PAGE_SIZE) {
+					searchExhausted = true;
+					break;
+				}
+			}
+		} catch {
+			// keep whatever partial results were already found
+		} finally {
+			if (myToken === searchToken) searchLoading = false;
+		}
+	}
+
+	function onSearchInput(value: string) {
+		searchQuery = value;
+		searchOpen = true;
+		if (searchDebounceHandle) clearTimeout(searchDebounceHandle);
+		if (!value.trim()) {
+			searchToken++;
+			searchResults = [];
+			searchLoading = false;
+			searchExhausted = false;
+			return;
+		}
+		searchDebounceHandle = setTimeout(() => runSearch(value), 300);
+	}
 </script>
 
 <div class="chat-row">
@@ -1078,9 +1148,26 @@
 					<Users size={17} strokeWidth={2} />
 				</button>
 			{/if}
-			<div class="header-search">
-				<Search size={13} strokeWidth={2.5} />
-				<input type="text" placeholder="Search" />
+			<div class="anchor">
+				<div class="header-search">
+					<Search size={13} strokeWidth={2.5} />
+					<input
+						type="text"
+						placeholder="Search"
+						value={searchQuery}
+						oninput={(e) => onSearchInput(e.currentTarget.value)}
+						onfocus={() => (searchOpen = true)}
+					/>
+				</div>
+				{#if searchOpen}
+					<SearchPopover
+						results={searchResults}
+						query={searchQuery}
+						loading={searchLoading}
+						exhausted={searchExhausted}
+						onClose={() => (searchOpen = false)}
+					/>
+				{/if}
 			</div>
 			<div class="anchor">
 				<button class="icon-button" title="Inbox" onclick={() => (inboxOpen = !inboxOpen)}>

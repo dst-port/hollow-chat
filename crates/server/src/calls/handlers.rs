@@ -58,16 +58,24 @@ async fn authorize_room(pool: &sqlx::PgPool, room_id: Uuid, user_id: Uuid) -> Re
         return member.map(|_| ()).ok_or(AppError::Unauthorized);
     }
 
-    let dm: Option<(Uuid, Uuid)> = sqlx::query_as("SELECT user_a, user_b FROM dm_channels WHERE id = $1")
+    let dm_exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM dm_channels WHERE id = $1")
         .bind(room_id)
         .fetch_optional(pool)
         .await?;
 
-    match dm {
-        Some((a, b)) if a == user_id || b == user_id => Ok(()),
-        Some(_) => Err(AppError::Unauthorized),
-        None => Err(AppError::NotFound),
-    }
+    let Some(_) = dm_exists else {
+        return Err(AppError::NotFound);
+    };
+
+    let member: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT dm_channel_id FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2",
+    )
+    .bind(room_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    member.map(|_| ()).ok_or(AppError::Unauthorized)
 }
 
 #[derive(Debug, Deserialize)]
