@@ -24,6 +24,7 @@
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import CropAttachmentModal from "$lib/components/CropAttachmentModal.svelte";
 	import Lightbox from "$lib/components/Lightbox.svelte";
+	import AudioPlayer from "$lib/components/AudioPlayer.svelte";
 	import Maximize2 from "@lucide/svelte/icons/maximize-2";
 	import PinnedPopover from "$lib/components/PinnedPopover.svelte";
 	import InfoPopover from "$lib/components/InfoPopover.svelte";
@@ -381,8 +382,11 @@
 	});
 
 	let draft = $state("");
-	let pendingFile = $state<File | null>(null);
+	let pendingFiles = $state<File[]>([]);
 	let uploading = $state(false);
+	let uploadingIndex = $state(0);
+	let uploadingTotalCount = $state(0);
+	let uploadingTotalBytes = $state(0);
 	let fileInputEl = $state<HTMLInputElement | undefined>();
 	let composerInputEl = $state<HTMLInputElement | undefined>();
 	let replyingTo = $state<Message | null>(null);
@@ -513,7 +517,11 @@
 		if (!token) return;
 		for (const message of messages) {
 			const attachment = message.attachment;
-			const isMedia = attachment && (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("video/"));
+			const isMedia =
+				attachment &&
+				(attachment.mimeType.startsWith("image/") ||
+					attachment.mimeType.startsWith("video/") ||
+					attachment.mimeType.startsWith("audio/"));
 			if (attachment && isMedia && !imageUrls[attachment.id]) {
 				const loader =
 					attachment.key && attachment.nonce
@@ -582,41 +590,53 @@
 
 	function onFileChosen(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
-		pendingFile = input.files?.[0] ?? null;
+		pendingFiles = [...pendingFiles, ...Array.from(input.files ?? [])];
 		input.value = "";
 	}
 
-	function clearPendingFile() {
-		pendingFile = null;
+	function clearPendingFile(index: number) {
+		pendingFiles = pendingFiles.filter((_, i) => i !== index);
 	}
 
 	let cropModalOpen = $state(false);
+	let cropIndex = $state<number | null>(null);
 	let lightbox = $state<{ src: string; kind: "image" | "video"; alt?: string } | null>(null);
 
+	function openCrop(index: number) {
+		cropIndex = index;
+		cropModalOpen = true;
+	}
+
 	function onCropped(file: File) {
-		pendingFile = file;
+		if (cropIndex !== null) {
+			pendingFiles = pendingFiles.map((f, i) => (i === cropIndex ? file : f));
+		}
 		cropModalOpen = false;
+		cropIndex = null;
 	}
 
 	const SPOILER_PREFIX = "SPOILER_";
 
-	const pendingIsSpoiler = $derived(pendingFile?.name.startsWith(SPOILER_PREFIX) ?? false);
-
-	function toggleSpoiler() {
-		if (!pendingFile) return;
-		pendingFile = pendingIsSpoiler
-			? new File([pendingFile], pendingFile.name.slice(SPOILER_PREFIX.length), { type: pendingFile.type })
-			: new File([pendingFile], `${SPOILER_PREFIX}${pendingFile.name}`, { type: pendingFile.type });
+	function isPendingSpoiler(file: File): boolean {
+		return file.name.startsWith(SPOILER_PREFIX);
 	}
 
-	let pendingFilePreviewUrl = $state<string | null>(null);
+	function toggleSpoiler(index: number) {
+		pendingFiles = pendingFiles.map((f, i) => {
+			if (i !== index) return f;
+			return isPendingSpoiler(f)
+				? new File([f], f.name.slice(SPOILER_PREFIX.length), { type: f.type })
+				: new File([f], `${SPOILER_PREFIX}${f.name}`, { type: f.type });
+		});
+	}
+
+	let pendingPreviewUrls = $state<(string | null)[]>([]);
 	$effect(() => {
-		if (pendingFile && pendingFile.type.startsWith("image/")) {
-			const url = URL.createObjectURL(pendingFile);
-			pendingFilePreviewUrl = url;
-			return () => URL.revokeObjectURL(url);
-		}
-		pendingFilePreviewUrl = null;
+		const urls = pendingFiles.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null));
+		pendingPreviewUrls = urls;
+		return () => {
+			for (const url of urls) if (url) URL.revokeObjectURL(url);
+		};
 	});
 
 	function normalizeImageFile(file: File, mimeType: string): File {
@@ -628,25 +648,17 @@
 	async function onComposerPaste(event: ClipboardEvent) {
 		const items = event.clipboardData?.items;
 		if (items) {
+			const pasted: File[] = [];
 			for (const item of items) {
-				if (item.kind === "file" && item.type.startsWith("image/")) {
-					const file = item.getAsFile();
-					if (file) {
-						pendingFile = normalizeImageFile(file, item.type);
-						event.preventDefault();
-						return;
-					}
-				}
+				if (item.kind !== "file") continue;
+				const file = item.getAsFile();
+				if (!file) continue;
+				pasted.push(item.type.startsWith("image/") ? normalizeImageFile(file, item.type) : file);
 			}
-			for (const item of items) {
-				if (item.kind === "file") {
-					const file = item.getAsFile();
-					if (file) {
-						pendingFile = file;
-						event.preventDefault();
-						return;
-					}
-				}
+			if (pasted.length > 0) {
+				pendingFiles = [...pendingFiles, ...pasted];
+				event.preventDefault();
+				return;
 			}
 		}
 
@@ -664,7 +676,7 @@
 			if (!ctx) return;
 			ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), size.width, size.height), 0, 0);
 			canvas.toBlob((blob) => {
-				if (blob) pendingFile = new File([blob], "image.png", { type: "image/png" });
+				if (blob) pendingFiles = [...pendingFiles, new File([blob], "image.png", { type: "image/png" })];
 			}, "image/png");
 		} catch {
 			// Clipboard has no image content — nothing to paste.
@@ -696,9 +708,9 @@
 		event.preventDefault();
 		dragDepth = 0;
 		dragActive = false;
-		const file = event.dataTransfer?.files?.[0];
-		if (!file) return;
-		pendingFile = file;
+		const files = Array.from(event.dataTransfer?.files ?? []);
+		if (files.length === 0) return;
+		pendingFiles = [...pendingFiles, ...files];
 		if (event.shiftKey) submitPending();
 	}
 
@@ -719,35 +731,52 @@
 		const content = draft.trim();
 		const token = session.token;
 		const myUsername = session.username;
-		const file = pendingFile;
+		const files = pendingFiles;
 		const replyToId = replyingTo?.id;
-		if ((!content && !file) || !token) return;
+		if ((!content && files.length === 0) || !token) return;
 
 		draft = "";
-		pendingFile = null;
+		pendingFiles = [];
 		replyingTo = null;
 
+		// More than one file goes out as one message per file (the schema
+		// is one attachment per message) - only the first carries the typed
+		// text and the reply reference, the rest are attachment-only.
+		const steps = files.length > 0 ? files.length : 1;
 		try {
-			let attachmentId: string | undefined;
-			let attachmentMeta: Awaited<ReturnType<typeof encryptFile>>["meta"] | undefined;
-			if (file) {
+			if (files.length > 0) {
 				uploading = true;
-				const { blob, meta } = await encryptFile(file);
-				const uploaded = await uploadFile(token, new File([blob], genericUploadName(), { type: blob.type }));
-				attachmentId = uploaded.id;
-				attachmentMeta = meta;
+				uploadingIndex = 0;
+				uploadingTotalCount = files.length;
+				uploadingTotalBytes = files.reduce((sum, f) => sum + f.size, 0);
 			}
+			for (let i = 0; i < steps; i++) {
+				const file = files[i];
+				const textForThisMessage = i === 0 ? content : "";
 
-			let payload: string | null = null;
-			if (myUsername && (content || attachmentMeta)) {
-				const packed = packPayload(content, attachmentMeta);
-				payload = await encryptOutgoing(myUsername, token, packed);
+				let attachmentId: string | undefined;
+				let attachmentMeta: Awaited<ReturnType<typeof encryptFile>>["meta"] | undefined;
+				if (file) {
+					uploadingIndex = i + 1;
+					const { blob, meta } = await encryptFile(file);
+					const uploaded = await uploadFile(token, new File([blob], genericUploadName(), { type: blob.type }));
+					attachmentId = uploaded.id;
+					attachmentMeta = meta;
+				}
+
+				let payload: string | null = null;
+				if (myUsername && (textForThisMessage || attachmentMeta)) {
+					const packed = packPayload(textForThisMessage, attachmentMeta);
+					payload = await encryptOutgoing(myUsername, token, packed);
+				}
+
+				const apiMsg = await postMessage(token, channel.id, payload, attachmentId, i === 0 ? replyToId : undefined);
+				if (textForThisMessage || attachmentMeta) {
+					rememberDecrypted(apiMsg.id, packPayload(textForThisMessage, attachmentMeta));
+				}
+				messages.push(await toMessage(apiMsg));
+				lastId = apiMsg.id;
 			}
-
-			const apiMsg = await postMessage(token, channel.id, payload, attachmentId, replyToId);
-			if (content || attachmentMeta) rememberDecrypted(apiMsg.id, packPayload(content, attachmentMeta));
-			messages.push(await toMessage(apiMsg));
-			lastId = apiMsg.id;
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 413) {
 				toast.push("File is too large for your plan (50MB free / 2GB premium)");
@@ -758,6 +787,9 @@
 			}
 		} finally {
 			uploading = false;
+			uploadingIndex = 0;
+			uploadingTotalCount = 0;
+			uploadingTotalBytes = 0;
 		}
 	}
 
@@ -1130,6 +1162,7 @@
 							{@const isSpoiler = isSpoilerFilename(message.attachment.filename)}
 							{@const revealed = !isSpoiler || revealedSpoilers.has(message.id)}
 							{@const isVideo = message.attachment.mimeType.startsWith("video/")}
+							{@const isAudio = message.attachment.mimeType.startsWith("audio/")}
 							{#if expiredAttachments.has(message.attachment.id)}
 								<div class="attachment-file expired">
 									<FileIcon size={20} strokeWidth={2} />
@@ -1192,6 +1225,12 @@
 										</span>
 									</button>
 								{/if}
+							{:else if isAudio && revealed && imageUrls[message.attachment.id]}
+								<AudioPlayer
+									src={imageUrls[message.attachment.id]}
+									filename={displayFilename(message.attachment.filename)}
+									sizeBytes={message.attachment.sizeBytes}
+								/>
 							{:else}
 								<button
 									class="attachment-file"
@@ -1277,52 +1316,83 @@
 		</div>
 	{/if}
 
-	{#if pendingFile}
-		<div class="attachment-preview-row" transition:fly={{ y: 8, duration: 140 }}>
-			<div class="attachment-card">
-				<div class="attachment-thumb" class:spoiler-blur={pendingIsSpoiler}>
-					{#if pendingFilePreviewUrl}
-						<img src={pendingFilePreviewUrl} alt={pendingFile.name} />
-					{:else}
-						<FileIcon size={22} strokeWidth={1.5} />
-					{/if}
-					{#if pendingIsSpoiler}
-						<span class="spoiler-tag">Spoiler</span>
-					{/if}
-					{#if uploading}
-						<div class="attachment-uploading">
-							<Loader2 size={22} strokeWidth={2} class="spin" />
-						</div>
-					{:else}
-						<div class="attachment-hover-actions">
-							{#if pendingFilePreviewUrl}
-								<button type="button" title="Edit" onclick={() => (cropModalOpen = true)}>
-									<Pencil size={16} strokeWidth={2} />
-								</button>
-								<button
-									type="button"
-									class:active={pendingIsSpoiler}
-									title={pendingIsSpoiler ? "Unmark spoiler" : "Mark as spoiler"}
-									onclick={toggleSpoiler}
-								>
-									<EyeOff size={16} strokeWidth={2} />
-								</button>
-							{/if}
-							<button type="button" title="Remove" onclick={clearPendingFile}>
-								<Trash2 size={16} strokeWidth={2} />
-							</button>
-						</div>
-					{/if}
-				</div>
-				<span class="attachment-preview-name">
-					{uploading ? "Uploading\u2026" : pendingIsSpoiler ? pendingFile.name.slice(SPOILER_PREFIX.length) : pendingFile.name}
+	{#if uploading && uploadingTotalCount > 0}
+		<div class="upload-banner" transition:fly={{ y: 8, duration: 140 }}>
+			<FileIcon size={18} strokeWidth={2} />
+			<div class="upload-banner-body">
+				<span class="upload-banner-title">
+					Uploading {uploadingTotalCount === 1 ? "1 File" : `${uploadingTotalCount} Files`}
+					{" \u2014 "}{formatSize(uploadingTotalBytes)}
 				</span>
+				<div class="upload-banner-track">
+					<div
+						class="upload-banner-fill"
+						style:width={`${Math.min(100, (uploadingIndex / uploadingTotalCount) * 100)}%`}
+					></div>
+				</div>
 			</div>
 		</div>
 	{/if}
 
-	{#if cropModalOpen && pendingFile && pendingFilePreviewUrl}
-		<CropAttachmentModal src={pendingFilePreviewUrl} filename={pendingFile.name} onCancel={() => (cropModalOpen = false)} onConfirm={onCropped} />
+	{#if pendingFiles.length > 0}
+		<div class="attachment-preview-row" transition:fly={{ y: 8, duration: 140 }}>
+			{#each pendingFiles as file, i (i)}
+				{@const isSpoiler = isPendingSpoiler(file)}
+				{@const previewUrl = pendingPreviewUrls[i]}
+				<div class="attachment-card">
+					<div class="attachment-thumb" class:spoiler-blur={isSpoiler}>
+						{#if previewUrl}
+							<img src={previewUrl} alt={file.name} />
+						{:else}
+							<FileIcon size={22} strokeWidth={1.5} />
+						{/if}
+						{#if isSpoiler}
+							<span class="spoiler-tag">Spoiler</span>
+						{/if}
+						{#if uploading}
+							<div class="attachment-uploading">
+								<Loader2 size={22} strokeWidth={2} class="spin" />
+							</div>
+						{:else}
+							<div class="attachment-hover-actions">
+								{#if previewUrl}
+									<button type="button" title="Edit" onclick={() => openCrop(i)}>
+										<Pencil size={16} strokeWidth={2} />
+									</button>
+									<button
+										type="button"
+										class:active={isSpoiler}
+										title={isSpoiler ? "Unmark spoiler" : "Mark as spoiler"}
+										onclick={() => toggleSpoiler(i)}
+									>
+										<EyeOff size={16} strokeWidth={2} />
+									</button>
+								{/if}
+								<button type="button" title="Remove" onclick={() => clearPendingFile(i)}>
+									<Trash2 size={16} strokeWidth={2} />
+								</button>
+							</div>
+						{/if}
+					</div>
+					<span class="attachment-preview-name">
+						{isSpoiler ? file.name.slice(SPOILER_PREFIX.length) : file.name}
+					</span>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	{#if cropModalOpen && cropIndex !== null && pendingFiles[cropIndex] && pendingPreviewUrls[cropIndex]}
+		{@const cropSrc = pendingPreviewUrls[cropIndex]}
+		<CropAttachmentModal
+			src={cropSrc ?? ""}
+			filename={pendingFiles[cropIndex].name}
+			onCancel={() => {
+				cropModalOpen = false;
+				cropIndex = null;
+			}}
+			onConfirm={onCropped}
+		/>
 	{/if}
 
 	{#if lightbox}
@@ -1338,6 +1408,7 @@
 	<form class="composer" onsubmit={send}>
 		<input
 			type="file"
+			multiple
 			bind:this={fileInputEl}
 			onchange={onFileChosen}
 			style="display: none;"
@@ -1399,7 +1470,7 @@
 				/>
 			{/if}
 		</div>
-		<button type="submit" disabled={(draft.trim().length === 0 && !pendingFile) || uploading}>
+		<button type="submit" disabled={(draft.trim().length === 0 && pendingFiles.length === 0) || uploading}>
 			{#if uploading}
 				<Loader2 size={16} strokeWidth={2.25} class="spin" />
 			{:else}
@@ -2180,6 +2251,46 @@
 		gap: 12px;
 		margin: 0 16px;
 		padding-top: 10px;
+	}
+
+	.upload-banner {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin: 10px 16px 0;
+		padding: 10px 14px;
+		border-radius: 8px;
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		color: var(--ink-dim);
+	}
+
+	.upload-banner-body {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.upload-banner-title {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--ink);
+	}
+
+	.upload-banner-track {
+		height: 4px;
+		border-radius: 999px;
+		background: var(--hover);
+		overflow: hidden;
+	}
+
+	.upload-banner-fill {
+		height: 100%;
+		background: var(--accent-fill);
+		transition: width 0.2s ease;
 	}
 
 	.attachment-card {
