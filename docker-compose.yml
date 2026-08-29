@@ -45,6 +45,7 @@ services:
       BUNNY_STORAGE_API_KEY: ${BUNNY_STORAGE_API_KEY:-}
       BUNNY_STORAGE_REGION_HOST: ${BUNNY_STORAGE_REGION_HOST:-storage.bunnycdn.com}
       BUNNY_CDN_BASE_URL: ${BUNNY_CDN_BASE_URL:-}
+      RUST_LOG: ${RUST_LOG:-info}
     volumes:
       - hollowchat_attachments:/home/hollowchat/attachments
 
