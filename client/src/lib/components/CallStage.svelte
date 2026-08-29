@@ -23,7 +23,7 @@
 	import type { Channel, ServerEntry } from "$lib/data/mock";
 
 	let { server, channel, onJoin }: {
-		server: ServerEntry;
+		server?: ServerEntry;
 		channel: Channel;
 		onJoin: () => void;
 	} = $props();
@@ -102,14 +102,14 @@
 	<div class="prejoin" transition:fade={{ duration: 140 }}>
 		<div class="prejoin-icon"><Volume2 size={40} strokeWidth={1.5} /></div>
 		<h2>{channel.name}</h2>
-		<p>No one is connected to this voice channel from this window.</p>
-		<button class="join-btn" onclick={onJoin}>Join Voice</button>
+		<p>{server ? "No one is connected to this voice channel from this window." : "Not connected to this call."}</p>
+		<button class="join-btn" onclick={onJoin}>{server ? "Join Voice" : "Join Call"}</button>
 	</div>
 {:else}
 	<div class="stage" transition:fade={{ duration: 140 }}>
 		<div class="stage-header">
 			<Volume2 size={16} strokeWidth={2.25} />
-			<span>{server.name} / {channel.name}</span>
+			<span>{server ? `${server.name} / ${channel.name}` : channel.name}</span>
 		</div>
 
 		{#if hasSpotlight}

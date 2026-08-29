@@ -11,8 +11,10 @@
 	import UserBar from "$lib/components/UserBar.svelte";
 	import CallBar from "$lib/components/CallBar.svelte";
 	import ChatView from "$lib/components/ChatView.svelte";
+	import CallStage from "$lib/components/CallStage.svelte";
 	import DmProfilePanel from "$lib/components/DmProfilePanel.svelte";
 	import FullProfileModal from "$lib/components/FullProfileModal.svelte";
+	import { call } from "$lib/webrtc/call.svelte";
 	import type { Member, Channel } from "$lib/data/mock";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
@@ -99,6 +101,17 @@
 
 		return () => clearInterval(interval);
 	});
+
+	async function startDmCallFromCallBar() {
+		const token = session.token;
+		const dm = activeDm;
+		if (!token || !dm) return;
+		try {
+			await call.join(token, dm.id, dm.peer_username);
+		} catch {
+			toast.push("Couldn't start the call — check microphone permissions");
+		}
+	}
 
 	const activeDm = $derived(dmChannels.find((d) => d.id === activeDmId) ?? null);
 
@@ -271,12 +284,19 @@
 	</aside>
 
 	{#if activeDmChannel}
-		<ChatView
-			channel={activeDmChannel}
-			isDm={true}
-			peerId={activeDm?.peer_id}
-			onToggleMembers={() => (showDmProfile = !showDmProfile)}
-		/>
+		<div class="dm-main">
+			{#if call.roomId === activeDmChannel.id}
+				<div class="dm-call">
+					<CallStage channel={activeDmChannel} onJoin={startDmCallFromCallBar} />
+				</div>
+			{/if}
+			<ChatView
+				channel={activeDmChannel}
+				isDm={true}
+				peerId={activeDm?.peer_id}
+				onToggleMembers={() => (showDmProfile = !showDmProfile)}
+			/>
+		</div>
 		{#if showDmProfile}
 			<DmProfilePanel username={activeDmChannel.name} onViewFullProfile={() => (viewingProfile = activeDmChannel!.name)} />
 		{/if}
@@ -451,6 +471,27 @@
 		display: flex;
 		height: 100%;
 		min-width: 0;
+	}
+
+	.dm-main {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+	}
+
+	.dm-call {
+		flex-shrink: 0;
+		height: min(38vh, 300px);
+		display: flex;
+		background: #000;
+		border-bottom: 1px solid var(--hairline);
+	}
+
+	.dm-call :global(.stage),
+	.dm-call :global(.prejoin) {
+		height: 100%;
 	}
 
 	.dm-list {
