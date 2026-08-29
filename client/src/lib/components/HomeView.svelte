@@ -11,6 +11,8 @@
 	import UserBar from "$lib/components/UserBar.svelte";
 	import CallBar from "$lib/components/CallBar.svelte";
 	import ChatView from "$lib/components/ChatView.svelte";
+	import DmProfilePanel from "$lib/components/DmProfilePanel.svelte";
+	import FullProfileModal from "$lib/components/FullProfileModal.svelte";
 	import type { Member, Channel } from "$lib/data/mock";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
@@ -29,6 +31,8 @@
 	let requests = $state<api.ApiFriendRequest[]>([]);
 	let dmChannels = $state<api.ApiDmChannel[]>([]);
 	let activeDmId = $state<string | null>(null);
+	let showDmProfile = $state(false);
+	let viewingProfile = $state<string | null>(null);
 
 	function toMember(f: api.ApiFriend): Member {
 		const live = presenceStore.forUser(f.id);
@@ -267,7 +271,15 @@
 	</aside>
 
 	{#if activeDmChannel}
-		<ChatView channel={activeDmChannel} isDm={true} peerId={activeDm?.peer_id} />
+		<ChatView
+			channel={activeDmChannel}
+			isDm={true}
+			peerId={activeDm?.peer_id}
+			onToggleMembers={() => (showDmProfile = !showDmProfile)}
+		/>
+		{#if showDmProfile}
+			<DmProfilePanel username={activeDmChannel.name} onViewFullProfile={() => (viewingProfile = activeDmChannel!.name)} />
+		{/if}
 	{:else}
 	<div class="main">
 		<div class="tabs">
@@ -422,6 +434,16 @@
 	</aside>
 	{/if}
 </div>
+
+{#if viewingProfile}
+	<FullProfileModal
+		username={viewingProfile}
+		member={null}
+		serverName=""
+		onClose={() => (viewingProfile = null)}
+		onMessage={() => (viewingProfile = null)}
+	/>
+{/if}
 
 <style>
 	.home {

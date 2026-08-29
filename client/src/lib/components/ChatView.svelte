@@ -1008,6 +1008,10 @@
 				<button class="icon-button" title="Members" onclick={onToggleMembers}>
 					<Users size={17} strokeWidth={2} />
 				</button>
+			{:else}
+				<button class="icon-button" title="Profile" onclick={onToggleMembers}>
+					<Users size={17} strokeWidth={2} />
+				</button>
 			{/if}
 			<div class="header-search">
 				<Search size={13} strokeWidth={2.5} />
