@@ -3,6 +3,7 @@
 	import { cubicOut } from "svelte/easing";
 	import X from "@lucide/svelte/icons/x";
 	import Download from "@lucide/svelte/icons/download";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { src, kind, alt, onClose, onDownload }: {
 		src: string;
@@ -22,11 +23,11 @@
 <div class="overlay" role="presentation" onclick={onClose} transition:fade={{ duration: 150 }}>
 	<div class="toolbar" onclick={(e) => e.stopPropagation()}>
 		{#if onDownload}
-			<button class="icon-btn" title="Download" onclick={onDownload}>
+			<button class="icon-btn" title={t("lightbox.download")} onclick={onDownload}>
 				<Download size={20} strokeWidth={2} />
 			</button>
 		{/if}
-		<button class="icon-btn" title="Close" onclick={onClose}>
+		<button class="icon-btn" title={t("common.close")} onclick={onClose}>
 			<X size={22} strokeWidth={2} />
 		</button>
 	</div>

@@ -4,6 +4,7 @@
 	import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 	import X from "@lucide/svelte/icons/x";
 	import { updater } from "$lib/stores/updater.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 </script>
 
 {#if updater.status === "available" || updater.status === "downloading" || updater.status === "ready"}
@@ -17,23 +18,23 @@
 		</div>
 		<div class="body">
 			{#if updater.status === "available"}
-				<p class="title">Update available — v{updater.version}</p>
-				<p class="sub">Download and install the latest version.</p>
+				<p class="title">{t("updateBanner.availableTitle", { version: updater.version ?? "" })}</p>
+				<p class="sub">{t("updateBanner.availableSub")}</p>
 			{:else if updater.status === "downloading"}
-				<p class="title">Downloading update…</p>
+				<p class="title">{t("updateBanner.downloading")}</p>
 				<div class="progress"><div class="progress-fill" style:width={`${Math.round(updater.progress * 100)}%`}></div></div>
 			{:else}
-				<p class="title">Update ready</p>
-				<p class="sub">Restart HollowChat to finish installing.</p>
+				<p class="title">{t("updateBanner.readyTitle")}</p>
+				<p class="sub">{t("updateBanner.readySub")}</p>
 			{/if}
 		</div>
 		{#if updater.status === "available"}
-			<button class="action" onclick={() => updater.downloadAndInstall()}>Update</button>
-			<button class="dismiss" aria-label="Dismiss" onclick={() => updater.dismiss()}>
+			<button class="action" onclick={() => updater.downloadAndInstall()}>{t("updateBanner.update")}</button>
+			<button class="dismiss" aria-label={t("updateBanner.dismiss")} onclick={() => updater.dismiss()}>
 				<X size={14} strokeWidth={2.25} />
 			</button>
 		{:else if updater.status === "ready"}
-			<button class="action" onclick={() => updater.restart()}>Restart</button>
+			<button class="action" onclick={() => updater.restart()}>{t("updateBanner.restart")}</button>
 		{/if}
 	</div>
 {/if}

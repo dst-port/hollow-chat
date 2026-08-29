@@ -9,6 +9,7 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { joinServer, ApiError, type ApiServer } from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { onClose, onCreate, onJoin }: {
 		onClose: () => void;
@@ -55,9 +56,9 @@
 			onJoin(server);
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 404) {
-				toast.push("That invite doesn't exist or has expired");
+				toast.push(t("toast.inviteInvalid"));
 			} else {
-				toast.push("Couldn't join server");
+				toast.push(t("toast.serverJoinFailed"));
 			}
 		} finally {
 			joining = false;
@@ -65,34 +66,34 @@
 	}
 
 	const title = $derived(
-		step === "choice" ? "Add a Server" : step === "create" ? "Create Your Server" : "Join a Server"
+		step === "choice" ? t("server.add.title") : step === "create" ? t("server.create.title") : t("server.join.title")
 	);
 </script>
 
 <Modal {title} {onClose}>
 	{#if step === "choice"}
-		<p class="hint">Your server is where you and your friends hang out. Make yours and start talking.</p>
+		<p class="hint">{t("server.add.body")}</p>
 		<div class="choices">
 			<button class="choice" onclick={() => (step = "create")}>
 				<span class="choice-icon create"><Sparkles size={16} strokeWidth={2} /></span>
-				<span class="choice-label">Create My Own</span>
+				<span class="choice-label">{t("server.add.createOwn")}</span>
 				<ChevronRight size={16} strokeWidth={2} class="choice-chevron" />
 			</button>
 			<button class="choice" onclick={() => (step = "join")}>
 				<span class="choice-icon join"><DoorOpen size={16} strokeWidth={2} /></span>
-				<span class="choice-label">Join a Server</span>
+				<span class="choice-label">{t("server.add.join")}</span>
 				<ChevronRight size={16} strokeWidth={2} class="choice-chevron" />
 			</button>
 		</div>
 	{:else if step === "create"}
 		<button class="back" onclick={() => (step = "choice")}>
 			<ChevronLeft size={14} strokeWidth={2.5} />
-			Back
+			{t("common.back")}
 		</button>
 		<form onsubmit={submitCreate}>
-			<p class="hint">Give your server an icon and a name. You can invite people once it exists.</p>
+			<p class="hint">{t("server.create.body")}</p>
 			<div class="icon-row">
-				<button type="button" class="icon-drop" onclick={() => iconInput?.click()} aria-label="Upload server icon">
+				<button type="button" class="icon-drop" onclick={() => iconInput?.click()} aria-label={t("server.create.iconAria")}>
 					{#if iconPreview}
 						<img src={iconPreview} alt="" />
 					{:else}
@@ -101,32 +102,32 @@
 				</button>
 				<input bind:this={iconInput} type="file" accept="image/*" hidden onchange={pickIcon} />
 				<label class="name-field">
-					Server name
-					<input type="text" bind:value={name} required maxlength="48" placeholder="Void Raiders" />
+					{t("server.create.nameLabel")}
+					<input type="text" bind:value={name} required maxlength="48" placeholder={t("server.create.namePlaceholder")} />
 				</label>
 			</div>
-			<button type="submit" disabled={!name.trim()}>Create</button>
+			<button type="submit" disabled={!name.trim()}>{t("server.create.submit")}</button>
 		</form>
 	{:else}
 		<button class="back" onclick={() => (step = "choice")}>
 			<ChevronLeft size={14} strokeWidth={2.5} />
-			Back
+			{t("common.back")}
 		</button>
 		<form onsubmit={submitJoin}>
-			<p class="hint">Enter an invite below to join an existing server.</p>
+			<p class="hint">{t("server.join.body")}</p>
 			<label>
-				Invite link
+				{t("server.join.inviteLabel")}
 				<input type="text" bind:value={inviteLink} required placeholder="hollowchat.org/invite/a1b2c3d4" />
 			</label>
 			<button type="submit" disabled={!inviteLink.trim() || joining}>
-				{joining ? "Joining…" : "Join Server"}
+				{joining ? t("server.join.submitting") : t("server.join.submit")}
 			</button>
 		</form>
 		<div class="discover">
 			<Compass size={18} strokeWidth={2} />
 			<div>
-				<p class="discover-title">Don't have an invite?</p>
-				<p class="discover-hint">Ask whoever runs the server you want to join for a link.</p>
+				<p class="discover-title">{t("server.join.noInviteTitle")}</p>
+				<p class="discover-hint">{t("server.join.noInviteBody")}</p>
 			</div>
 		</div>
 	{/if}

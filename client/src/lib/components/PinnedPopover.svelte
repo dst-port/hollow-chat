@@ -2,6 +2,7 @@
 	import { fly } from "svelte/transition";
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import type { Message } from "$lib/data/mock";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { pinned, onClose }: {
 		pinned: Message[];
@@ -10,9 +11,9 @@
 </script>
 
 <div class="popover" use:clickOutside={onClose} transition:fly={{ y: -6, duration: 140 }}>
-	<p class="title">Pinned Messages</p>
+	<p class="title">{t("pins.title")}</p>
 	{#if pinned.length === 0}
-		<p class="empty">No pinned messages yet. Right-click on a message to pin it here.</p>
+		<p class="empty">{t("pins.empty")}</p>
 	{:else}
 		{#each pinned as message (message.id)}
 			<div class="pinned-item">

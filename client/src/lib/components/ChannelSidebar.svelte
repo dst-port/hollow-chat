@@ -16,6 +16,7 @@
 	import { call } from "$lib/webrtc/call.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 	import type { Channel, ChannelType, ServerEntry } from "$lib/data/mock";
 
@@ -50,7 +51,7 @@
 		const groups = new Map<string, typeof server.channels>();
 		for (const channel of server.channels) {
 			if (!channel.name.toLowerCase().includes(search.toLowerCase())) continue;
-			const key = channel.category ?? (channel.type === "text" ? "Text Channels" : "Voice Channels");
+			const key = channel.category ?? (channel.type === "text" ? t("channelSidebar.categoryText") : t("channelSidebar.categoryVoice"));
 			if (!groups.has(key)) groups.set(key, []);
 			groups.get(key)!.push(channel);
 		}
@@ -72,7 +73,7 @@
 		try {
 			await call.join(token, channel.id, `${server.name} / ${channel.name}`);
 		} catch {
-			toast.push("Couldn't join voice — check microphone permissions");
+			toast.push(t("toast.voiceJoinFailed"));
 		}
 	}
 
@@ -86,7 +87,7 @@
 	function handleCreateChannel(name: string, type: ChannelType) {
 		onCreateChannel(name, type);
 		createChannelOpen = false;
-		toast.push(`#${name} created`);
+		toast.push(t("channelSidebar.channelCreated", { name }));
 	}
 </script>
 
@@ -122,7 +123,7 @@
 
 	<div class="search-bar">
 		<Search size={13} strokeWidth={2.5} />
-		<input type="text" placeholder="Search channels" bind:value={search} />
+		<input type="text" placeholder={t("channelSidebar.search")} bind:value={search} />
 	</div>
 
 	<div class="channels">
@@ -170,7 +171,7 @@
 										<span class="voice-name" style:color={ownProfile?.accent_color || undefined}>
 											{ownProfile?.display_name || username}
 										</span>
-										{#if call.screenSharing}<span class="live-badge">LIVE</span>{/if}
+										{#if call.screenSharing}<span class="live-badge">{t("common.live")}</span>{/if}
 										<span class="voice-mic-state">
 											{#if call.muted}<MicOff size={13} strokeWidth={2} class="muted" />{:else}<Mic size={13} strokeWidth={2} />{/if}
 										</span>
@@ -189,12 +190,12 @@
 											<span class="voice-name" style:color={remoteProfile?.accent_color || undefined}>
 												{remoteProfile?.display_name || participant.username}
 											</span>
-											{#if sharingUserIds.has(participant.userId)}<span class="live-badge">LIVE</span>{/if}
+											{#if sharingUserIds.has(participant.userId)}<span class="live-badge">{t("common.live")}</span>{/if}
 										</div>
 									{/each}
 									<button class="invite-to-voice" onclick={() => (inviteOpen = true)}>
 										<UserPlus size={14} strokeWidth={2} />
-										Invite to Voice
+										{t("channelSidebar.inviteToVoice")}
 									</button>
 								</div>
 							{/if}

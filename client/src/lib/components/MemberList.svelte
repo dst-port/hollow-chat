@@ -3,6 +3,7 @@
 	import FullProfileModal from "$lib/components/FullProfileModal.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 	import type { Member } from "$lib/data/mock";
 
@@ -28,7 +29,7 @@
 	}
 
 	function fallbackGroupFor(member: Member): string {
-		return presenceOf(member) === "invisible" ? "Offline" : "Online";
+		return presenceOf(member) === "invisible" ? t("memberList.offline") : t("memberList.online");
 	}
 
 	const groups = $derived.by(() => {
@@ -49,7 +50,7 @@
 
 <aside class="members">
 	{#each groups as group (group.name)}
-		<p class="label">{group.name} — {group.members.length}</p>
+		<p class="label">{t("memberList.groupHeader", { group: group.name, count: group.members.length })}</p>
 		{#each group.members as member (member.id)}
 			{@const profile = profileStore.forUser(member.name)}
 			{@const presence = presenceOf(member)}

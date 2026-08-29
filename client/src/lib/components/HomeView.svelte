@@ -23,6 +23,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { colorForName } from "$lib/utils/color";
+	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 	import { presenceStore } from "$lib/stores/gateway.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
@@ -47,7 +48,8 @@
 		const status = live?.presence ?? f.presence;
 		const statusText = live ? live.status_text : f.status_text;
 		const activityLabels: string[] = [];
-		if (live?.activity_application) activityLabels.push(`Playing ${live.activity_application}`);
+		if (live?.activity_application)
+			activityLabels.push(t("presence.playing", { app: live.activity_application }));
 		if (live?.media_details) activityLabels.push(live.media_details);
 		const activityLabel = activityLabels.length > 0 ? activityLabels.join(" · ") : statusText;
 		return {
@@ -109,8 +111,8 @@
 	});
 
 	function dmDisplayName(dm: api.ApiDmChannel): string {
-		if (!dm.is_group) return dm.peer_username ?? "Unknown";
-		return dm.name || dm.members.map((m) => m.username).filter((u) => u !== username).join(", ") || "Group";
+		if (!dm.is_group) return dm.peer_username ?? t("home.dmUnknownPeer");
+		return dm.name || dm.members.map((m) => m.username).filter((u) => u !== username).join(", ") || t("home.groupFallback");
 	}
 
 	function dmMemberKey(dm: api.ApiDmChannel): string {
@@ -126,7 +128,7 @@
 		try {
 			await call.join(token, dm.id, dmDisplayName(dm));
 		} catch {
-			toast.push("Couldn't start the call — check microphone permissions");
+			toast.push(t("toast.callStartFailed"));
 		}
 	}
 
@@ -199,9 +201,9 @@
 			})
 			.catch((err: api.ApiError) => {
 				if (err.status === 401) {
-					toast.push("You can only message friends — send a friend request first");
+					toast.push(t("toast.friendsOnlyMessage"));
 				} else {
-					toast.push("Couldn't open conversation");
+					toast.push(t("toast.openConversationFailed"));
 				}
 			});
 	}
@@ -237,18 +239,18 @@
 			.sendFriendRequest(token, username)
 			.then((res) => {
 				if (res.result === "accepted") {
-					toast.push(`You're now friends with ${username}`);
+					toast.push(t("toast.nowFriendsWith", { username }));
 					refreshFriends();
 					refreshRequests();
 				} else {
-					toast.push("Friend request sent");
+					toast.push(t("toast.friendRequestSent"));
 					refreshRequests();
 				}
 			})
 			.catch((err: api.ApiError) => {
-				if (err.status === 404) toast.push("No HollowChat user with that username");
-				else if (err.status === 409) toast.push("Already friends or request already sent");
-				else toast.push("Couldn't send friend request");
+				if (err.status === 404) toast.push(t("toast.noSuchUser"));
+				else if (err.status === 409) toast.push(t("toast.alreadyFriendsOrPending"));
+				else toast.push(t("toast.friendRequestFailed"));
 			});
 	}
 
@@ -258,11 +260,11 @@
 		api
 			.acceptFriendRequest(token, request.id)
 			.then(() => {
-				toast.push(`You're now friends with ${request.username}`);
+				toast.push(t("toast.nowFriendsWith", { username: request.username }));
 				refreshFriends();
 				refreshRequests();
 			})
-			.catch(() => toast.push("Couldn't accept request"));
+			.catch(() => toast.push(t("toast.acceptRequestFailed")));
 	}
 
 	function declineRequest(request: api.ApiFriendRequest) {
@@ -271,11 +273,11 @@
 		api
 			.declineFriendRequest(token, request.id)
 			.then(() => refreshRequests())
-			.catch(() => toast.push("Couldn't remove request"));
+			.catch(() => toast.push(t("toast.removeRequestFailed")));
 	}
 
 	function noDiscovery() {
-		toast.push("HollowChat has no public server directory, by design");
+		toast.push(t("toast.noPublicDirectory"));
 	}
 
 	function hideBrokenImage(event: Event) {
@@ -286,20 +288,20 @@
 <div class="home">
 	<aside class="dm-list" class:mobile-open={!mobileDetailOpen}>
 		<div class="search-bar">
-			<input type="text" placeholder="Find or start a conversation" />
+			<input type="text" placeholder={t("home.search")} />
 		</div>
 		<button class="nav-item" class:active={!activeDmId} onclick={backToFriends}>
 			<Users size={16} strokeWidth={2} />
-			Friends
+			{t("home.friends")}
 		</button>
 		<div class="label-row">
-			<p class="label">Direct Messages</p>
-			<button class="new-group" title="Create group DM" onclick={() => (groupModalOpen = true)}>
+			<p class="label">{t("nav.directMessages")}</p>
+			<button class="new-group" title={t("groupDm.create.title")} onclick={() => (groupModalOpen = true)}>
 				<UserPlus size={13} strokeWidth={2.25} />
 			</button>
 		</div>
 		{#if dmChannels.length === 0}
-			<p class="dm-empty">No conversations yet. Message a friend to start one.</p>
+			<p class="dm-empty">{t("home.noConversations")}</p>
 		{:else}
 			{#each dmChannels as dm (dm.id)}
 				<button class="nav-item dm-item" class:active={activeDmId === dm.id} onclick={() => selectDm(dm.id)}>
@@ -325,7 +327,7 @@
 
 	<div class="detail" class:mobile-open={mobileDetailOpen}>
 	{#if viewport.isMobile && mobileDetailOpen}
-		<button class="mobile-back" onclick={() => (mobileDetailOpen = false)} aria-label="Back">
+		<button class="mobile-back" onclick={() => (mobileDetailOpen = false)} aria-label={t("common.back")}>
 			<ArrowLeft size={18} strokeWidth={2.25} />
 		</button>
 	{/if}
@@ -365,15 +367,15 @@
 		<div class="tabs">
 			<span class="tabs-title">
 				<Users size={20} strokeWidth={2} />
-				Friends
+				{t("home.friends")}
 			</span>
 			<span class="tabs-divider"></span>
-			<button class="tab" class:active={tab === "online"} onclick={() => (tab = "online")}>Online</button>
-			<button class="tab" class:active={tab === "all"} onclick={() => (tab = "all")}>All</button>
+			<button class="tab" class:active={tab === "online"} onclick={() => (tab = "online")}>{t("home.tab.online")}</button>
+			<button class="tab" class:active={tab === "all"} onclick={() => (tab = "all")}>{t("home.tab.all")}</button>
 			<button class="tab" class:active={tab === "pending"} onclick={() => (tab = "pending")}>
-				Pending{#if incomingRequests.length > 0} — {incomingRequests.length}{/if}
+				{t("home.tab.pending")}{#if incomingRequests.length > 0} — {incomingRequests.length}{/if}
 			</button>
-			<button class="tab pill" class:active={tab === "add"} onclick={() => (tab = "add")}>Add Friend</button>
+			<button class="tab pill" class:active={tab === "add"} onclick={() => (tab = "add")}>{t("home.tab.addFriend")}</button>
 		</div>
 
 		<div class="content">
@@ -387,23 +389,22 @@
 						style:top={`${mascotTop}px`}
 						style:height={`${mascotHeight}px`}
 					/>
-					<h2 bind:this={titleEl}>Add Friend</h2>
-					<p class="hint">You can add a friend by their HollowChat username.</p>
+					<h2 bind:this={titleEl}>{t("home.tab.addFriend")}</h2>
+					<p class="hint">{t("home.addFriend.hint")}</p>
 					<form bind:this={formEl} onsubmit={sendRequest}>
-						<input type="text" bind:value={addFriendDraft} placeholder="Enter a username" maxlength="32" />
-						<button type="submit" class="send" disabled={!addFriendDraft.trim()}>Send Friend Request</button>
+						<input type="text" bind:value={addFriendDraft} placeholder={t("home.addFriend.placeholder")} maxlength="32" />
+						<button type="submit" class="send" disabled={!addFriendDraft.trim()}>{t("home.addFriend.submit")}</button>
 					</form>
 
 					<div class="divider"></div>
 
-					<h3>Other Places to Make Friends</h3>
+					<h3>{t("home.addFriend.otherPlaces")}</h3>
 					<p class="hint">
-						Don't have a username on hand? HollowChat has no public server directory —
-						ask them to share their username or an invite link directly.
+						{t("home.addFriend.otherHint")}
 					</p>
 					<button class="discovery-row" onclick={noDiscovery}>
 						<span class="discovery-icon"><ShieldOff size={18} strokeWidth={2} /></span>
-						<span class="discovery-label">No Public Discovery, By Design</span>
+						<span class="discovery-label">{t("home.addFriend.noDiscovery")}</span>
 						<ChevronRight size={16} strokeWidth={2} />
 					</button>
 				</div>
@@ -411,13 +412,13 @@
 				{#if incomingRequests.length === 0 && outgoingRequests.length === 0}
 					<div class="empty" in:fade={{ duration: 150 }}>
 						<UserPlus size={40} strokeWidth={1.5} />
-						<h2>No pending requests</h2>
-						<p>Sent and received friend requests will show up here.</p>
+						<h2>{t("home.pending.emptyTitle")}</h2>
+						<p>{t("home.pending.emptyBody")}</p>
 					</div>
 				{:else}
 					<div in:fade={{ duration: 150 }}>
 						{#if incomingRequests.length > 0}
-							<p class="section-label">Incoming — {incomingRequests.length}</p>
+							<p class="section-label">{t("home.pending.incoming", { count: incomingRequests.length })}</p>
 							{#each incomingRequests as request (request.id)}
 								<div class="request-row">
 									<div class="request-identity">
@@ -427,10 +428,10 @@
 										<span class="request-name">{request.username}</span>
 									</div>
 									<div class="request-actions">
-										<button class="icon-round accept" title="Accept" onclick={() => acceptRequest(request)}>
+										<button class="icon-round accept" title={t("common.accept")} onclick={() => acceptRequest(request)}>
 											<Check size={16} strokeWidth={2.5} />
 										</button>
-										<button class="icon-round decline" title="Decline" onclick={() => declineRequest(request)}>
+										<button class="icon-round decline" title={t("common.decline")} onclick={() => declineRequest(request)}>
 											<X size={16} strokeWidth={2.5} />
 										</button>
 									</div>
@@ -438,7 +439,7 @@
 							{/each}
 						{/if}
 						{#if outgoingRequests.length > 0}
-							<p class="section-label">Outgoing — {outgoingRequests.length}</p>
+							<p class="section-label">{t("home.pending.outgoing", { count: outgoingRequests.length })}</p>
 							{#each outgoingRequests as request (request.id)}
 								<div class="request-row">
 									<div class="request-identity">
@@ -448,7 +449,7 @@
 										<span class="request-name">{request.username}</span>
 									</div>
 									<div class="request-actions">
-										<button class="icon-round decline" title="Cancel" onclick={() => declineRequest(request)}>
+										<button class="icon-round decline" title={t("common.cancel")} onclick={() => declineRequest(request)}>
 											<X size={16} strokeWidth={2.5} />
 										</button>
 									</div>
@@ -460,13 +461,13 @@
 			{:else if visibleFriends.length > 0}
 				{#key tab}
 					<div in:fade={{ duration: 150 }}>
-						<p class="section-label">{tab === "online" ? "Online" : "All Friends"} — {visibleFriends.length}</p>
+						<p class="section-label">{t("home.friends.sectionCount", { label: tab === "online" ? t("home.friends.sectionOnline") : t("home.friends.sectionAll"), count: visibleFriends.length })}</p>
 						<div class="friend-grid">
 							{#each visibleFriends as friend (friend.id)}
 								{@const accent = friend.roles?.[0]?.color ?? friend.color}
 								<div class="friend-card">
 									<div class="card-banner" style:background={`linear-gradient(135deg, ${accent}, color-mix(in srgb, ${accent} 40%, black))`}></div>
-									<button class="card-message" title="Message" onclick={() => messageFriend(friend)}>
+									<button class="card-message" title={t("home.friends.messageTitle")} onclick={() => messageFriend(friend)}>
 										<MessageCircle size={15} strokeWidth={2} />
 									</button>
 									<div class="card-body">
@@ -490,25 +491,25 @@
 			{:else if tab === "all"}
 				<div class="empty" in:fade={{ duration: 150 }}>
 					<Users size={40} strokeWidth={1.5} />
-					<h2>No friends yet</h2>
-					<p>Add someone by their HollowChat username to get started.</p>
+					<h2>{t("home.friends.noneTitle")}</h2>
+					<p>{t("home.friends.noneBody")}</p>
 				</div>
 			{:else}
 				<div class="empty" in:fade={{ duration: 150 }}>
 					<Users size={40} strokeWidth={1.5} />
-					<h2>No one's around</h2>
-					<p>None of your friends are online right now.</p>
+					<h2>{t("home.friends.noOnlineTitle")}</h2>
+					<p>{t("home.friends.noOnlineBody")}</p>
 				</div>
 			{/if}
 		</div>
 	</div>
 
 	<aside class="active-now">
-		<p class="label">Active Now</p>
+		<p class="label">{t("home.activeNow")}</p>
 		<div class="active-empty">
-			<p class="active-title">It's quiet for now</p>
+			<p class="active-title">{t("home.activeQuietTitle")}</p>
 			<p class="active-hint">
-				When a friend starts talking in a voice channel, we'll show it here.
+				{t("home.activeQuietBody")}
 			</p>
 		</div>
 	</aside>

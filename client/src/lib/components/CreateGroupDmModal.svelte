@@ -3,6 +3,7 @@
 	import Modal from "$lib/components/Modal.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { colorForName } from "$lib/utils/color";
+	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 
 	let { token, friends, onClose, onCreated }: {
@@ -31,20 +32,20 @@
 			onCreated(dm);
 			onClose();
 		} catch (err) {
-			toast.push(err instanceof api.ApiError ? err.message : "Couldn't create group");
+			toast.push(err instanceof api.ApiError ? err.message : t("toast.groupCreateFailed"));
 		} finally {
 			creating = false;
 		}
 	}
 </script>
 
-<Modal title="Create Group DM" {onClose} width={420}>
-	<p class="hint">Pick at least 2 friends. Everyone selected will be added to the group.</p>
+<Modal title={t("groupDm.create.title")} {onClose} width={420}>
+	<p class="hint">{t("groupDm.create.body")}</p>
 
-	<input type="text" class="name-input" placeholder="Group name (optional)" bind:value={nameDraft} maxlength="100" />
+	<input type="text" class="name-input" placeholder={t("groupDm.create.namePlaceholder")} bind:value={nameDraft} maxlength="100" />
 
 	{#if friends.length === 0}
-		<p class="empty">You don't have any friends to add yet.</p>
+		<p class="empty">{t("groupDm.create.noFriends")}</p>
 	{:else}
 		<div class="friend-list">
 			{#each friends as friend (friend.id)}
@@ -62,7 +63,7 @@
 	{/if}
 
 	<button type="button" class="create-btn" disabled={selected.size < 2 || creating} onclick={create}>
-		{creating ? "Creating…" : `Create Group (${selected.size} selected)`}
+		{creating ? t("groupDm.create.submitting") : t("groupDm.create.submit", { count: selected.size })}
 	</button>
 </Modal>
 

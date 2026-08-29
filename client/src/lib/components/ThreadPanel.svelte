@@ -12,6 +12,7 @@
 	import { colorForName } from "$lib/utils/color";
 	import { renderMarkdown } from "$lib/utils/markdown";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { t, tp } from "$lib/i18n/index.svelte";
 	import {
 		listThreads,
 		listThreadMessages,
@@ -93,14 +94,14 @@
 	}
 
 	function relativeTime(iso: string | null) {
-		if (!iso) return "No replies yet";
+		if (!iso) return t("thread.noRepliesYet");
 		const diffMs = Date.now() - new Date(iso).getTime();
 		const mins = Math.floor(diffMs / 60000);
-		if (mins < 1) return "just now";
-		if (mins < 60) return `${mins}m ago`;
+		if (mins < 1) return t("thread.justNow");
+		if (mins < 60) return t("thread.minutesAgo", { count: mins });
 		const hours = Math.floor(mins / 60);
-		if (hours < 24) return `${hours}h ago`;
-		return `${Math.floor(hours / 24)}d ago`;
+		if (hours < 24) return t("thread.hoursAgo", { count: hours });
+		return t("thread.daysAgo", { count: Math.floor(hours / 24) });
 	}
 
 	async function refreshThreads() {
@@ -109,7 +110,7 @@
 		try {
 			threads = await listThreads(token, channelId);
 		} catch {
-			toast.push("Couldn't load threads");
+			toast.push(t("thread.loadThreadsFailed"));
 		}
 	}
 
@@ -122,7 +123,7 @@
 			const rows = await listThreadMessages(token, channelId, thread.id);
 			threadMessages = await decryptThreadMessages(rows);
 		} catch {
-			toast.push("Couldn't load thread");
+			toast.push(t("thread.loadThreadFailed"));
 		} finally {
 			loading = false;
 		}
@@ -147,7 +148,7 @@
 			rememberDecrypted(msg.id, content);
 			threadMessages.push({ id: msg.id, author: msg.author, content, timestamp: msg.timestamp });
 		} catch {
-			toast.push("Reply failed to send");
+			toast.push(t("thread.replyFailed"));
 		}
 	}
 
@@ -157,7 +158,7 @@
 		try {
 			activeThread = await setThreadArchived(token, channelId, activeThread.id, !activeThread.archived);
 		} catch {
-			toast.push("Couldn't update thread");
+			toast.push(t("thread.updateFailed"));
 		}
 	}
 
@@ -177,12 +178,12 @@
 <aside class="panel" transition:fly={{ x: 24, duration: 160 }}>
 	<header class="header">
 		{#if activeThread}
-			<button class="icon-button" title="Back to threads" onclick={backToList}>
+			<button class="icon-button" title={t("thread.back")} onclick={backToList}>
 				<ChevronLeft size={17} strokeWidth={2} />
 			</button>
 			<span class="title">{activeThread.name}</span>
 			<div class="spacer"></div>
-			<button class="icon-button" title={activeThread.archived ? "Unarchive" : "Archive"} onclick={toggleArchive}>
+			<button class="icon-button" title={activeThread.archived ? t("thread.unarchive") : t("thread.archive")} onclick={toggleArchive}>
 				{#if activeThread.archived}
 					<ArchiveRestore size={16} strokeWidth={2} />
 				{:else}
@@ -191,10 +192,10 @@
 			</button>
 		{:else}
 			<MessagesSquare size={17} strokeWidth={2} />
-			<span class="title">Threads</span>
+			<span class="title">{t("thread.title")}</span>
 			<div class="spacer"></div>
 		{/if}
-		<button class="icon-button" title="Close" onclick={onClose}>
+		<button class="icon-button" title={t("common.close")} onclick={onClose}>
 			<X size={17} strokeWidth={2} />
 		</button>
 	</header>
@@ -202,7 +203,7 @@
 	{#if !activeThread}
 		<div class="list">
 			{#if threads.length === 0}
-				<p class="empty">No threads yet. Start one from a message's menu.</p>
+				<p class="empty">{t("thread.emptyList")}</p>
 			{/if}
 			{#each threads as thread (thread.id)}
 				<button class="thread-row" onclick={() => openThread(thread)}>
@@ -212,10 +213,10 @@
 					<div class="thread-info">
 						<span class="thread-name">
 							{thread.name}
-							{#if thread.archived}<span class="archived-badge">Archived</span>{/if}
+							{#if thread.archived}<span class="archived-badge">{t("thread.archivedBadge")}</span>{/if}
 						</span>
 						<span class="thread-meta">
-							{thread.message_count} {thread.message_count === 1 ? "reply" : "replies"} · {relativeTime(thread.last_message_at)}
+							{tp("thread.replyCount", thread.message_count)} · {relativeTime(thread.last_message_at)}
 						</span>
 					</div>
 				</button>
@@ -224,9 +225,9 @@
 	{:else}
 		<div class="messages">
 			{#if loading}
-				<p class="empty">Loading…</p>
+				<p class="empty">{t("common.loading")}</p>
 			{:else if threadMessages.length === 0}
-				<p class="empty">No replies yet. Be the first to reply.</p>
+				<p class="empty">{t("thread.emptyMessages")}</p>
 			{/if}
 			{#each threadMessages as message (message.id)}
 				<div class="message">
@@ -247,7 +248,7 @@
 		</div>
 
 		<form class="composer" onsubmit={send}>
-			<input type="text" placeholder="Reply in thread" bind:value={draft} />
+			<input type="text" placeholder={t("thread.replyPlaceholder")} bind:value={draft} />
 			<button type="submit" disabled={!draft.trim()}>
 				<SendHorizontal size={15} strokeWidth={2.25} />
 			</button>

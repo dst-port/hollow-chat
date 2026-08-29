@@ -16,6 +16,7 @@
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { call } from "$lib/webrtc/call.svelte";
 	import * as api from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { username, onLogout }: {
 		username: string;
@@ -40,12 +41,12 @@
 
 	const profile = $derived(profileStore.forUser(username));
 
-	const PRESENCE_LABELS: Record<string, string> = {
-		online: "Online",
-		idle: "Idle",
-		dnd: "Do Not Disturb",
-		invisible: "Invisible"
-	};
+	const PRESENCE_LABELS = $derived<Record<string, string>>({
+		online: t("presence.online"),
+		idle: t("presence.idle"),
+		dnd: t("presence.dnd"),
+		invisible: t("presence.invisible")
+	});
 
 	const PRESENCE_COLOR_VAR: Record<string, string> = {
 		online: "var(--online)",
@@ -95,19 +96,19 @@
 			<button
 				class="icon-button"
 				class:muted-active={call.muted}
-				aria-label={call.muted ? "Unmute" : "Mute"}
+				aria-label={call.muted ? t("call.unmute") : t("call.mute")}
 				onclick={() => call.toggleMute()}
 			>
 				{#if call.muted}<MicOff size={18} strokeWidth={2} />{:else}<Mic size={18} strokeWidth={2} />{/if}
-				<span class="tooltip">{call.muted ? "Unmute" : "Mute"}</span>
+				<span class="tooltip">{call.muted ? t("call.unmute") : t("call.mute")}</span>
 			</button>
 			<button
 				class="chevron-btn"
-				aria-label="Input Options"
+				aria-label={t("userbar.inputOptions")}
 				onclick={() => (voicePanel = voicePanel === "input" ? null : "input")}
 			>
 				<ChevronDown size={12} strokeWidth={2.5} />
-				<span class="tooltip">Input Options</span>
+				<span class="tooltip">{t("userbar.inputOptions")}</span>
 			</button>
 			{#if voicePanel === "input"}
 				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)} transition:fly={{ y: 6, duration: 140, easing: cubicOut }}>
@@ -119,19 +120,19 @@
 			<button
 				class="icon-button"
 				class:muted-active={call.deafened}
-				aria-label={call.deafened ? "Undeafen" : "Deafen"}
+				aria-label={call.deafened ? t("call.undeafen") : t("call.deafen")}
 				onclick={() => call.toggleDeafen()}
 			>
 				{#if call.deafened}<HeadphoneOff size={18} strokeWidth={2} />{:else}<Headphones size={18} strokeWidth={2} />{/if}
-				<span class="tooltip">{call.deafened ? "Undeafen" : "Deafen"}</span>
+				<span class="tooltip">{call.deafened ? t("call.undeafen") : t("call.deafen")}</span>
 			</button>
 			<button
 				class="chevron-btn"
-				aria-label="Output Options"
+				aria-label={t("userbar.outputOptions")}
 				onclick={() => (voicePanel = voicePanel === "output" ? null : "output")}
 			>
 				<ChevronDown size={12} strokeWidth={2.5} />
-				<span class="tooltip">Output Options</span>
+				<span class="tooltip">{t("userbar.outputOptions")}</span>
 			</button>
 			{#if voicePanel === "output"}
 				<div class="voice-popover" use:clickOutside={() => (voicePanel = null)} transition:fly={{ y: 6, duration: 140, easing: cubicOut }}>
@@ -139,9 +140,9 @@
 				</div>
 			{/if}
 		</div>
-		<button class="icon-button" aria-label="User Settings" onclick={() => { settingsInitialSection = "account"; settingsOpen = true; }}>
+		<button class="icon-button" aria-label={t("userbar.userSettings")} onclick={() => { settingsInitialSection = "account"; settingsOpen = true; }}>
 			<Settings size={18} strokeWidth={2} />
-			<span class="tooltip">User Settings</span>
+			<span class="tooltip">{t("userbar.userSettings")}</span>
 		</button>
 	</div>
 	</div>

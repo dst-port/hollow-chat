@@ -5,6 +5,7 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { getServerInvite } from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { serverName, serverId, onClose }: {
 		serverName: string;
@@ -29,19 +30,19 @@
 		if (!link) return;
 		await navigator.clipboard.writeText(link);
 		copied = true;
-		toast.push("Invite link copied");
+		toast.push(t("toast.inviteLinkCopied"));
 		setTimeout(() => (copied = false), 1500);
 	}
 </script>
 
-<Modal title={`Invite people to ${serverName}`} {onClose}>
-	<p class="hint">Share this link. Anyone with it can join — it never expires.</p>
+<Modal title={t("invite.title", { server: serverName })} {onClose}>
+	<p class="hint">{t("invite.body")}</p>
 	{#if failed}
-		<p class="hint">Couldn't create an invite link. Try again.</p>
+		<p class="hint">{t("invite.failed")}</p>
 	{:else}
 		<div class="link-box">
-			<span class="link">{code ? link : "Generating…"}</span>
-			<button class="copy" onclick={copy} title="Copy link" disabled={!code}>
+			<span class="link">{code ? link : t("invite.generating")}</span>
+			<button class="copy" onclick={copy} title={t("invite.copyTitle")} disabled={!code}>
 				{#if copied}<Check size={15} strokeWidth={2.5} />{:else}<Copy size={15} strokeWidth={2} />{/if}
 			</button>
 		</div>

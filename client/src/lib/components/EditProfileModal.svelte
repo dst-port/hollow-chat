@@ -32,6 +32,7 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import * as api from "$lib/api/client";
 	import { GAME_CATALOG, coverUrl, type CatalogGame } from "$lib/data/gameCatalog";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { username, onClose }: {
 		username: string;
@@ -75,7 +76,7 @@
 				banner_gradient_end: bannerGradientEndDraft
 			})
 			.then((updated) => profileStore.set(updated))
-			.catch(() => toast.push("Couldn't update profile colors"));
+			.catch(() => toast.push(t("profile.edit.toast.colorsFailed")));
 	});
 
 	async function onAvatarChosen(event: Event) {
@@ -87,7 +88,7 @@
 			const attachment = await api.uploadFile(token, file);
 			profileStore.set(await api.setAvatar(token, attachment.id));
 		} catch {
-			toast.push("Couldn't update avatar");
+			toast.push(t("profile.edit.toast.avatarFailed"));
 		} finally {
 			avatarUploading = false;
 			if (avatarInput) avatarInput.value = "";
@@ -103,15 +104,15 @@
 			const attachment = await api.uploadFile(token, file);
 			profileStore.set(await api.setBanner(token, attachment.id));
 		} catch {
-			toast.push("Couldn't update banner");
+			toast.push(t("profile.edit.toast.bannerFailed"));
 		} finally {
 			bannerUploading = false;
 			if (bannerInput) bannerInput.value = "";
 		}
 	}
 
-	function notAvailable(what: string) {
-		toast.push(`${what} isn't available yet`);
+	function notAvailable(message: string) {
+		toast.push(message);
 	}
 
 	type ServiceMeta = { id: api.ConnectionService; label: string; placeholder: string };
@@ -203,7 +204,7 @@
 			addingConnection = false;
 			selectedService = null;
 		} catch (err) {
-			toast.push(err instanceof api.ApiError ? err.message : "Couldn't add connection");
+			toast.push(err instanceof api.ApiError ? err.message : t("profile.edit.toast.connectionAddFailed"));
 		} finally {
 			savingConnection = false;
 		}
@@ -218,25 +219,25 @@
 			await api.removeConnection(token, id);
 		} catch {
 			connections = previous;
-			toast.push("Couldn't remove connection");
+			toast.push(t("profile.edit.toast.connectionRemoveFailed"));
 		}
 	}
 
 	type BoardTab = "board" | "activity" | "wishlist";
 	let boardTab = $state<BoardTab>("board");
 
-	const WIDGET_KIND_LABELS: Record<api.WidgetKind, string> = {
-		favorite_game: "Favorite Game",
-		want_to_play: "Want to Play",
-		games_i_like: "Games I Like",
-		games_in_rotation: "Games in Rotation"
-	};
-	const WIDGET_KIND_OPTIONS: { id: api.WidgetKind; label: string }[] = [
-		{ id: "favorite_game", label: "Favorite Game" },
-		{ id: "want_to_play", label: "Want to Play" },
-		{ id: "games_i_like", label: "Games I Like" },
-		{ id: "games_in_rotation", label: "Games in Rotation" }
-	];
+	const WIDGET_KIND_LABELS = $derived<Record<api.WidgetKind, string>>({
+		favorite_game: t("profile.edit.widgetKind.favoriteGame"),
+		want_to_play: t("profile.edit.widgetKind.wantToPlay"),
+		games_i_like: t("profile.edit.widgetKind.gamesILike"),
+		games_in_rotation: t("profile.edit.widgetKind.gamesInRotation")
+	});
+	const WIDGET_KIND_OPTIONS = $derived<{ id: api.WidgetKind; label: string }[]>([
+		{ id: "favorite_game", label: t("profile.edit.widgetKind.favoriteGame") },
+		{ id: "want_to_play", label: t("profile.edit.widgetKind.wantToPlay") },
+		{ id: "games_i_like", label: t("profile.edit.widgetKind.gamesILike") },
+		{ id: "games_in_rotation", label: t("profile.edit.widgetKind.gamesInRotation") }
+	]);
 
 	let widgets = $state<api.ApiWidget[]>([]);
 	let pickingGame = $state(false);
@@ -293,7 +294,7 @@
 			widgets = [...widgets, created];
 			cancelAddWidget();
 		} catch (err) {
-			toast.push(err instanceof api.ApiError ? err.message : "Couldn't add widget");
+			toast.push(err instanceof api.ApiError ? err.message : t("profile.edit.toast.widgetAddFailed"));
 		} finally {
 			savingWidget = false;
 		}
@@ -308,7 +309,7 @@
 			widgets = widgets.map((w) => (w.id === widget.id ? updated : w)).sort((a, b) => Number(b.pinned) - Number(a.pinned));
 		} catch {
 			widgets = previous;
-			toast.push("Couldn't update widget");
+			toast.push(t("profile.edit.toast.widgetUpdateFailed"));
 		}
 	}
 
@@ -321,7 +322,7 @@
 			await api.removeWidget(token, id);
 		} catch {
 			widgets = previous;
-			toast.push("Couldn't remove widget");
+			toast.push(t("profile.edit.toast.widgetRemoveFailed"));
 		}
 	}
 
@@ -338,7 +339,7 @@
 			const updated = await api.updateWidget(token, widget.id, { description: descriptionDraft });
 			widgets = widgets.map((w) => (w.id === widget.id ? updated : w));
 		} catch {
-			toast.push("Couldn't update widget");
+			toast.push(t("profile.edit.toast.widgetUpdateFailed"));
 		}
 	}
 
@@ -353,7 +354,7 @@
 		if (!trimmed) return;
 		if (widget.tags.includes(trimmed)) return;
 		if (widget.tags.length >= 5) {
-			toast.push("Up to 5 tags per widget");
+			toast.push(t("profile.edit.toast.tagLimit"));
 			return;
 		}
 		const token = session.token;
@@ -362,7 +363,7 @@
 			const updated = await api.updateWidget(token, widget.id, { tags: [...widget.tags, trimmed] });
 			widgets = widgets.map((w) => (w.id === widget.id ? updated : w));
 		} catch {
-			toast.push("Couldn't add tag");
+			toast.push(t("profile.edit.toast.tagAddFailed"));
 		}
 	}
 
@@ -377,7 +378,7 @@
 			widgets = widgets.map((w) => (w.id === widget.id ? updated : w));
 		} catch {
 			widgets = previous;
-			toast.push("Couldn't remove tag");
+			toast.push(t("profile.edit.toast.tagRemoveFailed"));
 		}
 	}
 
@@ -401,31 +402,31 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="overlay" role="presentation" onclick={onOverlayClick} transition:fade={{ duration: 140 }}>
-<div class="editor" role="dialog" aria-modal="true" aria-label="Edit Profile" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-	<button class="close" onclick={onClose} title="Close">
+<div class="editor" role="dialog" aria-modal="true" aria-label={t("profile.edit.title")} tabindex="-1" onclick={(e) => e.stopPropagation()}>
+	<button class="close" onclick={onClose} title={t("common.close")}>
 		<X size={20} strokeWidth={2} />
 	</button>
 
 	<div class="col-sidebar">
-		<button class="nav-header" onclick={() => notAvailable("Additional profile pages")}>
-			Main Profile
+		<button class="nav-header" onclick={() => notAvailable(t("profile.edit.pagesUnavailable"))}>
+			{t("profile.edit.mainProfile")}
 			<ChevronDown size={14} strokeWidth={2.5} />
 		</button>
 
 		<section class="section">
-			<p class="section-label">Nameplate</p>
+			<p class="section-label">{t("profile.edit.nameplate")}</p>
 			<div class="nameplate-row">
 				<div class="nameplate-preview" style:background={accentDraft}></div>
-				<button class="slot small" onclick={() => notAvailable("Nameplates")} title="Nameplates aren't available yet">
+				<button class="slot small" onclick={() => notAvailable(t("profile.edit.nameplatesUnavailable"))} title={t("profile.edit.nameplatesUnavailable")}>
 					<Plus size={14} strokeWidth={2.5} />
 				</button>
 			</div>
 		</section>
 
 		<section class="section">
-			<p class="section-label">Avatar / Banner</p>
+			<p class="section-label">{t("profile.edit.avatarBanner")}</p>
 			<div class="slot-row">
-				<button class="slot" onclick={() => avatarInput?.click()} disabled={avatarUploading} title="Change avatar">
+				<button class="slot" onclick={() => avatarInput?.click()} disabled={avatarUploading} title={t("profile.edit.changeAvatar")}>
 					<div
 						class="slot-avatar"
 						style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
@@ -438,7 +439,7 @@
 					class="slot theme-slot active"
 					onclick={() => bannerInput?.click()}
 					disabled={bannerUploading}
-					title="Change banner"
+					title={t("profile.edit.changeBanner")}
 					style:background={profile?.banner_url
 						? `url(${api.resolveUrl(profile.banner_url, session.token)}) center/cover`
 						: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
@@ -451,8 +452,8 @@
 
 		<section class="section">
 			<div class="section-header-row">
-				<p class="section-label">Display Name Color</p>
-				<button class="icon-btn" onclick={() => (styleOpen = !styleOpen)} title="Name color">
+				<p class="section-label">{t("profile.edit.displayNameColor")}</p>
+				<button class="icon-btn" onclick={() => (styleOpen = !styleOpen)} title={t("profile.edit.nameColor")}>
 					<Settings2 size={13} strokeWidth={2} />
 				</button>
 			</div>
@@ -468,8 +469,8 @@
 
 		<section class="section">
 			<div class="section-header-row">
-				<p class="section-label">Profile Colors</p>
-				<button class="icon-btn" onclick={() => (colorWayOpen = !colorWayOpen)} title="Color way">
+				<p class="section-label">{t("profile.edit.profileColors")}</p>
+				<button class="icon-btn" onclick={() => (colorWayOpen = !colorWayOpen)} title={t("profile.edit.colorWay")}>
 					<Settings2 size={13} strokeWidth={2} />
 				</button>
 			</div>
@@ -479,9 +480,9 @@
 			</div>
 			{#if colorWayOpen}
 				<div class="style-popover">
-					<p class="color-way-label">Color Way — start</p>
+					<p class="color-way-label">{t("profile.edit.colorWayStart")}</p>
 					<ColorPicker bind:value={bannerColorDraft} />
-					<p class="color-way-label">Color Way — end</p>
+					<p class="color-way-label">{t("profile.edit.colorWayEnd")}</p>
 					<ColorPicker bind:value={bannerGradientEndDraft} />
 				</div>
 			{/if}
@@ -518,14 +519,14 @@
 				</p>
 
 				<div class="preview-actions">
-					<button class="action primary" disabled title="This is your own profile">
+					<button class="action primary" disabled title={t("profile.edit.ownProfileHint")}>
 						<MessageSquare size={14} strokeWidth={2} />
-						Message
+						{t("profile.full.message")}
 					</button>
-					<button class="action icon-only" onclick={() => (boardTab = "board")} title="Go to Widgets">
+					<button class="action icon-only" onclick={() => (boardTab = "board")} title={t("profile.edit.goToWidgets")}>
 						<LayoutGrid size={14} strokeWidth={2} />
 					</button>
-					<button class="action icon-only" disabled title="No further actions">
+					<button class="action icon-only" disabled title={t("profile.edit.noFurtherActions")}>
 						<MoreHorizontal size={14} strokeWidth={2} />
 					</button>
 				</div>
@@ -543,12 +544,12 @@
 			{/if}
 
 			<div class="info-block">
-				<p class="info-label">Member Since</p>
+				<p class="info-label">{t("profile.full.memberSince")}</p>
 				<p class="info-value">{memberSince}</p>
 			</div>
 
 			<div class="info-block">
-				<p class="info-label">Connections</p>
+				<p class="info-label">{t("profile.full.connections")}</p>
 				{#each connections as connection (connection.id)}
 					<div class="connection-row">
 						{#if BRAND_ICONS[connection.service]}
@@ -561,7 +562,7 @@
 							{connectionLabel(connection)}
 						</a>
 						<ExternalLink size={13} strokeWidth={2} class="connection-external" />
-						<button class="connection-remove" onclick={() => deleteConnection(connection.id)} title="Remove">
+						<button class="connection-remove" onclick={() => deleteConnection(connection.id)} title={t("common.remove")}>
 							<Trash2 size={14} strokeWidth={2} />
 						</button>
 					</div>
@@ -572,7 +573,7 @@
 						{#if !selectedService}
 							<div class="service-search">
 								<Search size={13} strokeWidth={2} />
-								<input type="text" placeholder="Search a service…" bind:value={serviceSearch} />
+								<input type="text" placeholder={t("profile.edit.searchService")} bind:value={serviceSearch} />
 							</div>
 							<div class="service-list">
 								{#each filteredServices as service (service.id)}
@@ -586,11 +587,11 @@
 										{service.label}
 									</button>
 								{:else}
-									<p class="service-empty">No matching service</p>
+									<p class="service-empty">{t("profile.edit.noMatchingService")}</p>
 								{/each}
 							</div>
 							<div class="connection-form-actions">
-								<button class="ghost small" onclick={cancelAddConnection}>Cancel</button>
+								<button class="ghost small" onclick={cancelAddConnection}>{t("common.cancel")}</button>
 							</div>
 						{:else}
 							<div class="service-picked">
@@ -601,7 +602,7 @@
 									<Fallback size={14} strokeWidth={2} />
 								{/if}
 								{selectedService.label}
-								<button class="service-change" onclick={() => (selectedService = null)}>Change</button>
+								<button class="service-change" onclick={() => (selectedService = null)}>{t("common.change")}</button>
 							</div>
 							<input
 								class="connection-input"
@@ -611,9 +612,9 @@
 								maxlength="256"
 							/>
 							<div class="connection-form-actions">
-								<button class="ghost small" onclick={cancelAddConnection}>Cancel</button>
+								<button class="ghost small" onclick={cancelAddConnection}>{t("common.cancel")}</button>
 								<button class="ghost small" onclick={submitConnection} disabled={savingConnection || !newUrl.trim()}>
-									{savingConnection ? "Saving…" : "Save"}
+									{savingConnection ? t("common.saving") : t("common.save")}
 								</button>
 							</div>
 						{/if}
@@ -621,14 +622,14 @@
 				{:else if connections.length < 5}
 					<button class="add-connection" onclick={startAddConnection}>
 						<Plus size={13} strokeWidth={2.5} />
-						Add Connection
+						{t("profile.edit.addConnection")}
 					</button>
 				{/if}
 			</div>
 
 			<div class="info-block">
-				<p class="info-label">Note (only visible to you)</p>
-				<p class="note-placeholder">Notes aren't available yet</p>
+				<p class="info-label">{t("profile.full.noteLabel")}</p>
+				<p class="note-placeholder">{t("profile.edit.notesUnavailable")}</p>
 			</div>
 			</div>
 		</div>
@@ -636,16 +637,16 @@
 
 	<div class="col-right">
 		<div class="tabs">
-			<button class="tab" class:active={boardTab === "board"} onclick={() => (boardTab = "board")}>Board</button>
-			<button class="tab" class:active={boardTab === "activity"} onclick={() => (boardTab = "activity")}>Activity</button>
-			<button class="tab" class:active={boardTab === "wishlist"} onclick={() => (boardTab = "wishlist")}>Wishlist</button>
+			<button class="tab" class:active={boardTab === "board"} onclick={() => (boardTab = "board")}>{t("profile.full.tabBoard")}</button>
+			<button class="tab" class:active={boardTab === "activity"} onclick={() => (boardTab = "activity")}>{t("profile.full.tabActivity")}</button>
+			<button class="tab" class:active={boardTab === "wishlist"} onclick={() => (boardTab = "wishlist")}>{t("profile.full.tabWishlist")}</button>
 		</div>
 
 		{#if boardTab === "board"}
 			{#if widgets.length === 0 && !pickingGame}
 				<div class="widgets-empty">
-					<h3>Customize your profile with Widgets</h3>
-					<p>Choose from our library of Widgets to share more about yourself and your interests</p>
+					<h3>{t("profile.edit.widgetsEmptyTitle")}</h3>
+					<p>{t("profile.edit.widgetsEmptyBody")}</p>
 				</div>
 			{/if}
 
@@ -663,7 +664,7 @@
 								<input
 									class="widget-desc-input"
 									type="text"
-									placeholder="Add a note about this…"
+									placeholder={t("profile.edit.widgetNotePlaceholder")}
 									bind:value={descriptionDraft}
 									maxlength="140"
 									autofocus
@@ -673,7 +674,7 @@
 							{:else}
 								<button class="widget-desc" class:filled={!!widget.description} onclick={() => startEditDescription(widget)}>
 									<Pencil size={13} strokeWidth={2} />
-									<span>{widget.description || "Add a note about this…"}</span>
+									<span>{widget.description || t("profile.edit.widgetNotePlaceholder")}</span>
 								</button>
 							{/if}
 
@@ -681,7 +682,7 @@
 								{#each widget.tags as tag (tag)}
 									<span class="widget-tag">
 										{tag}
-										<button onclick={() => removeTag(widget, tag)} title="Remove tag">
+										<button onclick={() => removeTag(widget, tag)} title={t("profile.edit.removeTag")}>
 											<X size={12} strokeWidth={2.5} />
 										</button>
 									</span>
@@ -690,7 +691,7 @@
 									<input
 										class="widget-tag-input"
 										type="text"
-										placeholder="Tag"
+										placeholder={t("profile.edit.tagPlaceholder")}
 										bind:value={tagDraft}
 										maxlength="24"
 										autofocus
@@ -699,16 +700,16 @@
 									/>
 								{:else if widget.tags.length < 5}
 									<button class="widget-tag-add" onclick={() => startAddTag(widget)}>
-										<Plus size={12} strokeWidth={2.5} /> Tags
+										<Plus size={12} strokeWidth={2.5} /> {t("profile.edit.tags")}
 									</button>
 								{/if}
 							</div>
 						</div>
 						<div class="widget-actions">
-							<button class="widget-pin" class:active={widget.pinned} onclick={() => togglePinned(widget)} title={widget.pinned ? "Unpin" : "Pin to top"}>
+							<button class="widget-pin" class:active={widget.pinned} onclick={() => togglePinned(widget)} title={widget.pinned ? t("profile.edit.unpin") : t("profile.edit.pinToTop")}>
 								<Pin size={13} strokeWidth={2} fill={widget.pinned ? "currentColor" : "none"} />
 							</button>
-							<button class="widget-remove" onclick={() => deleteWidget(widget.id)} title="Remove widget">
+							<button class="widget-remove" onclick={() => deleteWidget(widget.id)} title={t("profile.edit.removeWidget")}>
 								<Trash2 size={13} strokeWidth={2} />
 							</button>
 						</div>
@@ -720,8 +721,8 @@
 						<div class="game-picker">
 							<div class="game-picker-search">
 								<Search size={14} strokeWidth={2} />
-								<input type="text" placeholder="Search" bind:value={gameSearch} maxlength="40" autofocus />
-								<button class="game-picker-close" onclick={cancelAddWidget} title="Cancel"><X size={14} strokeWidth={2} /></button>
+								<input type="text" placeholder={t("common.search")} bind:value={gameSearch} maxlength="40" autofocus />
+								<button class="game-picker-close" onclick={cancelAddWidget} title={t("common.cancel")}><X size={14} strokeWidth={2} /></button>
 							</div>
 
 							{#if gameSearch.trim()}
@@ -732,12 +733,12 @@
 											<span>{game.name}</span>
 										</button>
 									{:else}
-										<p class="game-picker-empty">No games found</p>
+										<p class="game-picker-empty">{t("profile.edit.noGamesFound")}</p>
 									{/each}
 								</div>
 							{:else}
 								<div class="game-picker-suggested">
-									<span class="game-picker-label">Suggested for you</span>
+									<span class="game-picker-label">{t("profile.edit.suggestedForYou")}</span>
 									<div class="game-picker-thumbs">
 										{#each suggestedGames as game (game.id)}
 											<button class="game-picker-thumb" onclick={() => selectGame(game)} disabled={savingWidget} title={game.name}>
@@ -762,13 +763,13 @@
 			</div>
 		{:else if boardTab === "activity"}
 			<div class="widgets-empty">
-				<h3>No activity yet</h3>
-				<p>Live activity (games, music, apps) isn't tracked yet - this tab is a placeholder for now.</p>
+				<h3>{t("profile.full.activityEmptyTitle")}</h3>
+				<p>{t("profile.full.activityEmptyBody")}</p>
 			</div>
 		{:else}
 			<div class="widgets-empty">
-				<h3>No wishlist yet</h3>
-				<p>Wishlists aren't available yet - this tab is a placeholder for now.</p>
+				<h3>{t("profile.full.wishlistEmptyTitle")}</h3>
+				<p>{t("profile.full.wishlistEmptyBody")}</p>
 			</div>
 		{/if}
 	</div>

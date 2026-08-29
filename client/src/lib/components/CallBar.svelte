@@ -18,6 +18,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import * as api from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 
 	$effect(() => {
 		const token = session.token;
@@ -51,36 +52,36 @@
 		<div class="call-header">
 			<span class="status-dot" class:connecting={call.status === "connecting"}></span>
 			<div class="status-text">
-				<span class="status-title">{call.status === "connecting" ? "Connecting…" : "Voice Connected"}</span>
+				<span class="status-title">{call.status === "connecting" ? t("call.connecting") : t("call.connected")}</span>
 				<span class="status-sub">{call.label}</span>
 			</div>
-			<button class="mini-icon" class:muted-active={call.muted} aria-label={call.muted ? "Unmute" : "Mute"} onclick={() => call.toggleMute()}>
+			<button class="mini-icon" class:muted-active={call.muted} aria-label={call.muted ? t("call.unmute") : t("call.mute")} onclick={() => call.toggleMute()}>
 				{#if call.muted}<MicOff size={14} strokeWidth={2} />{:else}<Mic size={14} strokeWidth={2} />{/if}
-				<span class="tooltip">{call.muted ? "Unmute" : "Mute"}</span>
+				<span class="tooltip">{call.muted ? t("call.unmute") : t("call.mute")}</span>
 			</button>
-			<button class="mini-icon leave" aria-label="Disconnect" onclick={() => call.leave()}>
+			<button class="mini-icon leave" aria-label={t("call.disconnect")} onclick={() => call.leave()}>
 				<PhoneOff size={14} strokeWidth={2} />
-				<span class="tooltip">Disconnect</span>
+				<span class="tooltip">{t("call.disconnect")}</span>
 			</button>
 		</div>
 
 		<div class="feature-row">
-			<button class="feature-btn" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? "Turn Off Camera" : "Turn On Camera"} onclick={() => call.toggleCamera()}>
+			<button class="feature-btn" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")} onclick={() => call.toggleCamera()}>
 				{#if call.cameraEnabled}<Video size={14} strokeWidth={2} />{:else}<VideoOff size={14} strokeWidth={2} />{/if}
-				<span class="tooltip">{call.cameraEnabled ? "Turn Off Camera" : "Turn On Camera"}</span>
+				<span class="tooltip">{call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")}</span>
 			</button>
-			<button class="feature-btn" class:active={call.screenSharing} aria-label={call.screenSharing ? "Stop Sharing" : "Share Your Screen"} onclick={() => call.toggleScreenShare()}>
+			<button class="feature-btn" class:active={call.screenSharing} aria-label={call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")} onclick={() => call.toggleScreenShare()}>
 				{#if call.screenSharing}<ScreenShareOff size={14} strokeWidth={2} />{:else}<ScreenShare size={14} strokeWidth={2} />{/if}
-				<span class="tooltip">{call.screenSharing ? "Stop Sharing" : "Share Your Screen"}</span>
+				<span class="tooltip">{call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")}</span>
 			</button>
 			<button
 				class="feature-btn"
 				class:active={showParticipants}
-				aria-label="Participants"
+				aria-label={t("call.participants")}
 				onclick={() => (showParticipants = !showParticipants)}
 			>
 				<Users size={14} strokeWidth={2} />
-				<span class="tooltip">Participants</span>
+				<span class="tooltip">{t("call.participants")}</span>
 			</button>
 		</div>
 
@@ -123,7 +124,7 @@
 		{#if call.screenSharing}
 			<div class="screen-tile">
 				<video use:attachLocalScreenStream autoplay playsinline muted></video>
-				<span class="tile-name">Your screen</span>
+				<span class="tile-name">{t("call.yourScreen")}</span>
 			</div>
 		{/if}
 		{#each call.participants as participant (participant.userId)}

@@ -11,6 +11,7 @@
 	import LogOut from "@lucide/svelte/icons/log-out";
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { serverId, onClose, onInvite, onCreateChannel, onSettings, onLeave }: {
 		serverId: string;
@@ -24,58 +25,58 @@
 	let hideMuted = $state(false);
 
 	function stub(label: string) {
-		toast.push(`${label} isn't wired up yet`);
+		toast.push(t("serverMenu.notWired", { label }));
 		onClose();
 	}
 
 	function copyServerId() {
 		navigator.clipboard.writeText(serverId);
-		toast.push("Server ID copied");
+		toast.push(t("toast.serverIdCopied"));
 		onClose();
 	}
 </script>
 
 <div class="menu" use:clickOutside={onClose} transition:fly={{ y: -6, duration: 140 }}>
 	<button class="item" onclick={onInvite}>
-		Invite People
+		{t("serverMenu.invitePeople")}
 		<UserPlus size={15} strokeWidth={2} />
 	</button>
 	<button class="item" onclick={onSettings}>
-		Server Settings
+		{t("serverMenu.serverSettings")}
 		<Settings size={15} strokeWidth={2} />
 	</button>
 	<div class="divider"></div>
 	<button class="item" onclick={onCreateChannel}>
-		Create Channel
+		{t("serverMenu.createChannel")}
 		<PlusCircle size={15} strokeWidth={2} />
 	</button>
-	<button class="item" onclick={() => stub("Create Category")}>
-		Create Category
+	<button class="item" onclick={() => stub(t("serverMenu.createCategory"))}>
+		{t("serverMenu.createCategory")}
 		<FolderPlus size={15} strokeWidth={2} />
 	</button>
 	<div class="divider"></div>
-	<button class="item" onclick={() => stub("Notification Settings")}>
-		Notification Settings
+	<button class="item" onclick={() => stub(t("serverMenu.notificationSettings"))}>
+		{t("serverMenu.notificationSettings")}
 		<Bell size={15} strokeWidth={2} />
 	</button>
-	<button class="item" onclick={() => stub("Privacy Settings")}>
-		Privacy Settings
+	<button class="item" onclick={() => stub(t("serverMenu.privacySettings"))}>
+		{t("serverMenu.privacySettings")}
 		<ShieldCheck size={15} strokeWidth={2} />
 	</button>
 	<button class="item" onclick={() => (hideMuted = !hideMuted)}>
-		Hide Muted Channels
+		{t("serverMenu.hideMutedChannels")}
 		<span class="checkbox" class:checked={hideMuted}>
 			{#if hideMuted}<BellOff size={11} strokeWidth={3} />{/if}
 		</span>
 	</button>
 	<div class="divider"></div>
 	<button class="item" onclick={copyServerId}>
-		Copy Server ID
+		{t("serverMenu.copyServerId")}
 		<IdCard size={15} strokeWidth={2} />
 	</button>
 	<div class="divider"></div>
 	<button class="item danger" onclick={onLeave}>
-		Leave Server
+		{t("serverMenu.leaveServer")}
 		<LogOut size={15} strokeWidth={2} />
 	</button>
 </div>

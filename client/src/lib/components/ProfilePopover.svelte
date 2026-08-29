@@ -13,6 +13,7 @@
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import * as api from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 	import type { Member } from "$lib/data/mock";
 
 	let { member, serverName, anchor, onClose, onMessage, onViewFullProfile }: {
@@ -115,12 +116,12 @@
 		</div>
 		<div class="header-actions">
 			<div class="anchor">
-				<button bind:this={moreButtonEl} class="icon-action" title="More" onclick={toggleMore}>
+				<button bind:this={moreButtonEl} class="icon-action" title={t("profile.full.more")} onclick={toggleMore}>
 					<MoreHorizontal size={16} strokeWidth={2} />
 				</button>
 			</div>
 			{#if !isSelf}
-				<button class="icon-action primary" title="Message" onclick={message}>
+				<button class="icon-action primary" title={t("profile.full.message")} onclick={message}>
 					<MessageSquare size={16} strokeWidth={2} />
 				</button>
 			{/if}
@@ -141,20 +142,20 @@
 		{#if !isSelf && serverName}
 			<p class="mutual">
 				<Users size={12} strokeWidth={2} />
-				1 Mutual Server — {serverName}
+				{t("profile.full.mutualServer", { server: serverName })}
 			</p>
 		{/if}
 
 		{#if profile?.bio || member.bio}
 			<div class="section">
-				<p class="section-label">About Me</p>
+				<p class="section-label">{t("profile.full.aboutMe")}</p>
 				<p class="bio">{profile?.bio || member.bio}</p>
 			</div>
 		{/if}
 
 		{#if profile?.activity_application}
 			<ActivityCard
-				label="Playing"
+				label={t("profile.full.playing")}
 				application={profile.activity_application}
 				details={profile.activity_details}
 				activityState={profile.activity_state}
@@ -176,7 +177,7 @@
 
 		{#if member.memberSince}
 			<div class="section">
-				<p class="section-label">Member Since</p>
+				<p class="section-label">{t("profile.full.memberSince")}</p>
 				<p class="member-since">
 					<CalendarDays size={13} strokeWidth={2} />
 					{member.memberSince}
@@ -186,7 +187,7 @@
 
 		{#if member.roles && member.roles.length > 0}
 			<div class="section">
-				<p class="section-label">Roles</p>
+				<p class="section-label">{t("profile.popover.roles")}</p>
 				<div class="roles">
 					{#each member.roles as role (role.label)}
 						<span class="role-chip">
@@ -199,10 +200,10 @@
 		{/if}
 
 		<div class="section">
-			<p class="section-label">Note</p>
+			<p class="section-label">{t("profile.popover.note")}</p>
 			<textarea
 				class="note"
-				placeholder="Click to add a note"
+				placeholder={t("profile.full.notePlaceholder")}
 				bind:value={note}
 				onblur={saveNote}
 			></textarea>
@@ -210,8 +211,8 @@
 	</div>
 
 	<form class="composer" onsubmit={sendDraft}>
-		<input type="text" placeholder={`Message @${member.name}`} bind:value={draft} />
-		<button type="submit" class="send" disabled={!draft.trim()} title="Send">
+		<input type="text" placeholder={t("profile.popover.messageComposer", { name: member.name })} bind:value={draft} />
+		<button type="submit" class="send" disabled={!draft.trim()} title={t("profile.popover.send")}>
 			<SendHorizontal size={15} strokeWidth={2} />
 		</button>
 	</form>

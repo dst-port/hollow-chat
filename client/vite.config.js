@@ -31,6 +31,6 @@ export default defineConfig(async () => ({
 
   test: {
     environment: "node",
-    include: ["src/lib/crypto/**/*.test.ts"],
+    include: ["src/lib/crypto/**/*.test.ts", "src/lib/i18n/**/*.test.ts"],
   },
 }));

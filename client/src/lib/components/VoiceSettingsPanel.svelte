@@ -3,6 +3,7 @@
 	import Check from "@lucide/svelte/icons/check";
 	import Dropdown from "$lib/components/Dropdown.svelte";
 	import { call } from "$lib/webrtc/call.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { focus = "all", onOpenFullSettings }: {
 		focus?: "input" | "output" | "all";
@@ -13,23 +14,23 @@
 		call.refreshDevices();
 	});
 
-	const NAMED_KEYS: Record<string, string> = {
-		Space: "Space",
-		ControlLeft: "Left Ctrl",
-		ControlRight: "Right Ctrl",
-		AltLeft: "Left Alt",
-		AltRight: "Right Alt",
-		ShiftLeft: "Left Shift",
-		ShiftRight: "Right Shift",
-		CapsLock: "Caps Lock",
-		Backquote: "`",
-		Tab: "Tab",
-		MetaLeft: "Left Super",
-		MetaRight: "Right Super"
+	const NAMED_KEY_LABELS: Record<string, string> = {
+		Space: "voiceSettings.keySpace",
+		ControlLeft: "voiceSettings.keyLeftCtrl",
+		ControlRight: "voiceSettings.keyRightCtrl",
+		AltLeft: "voiceSettings.keyLeftAlt",
+		AltRight: "voiceSettings.keyRightAlt",
+		ShiftLeft: "voiceSettings.keyLeftShift",
+		ShiftRight: "voiceSettings.keyRightShift",
+		CapsLock: "voiceSettings.keyCapsLock",
+		Tab: "voiceSettings.keyTab",
+		MetaLeft: "voiceSettings.keyLeftSuper",
+		MetaRight: "voiceSettings.keyRightSuper"
 	};
 
 	function keyLabel(code: string): string {
-		if (NAMED_KEYS[code]) return NAMED_KEYS[code];
+		if (code === "Backquote") return "`";
+		if (NAMED_KEY_LABELS[code]) return t(NAMED_KEY_LABELS[code]);
 		if (code.startsWith("Key")) return code.slice(3);
 		if (code.startsWith("Digit")) return code.slice(5);
 		if (code.startsWith("F") && /^F\d+$/.test(code)) return code;
@@ -63,22 +64,22 @@
 <div class="panel">
 	{#if focus === "input" || focus === "all"}
 		<div class="section">
-			{#if focus === "all"}<p class="section-title">Input</p>{/if}
+			{#if focus === "all"}<p class="section-title">{t("voiceSettings.input")}</p>{/if}
 
 			<div class="field">
-				<span class="field-label">Input Device</span>
+				<span class="field-label">{t("voiceSettings.inputDevice")}</span>
 				<Dropdown
 					value={call.inputDeviceId ?? ""}
 					options={[
-						{ value: "", label: "System Default" },
-						...call.inputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Microphone" }))
+						{ value: "", label: t("voiceSettings.systemDefault") },
+						...call.inputDevices.map((d) => ({ value: d.deviceId, label: d.label || t("voiceSettings.microphone") }))
 					]}
 					onChange={(v) => call.setInputDevice(v || null)}
 				/>
 			</div>
 
 			<div class="field">
-				<span class="field-label">Noise Suppression</span>
+				<span class="field-label">{t("voiceSettings.noiseSuppression")}</span>
 				{#if call.noiseSuppressionSupported}
 					<div class="radio-list">
 						<button
@@ -87,7 +88,7 @@
 							class:active={!call.noiseSuppression}
 							onclick={() => call.setNoiseSuppression(false)}
 						>
-							<span>Off</span>
+							<span>{t("voiceSettings.off")}</span>
 							{#if !call.noiseSuppression}<Check size={14} strokeWidth={2.5} />{/if}
 						</button>
 						<button
@@ -96,24 +97,24 @@
 							class:active={call.noiseSuppression}
 							onclick={() => call.setNoiseSuppression(true)}
 						>
-							<span>On</span>
+							<span>{t("voiceSettings.on")}</span>
 							{#if call.noiseSuppression}<Check size={14} strokeWidth={2.5} />{/if}
 						</button>
 					</div>
 					{#if call.noiseSuppression}
 						<p class="hint" class:warn={!call.noiseSuppressionActive}>
 							{call.noiseSuppressionActive
-								? "Active — applied by your OS/driver on the raw mic signal."
-								: "Requested, but your mic/driver didn't confirm it's actually applying it."}
+								? t("voiceSettings.noiseActive")
+								: t("voiceSettings.noiseUnconfirmed")}
 						</p>
 					{/if}
 				{:else}
-					<p class="hint warn">Not supported by this device or platform.</p>
+					<p class="hint warn">{t("voiceSettings.noiseUnsupported")}</p>
 				{/if}
 			</div>
 
 			<label class="switch-row">
-				<span class="field-label">Push to Talk</span>
+				<span class="field-label">{t("voiceSettings.pushToTalk")}</span>
 				<label class="switch">
 					<input
 						type="checkbox"
@@ -126,43 +127,42 @@
 
 			{#if call.pushToTalk}
 				<div class="field">
-					<span class="field-label">Push to Talk Key</span>
+					<span class="field-label">{t("voiceSettings.pushToTalkKey")}</span>
 					<button type="button" class="keybind-btn" class:capturing onclick={startCapture}>
-						{capturing ? "Press any key… (Esc to cancel)" : keyLabel(call.pushToTalkKey)}
+						{capturing ? t("voiceSettings.pressAnyKey") : keyLabel(call.pushToTalkKey)}
 					</button>
 				</div>
-				{#if !capturing}<p class="hint">Hold {keyLabel(call.pushToTalkKey)} to transmit.</p>{/if}
+				{#if !capturing}<p class="hint">{t("voiceSettings.holdToTransmit", { key: keyLabel(call.pushToTalkKey) })}</p>{/if}
 			{/if}
 		</div>
 	{/if}
 
 	{#if focus === "output" || focus === "all"}
 		<div class="section">
-			{#if focus === "all"}<p class="section-title">Output</p>{/if}
+			{#if focus === "all"}<p class="section-title">{t("voiceSettings.output")}</p>{/if}
 
 			<div class="field">
-				<span class="field-label">Output Device</span>
+				<span class="field-label">{t("voiceSettings.outputDevice")}</span>
 				{#if call.outputDeviceSelectionSupported}
 					<Dropdown
 						value={call.outputDeviceId ?? ""}
 						options={[
-							{ value: "", label: "System Default" },
+							{ value: "", label: t("voiceSettings.systemDefault") },
 							...(call.nativeOutputRouting
 								? call.nativeSinks.map((s) => ({ value: s.name, label: s.description }))
-								: call.outputDevices.map((d) => ({ value: d.deviceId, label: d.label || "Speaker" })))
+								: call.outputDevices.map((d) => ({ value: d.deviceId, label: d.label || t("voiceSettings.speaker") })))
 						]}
 						onChange={(v) => call.setOutputDevice(v || null)}
 					/>
 				{:else}
 					<p class="hint warn">
-						This platform can't switch output device per-app — change it in your system's sound
-						settings instead.
+						{t("voiceSettings.outputUnsupported")}
 					</p>
 				{/if}
 			</div>
 
 			<label class="field">
-				<span class="field-label">Output Volume</span>
+				<span class="field-label">{t("voiceSettings.outputVolume")}</span>
 				<input
 					type="range"
 					min="0"
@@ -175,7 +175,7 @@
 	{/if}
 
 	{#if focus !== "all" && onOpenFullSettings}
-		<button type="button" class="full-settings-link" onclick={onOpenFullSettings}>Voice Settings</button>
+		<button type="button" class="full-settings-link" onclick={onOpenFullSettings}>{t("voiceSettings.title")}</button>
 	{/if}
 </div>
 

@@ -37,6 +37,7 @@
 	import { fontStore, FONT_STACKS, FONT_LABELS, PRESET_FONT_IDS, type FontId } from "$lib/stores/font.svelte";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
+	import { t, i18n, LOCALES, type LocaleCode } from "$lib/i18n/index.svelte";
 	import Badges from "$lib/components/Badges.svelte";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import VoiceSettingsPanel from "$lib/components/VoiceSettingsPanel.svelte";
@@ -127,7 +128,7 @@
 		api
 			.listReports(token)
 			.then((rows) => (reports = rows))
-			.catch(() => toast.push("Couldn't load reports"))
+			.catch(() => toast.push(t("settings.moderation.loadFailed")))
 			.finally(() => (reportsLoading = false));
 	});
 
@@ -144,7 +145,7 @@
 			await api.updateReportStatus(token, report.id, status);
 		} catch {
 			report.status = previous;
-			toast.push("Couldn't update report");
+			toast.push(t("settings.moderation.updateFailed"));
 		}
 	}
 
@@ -155,7 +156,7 @@
 
 	function copyReportId(id: string) {
 		navigator.clipboard.writeText(id);
-		toast.push("Report ID copied");
+		toast.push(t("settings.moderation.reportIdCopied"));
 	}
 
 	function copyFetchCommand(id: string) {
@@ -168,7 +169,7 @@
 			`encode(payload_ciphertext, 'base64') AS payload_ciphertext ` +
 			`FROM reports WHERE id = '${id}'\\gx"`;
 		navigator.clipboard.writeText(cmd);
-		toast.push("psql command copied");
+		toast.push(t("settings.moderation.psqlCopied"));
 	}
 
 	const REPORT_FILTERS: (api.ReportStatus | "all")[] = ["open", "reviewing", "resolved", "dismissed", "all"];
@@ -191,11 +192,11 @@
 			}
 		} catch (err) {
 			if (err instanceof api.ApiError && err.status === 409) {
-				toast.push("All your Void Shards are already assigned");
+				toast.push(t("settings.billing.allShardsAssigned"));
 			} else if (err instanceof api.ApiError && err.status === 403) {
-				toast.push("Void Shards are a Premium perk");
+				toast.push(t("settings.billing.shardsPremiumOnly"));
 			} else {
-				toast.push("Couldn't update boost");
+				toast.push(t("settings.billing.boostFailed"));
 			}
 		} finally {
 			boostBusyId = null;
@@ -209,7 +210,7 @@
 			const dir = await resolveResource("extension");
 			await revealItemInDir(dir);
 		} catch {
-			toast.push("Couldn't open the extension folder — this only works in the desktop app");
+			toast.push(t("settings.privacy.extensionFolderFailed"));
 		}
 	}
 
@@ -222,9 +223,9 @@
 			await openUrl(url);
 		} catch (err) {
 			if (err instanceof api.ApiError && err.status === 503) {
-				toast.push("Billing isn't configured on this server yet");
+				toast.push(t("settings.billing.notConfigured"));
 			} else {
-				toast.push("Couldn't start checkout");
+				toast.push(t("settings.billing.checkoutFailed"));
 			}
 		} finally {
 			checkoutLoading = false;
@@ -281,7 +282,7 @@
 			totpCodeInput = "";
 			totpStage = "setting-up";
 		} catch {
-			toast.push("Couldn't start 2FA setup");
+			toast.push(t("settings.account.setupFailed"));
 		} finally {
 			totpBusy = false;
 		}
@@ -297,9 +298,9 @@
 			totpBackupCodes = result.backup_codes;
 			totpCodeInput = "";
 			totpStage = "backup-codes";
-			toast.push("Two-factor authentication enabled");
+			toast.push(t("settings.account.twoFactorEnabledToast"));
 		} catch {
-			totpError = "That code didn't work — try again";
+			totpError = t("settings.account.badCode");
 		} finally {
 			totpBusy = false;
 		}
@@ -319,9 +320,9 @@
 			await api.disableTotp(token, totpCodeInput.trim());
 			totpCodeInput = "";
 			totpStage = "idle";
-			toast.push("Two-factor authentication disabled");
+			toast.push(t("settings.account.twoFactorDisabledToast"));
 		} catch {
-			totpError = "That code didn't work — try again";
+			totpError = t("settings.account.badCode");
 		} finally {
 			totpBusy = false;
 		}
@@ -338,7 +339,7 @@
 			totpCodeInput = "";
 			totpStage = "backup-codes";
 		} catch {
-			totpError = "That code didn't work — try again";
+			totpError = t("settings.account.badCode");
 		} finally {
 			totpBusy = false;
 		}
@@ -373,9 +374,9 @@
 			.unblockUser(token, id)
 			.then(() => {
 				blocked = blocked.filter((b) => b.id !== id);
-				toast.push("Unblocked");
+				toast.push(t("settings.privacy.unblockedToast"));
 			})
-			.catch(() => toast.push("Couldn't unblock"));
+			.catch(() => toast.push(t("settings.privacy.unblockFailed")));
 	}
 
 	let displayNameDraft = $state("");
@@ -437,7 +438,7 @@
 			const updated = await api.updateProfile(token, { share_activity: value });
 			profileStore.set(updated);
 		} catch {
-			toast.push("Couldn't update activity sharing");
+			toast.push(t("settings.privacy.activityUpdateFailed"));
 		}
 	}
 
@@ -536,7 +537,7 @@
 
 	function describeSession(s: api.ApiSession): string {
 		const when = new Date(s.created_at).toLocaleDateString([], { month: "short", day: "numeric" });
-		return `Signed in ${when}`;
+		return t("settings.devices.signedIn", { date: when });
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -557,12 +558,12 @@
 			renameAllGroupKeys(username, newUsername);
 			session.set(token, newUsername);
 			editingUsername = false;
-			toast.push("Username updated");
+			toast.push(t("settings.account.usernameUpdated"));
 		} catch (err) {
 			if (err instanceof api.ApiError && err.status === 409) {
-				toast.push("That username is already taken");
+				toast.push(t("settings.account.usernameTaken"));
 			} else {
-				toast.push("Couldn't change username");
+				toast.push(t("settings.account.usernameChangeFailed"));
 			}
 		}
 	}
@@ -575,7 +576,7 @@
 			const res = await api.regeneratePassword(token);
 			regeneratedPassword = res.password;
 		} catch {
-			toast.push("Couldn't generate a new password");
+			toast.push(t("settings.account.passwordGenFailed"));
 			editingPassword = false;
 		} finally {
 			regenerating = false;
@@ -601,14 +602,20 @@
 			.revokeSession(token, id)
 			.then(() => {
 				sessions = sessions.filter((s) => s.id !== id);
-				toast.push("Session revoked");
+				toast.push(t("settings.devices.revokedToast"));
 			})
-			.catch(() => toast.push("Couldn't revoke session"));
+			.catch(() => toast.push(t("settings.devices.revokeFailed")));
 	}
 
 	function toggle(setter: (v: boolean) => void, current: boolean, label: string) {
 		setter(!current);
-		toast.push(`${label} ${!current ? "enabled" : "disabled"}`);
+		toast.push(t(!current ? "toast.toggledOn" : "toast.toggledOff", { label }));
+	}
+
+	function changeLanguage(code: LocaleCode) {
+		i18n.set(code);
+		const label = LOCALES.find((l) => l.code === code)?.label ?? code;
+		toast.push(t("settings.language.changed", { lang: label }));
 	}
 </script>
 
@@ -619,7 +626,7 @@
 		class="modal"
 		role="dialog"
 		aria-modal="true"
-		aria-label="User settings"
+		aria-label={t("settings.title")}
 		tabindex="-1"
 		onclick={(e) => e.stopPropagation()}
 		transition:scale={{ duration: 180, start: 0.97, easing: cubicOut }}
@@ -631,85 +638,85 @@
 				</div>
 				<div class="nav-identity-text">
 					<p class="nav-identity-name">{profileStore.forUser(username)?.display_name || username}</p>
-					<p class="nav-identity-edit"><Pencil size={10} strokeWidth={2.5} />Edit Profile</p>
+					<p class="nav-identity-edit"><Pencil size={10} strokeWidth={2.5} />{t("settings.editProfile")}</p>
 				</div>
 			</button>
 
 			<label class="nav-search">
 				<Search size={13} strokeWidth={2} />
-				<input type="text" placeholder="Search" bind:value={navSearch} />
+				<input type="text" placeholder={t("common.search")} bind:value={navSearch} />
 			</label>
 
-			{#if matchesSearch("Profile")}
+			{#if matchesSearch(t("settings.nav.profile"))}
 				<button class="nav-item" class:active={section === "profile"} onclick={() => (section = "profile")}>
 					<UserPen size={16} strokeWidth={2} />
-					Profile
+					{t("settings.nav.profile")}
 				</button>
 			{/if}
-			{#if matchesSearch("My Account") || matchesSearch("Account Info") || matchesSearch("Password & Security")}
+			{#if matchesSearch(t("settings.nav.account")) || matchesSearch(t("settings.nav.accountInfo")) || matchesSearch(t("settings.nav.passwordSecurity"))}
 				<button class="nav-item" class:active={section === "account"} onclick={() => (section = "account")}>
 					<UserRound size={16} strokeWidth={2} />
-					My Account
+					{t("settings.nav.account")}
 				</button>
 				{#if section === "account"}
-					<button class="nav-subitem" onclick={() => goToAccountField("account-info")}>Account Info</button>
-					<button class="nav-subitem" onclick={() => goToAccountField("account-security")}>Password &amp; Security</button>
+					<button class="nav-subitem" onclick={() => goToAccountField("account-info")}>{t("settings.nav.accountInfo")}</button>
+					<button class="nav-subitem" onclick={() => goToAccountField("account-security")}>{t("settings.nav.passwordSecurity")}</button>
 				{/if}
 			{/if}
-			{#if matchesSearch("Privacy & Safety")}
+			{#if matchesSearch(t("settings.nav.privacy"))}
 				<button class="nav-item" class:active={section === "privacy"} onclick={() => (section = "privacy")}>
 					<ShieldCheck size={16} strokeWidth={2} />
-					Privacy &amp; Safety
+					{t("settings.nav.privacy")}
 				</button>
 			{/if}
-			{#if matchesSearch("Notifications")}
+			{#if matchesSearch(t("settings.nav.notifications"))}
 				<button class="nav-item" class:active={section === "notifications"} onclick={() => (section = "notifications")}>
 					<Bell size={16} strokeWidth={2} />
-					Notifications
+					{t("settings.nav.notifications")}
 				</button>
 			{/if}
-			{#if matchesSearch("Voice & Video")}
+			{#if matchesSearch(t("settings.nav.voice"))}
 				<button class="nav-item" class:active={section === "voice"} onclick={() => (section = "voice")}>
 					<Mic size={16} strokeWidth={2} />
-					Voice &amp; Video
+					{t("settings.nav.voice")}
 				</button>
 			{/if}
-			{#if matchesSearch("Devices")}
+			{#if matchesSearch(t("settings.nav.devices"))}
 				<button class="nav-item" class:active={section === "sessions"} onclick={() => (section = "sessions")}>
 					<Monitor size={16} strokeWidth={2} />
-					Devices
+					{t("settings.nav.devices")}
 				</button>
 			{/if}
 
-			{#if matchesSearch("Appearance") || matchesSearch("Accessibility")}
-				<p class="nav-label">Experience</p>
-				{#if matchesSearch("Appearance")}
+			{#if matchesSearch(t("settings.nav.appearance")) || matchesSearch(t("settings.nav.accessibility"))}
+				<p class="nav-label">{t("settings.group.experience")}</p>
+				{#if matchesSearch(t("settings.nav.appearance"))}
 					<button class="nav-item" class:active={section === "appearance"} onclick={() => (section = "appearance")}>
 						<Palette size={16} strokeWidth={2} />
-						Appearance
+						{t("settings.nav.appearance")}
 					</button>
 				{/if}
-				{#if matchesSearch("Accessibility")}
+				{#if matchesSearch(t("settings.nav.accessibility"))}
 					<button class="nav-item" class:active={section === "accessibility"} onclick={() => (section = "accessibility")}>
 						<Accessibility size={16} strokeWidth={2} />
-						Accessibility
+						{t("settings.nav.accessibility")}
 					</button>
 				{/if}
 			{/if}
 
-			{#if matchesSearch("Billing")}
-				<p class="nav-label">Billing</p>
+			{#if matchesSearch(t("settings.nav.billing"))}
+				<p class="nav-label">{t("settings.group.billing")}</p>
 				<button class="nav-item" class:active={section === "billing"} onclick={() => (section = "billing")}>
 					<CreditCard size={16} strokeWidth={2} />
-					Billing
+					{t("settings.nav.billing")}
 				</button>
 			{/if}
 
-			{#if isStaff && matchesSearch("Moderation")}
-				<p class="nav-label">Staff</p>
+			{#if isStaff && matchesSearch(t("settings.nav.moderation"))}
+				<p class="nav-label">{t("settings.group.staff")}</p>
 				<button class="nav-item" class:active={section === "moderation"} onclick={() => (section = "moderation")}>
 					<ShieldAlert size={16} strokeWidth={2} />
-					Moderation
+					{t("settings.nav.moderation")}
 				</button>
 			{/if}
 
@@ -717,18 +724,18 @@
 
 			<button class="nav-item danger" onclick={onLogout}>
 				<LogOut size={16} strokeWidth={2} />
-				Log Out
+				{t("settings.logOut")}
 			</button>
 		</nav>
 
-		<button class="close" onclick={onClose} title="Close">
+		<button class="close" onclick={onClose} title={t("common.close")}>
 			<X size={20} strokeWidth={2} />
 		</button>
 
 		<div class="content">
 			{#if section === "profile"}
 				{@const ownBadges = badgeStore.forUser(username)}
-				<h2>Profile</h2>
+				<h2>{t("settings.nav.profile")}</h2>
 
 				<div class="card no-pad" in:fade={{ duration: 140 }}>
 					<div
@@ -820,7 +827,7 @@
 					</button>
 				</div>
 			{:else if section === "account"}
-				<h2>My Account</h2>
+				<h2>{t("settings.nav.account")}</h2>
 
 				<div class="card" id="account-info">
 					<div class="identity">
@@ -832,13 +839,13 @@
 						</div>
 						<div>
 							<p class="username">{username}</p>
-							<p class="hint">HollowChat account</p>
+							<p class="hint">{t("settings.account.accountType")}</p>
 						</div>
 					</div>
 
 					<div class="row">
 						<div>
-							<p class="row-label">Username</p>
+							<p class="row-label">{t("settings.account.username")}</p>
 							{#if editingUsername}
 								<input class="inline-input" type="text" bind:value={usernameDraft} maxlength="32" />
 							{:else}
@@ -847,25 +854,25 @@
 						</div>
 						{#if editingUsername}
 							<div class="row-actions">
-								<button class="ghost" onclick={() => ((editingUsername = false), (usernameDraft = username))}>Cancel</button>
-								<button class="primary" onclick={saveUsername} disabled={!usernameDraft.trim()}>Save</button>
+								<button class="ghost" onclick={() => ((editingUsername = false), (usernameDraft = username))}>{t("common.cancel")}</button>
+								<button class="primary" onclick={saveUsername} disabled={!usernameDraft.trim()}>{t("common.save")}</button>
 							</div>
 						{:else}
-							<button class="edit" onclick={() => (editingUsername = true)}>Edit</button>
+							<button class="edit" onclick={() => (editingUsername = true)}>{t("common.edit")}</button>
 						{/if}
 					</div>
 
 					<div class="row">
 						<div>
-							<p class="row-label">Email</p>
-							<p class="row-value muted">Not collected — HollowChat never asks for one.</p>
+							<p class="row-label">{t("settings.account.email")}</p>
+							<p class="row-value muted">{t("settings.account.notCollected")}</p>
 						</div>
 					</div>
 
 					<div class="row">
 						<div>
-							<p class="row-label">Phone number</p>
-							<p class="row-value muted">Not collected — HollowChat never asks for one.</p>
+							<p class="row-label">{t("settings.account.phone")}</p>
+							<p class="row-value muted">{t("settings.account.notCollected")}</p>
 						</div>
 					</div>
 				</div>
@@ -874,19 +881,19 @@
 					{#if !editingPassword}
 						<div class="row">
 							<div>
-								<p class="row-label">Password</p>
+								<p class="row-label">{t("settings.account.password")}</p>
 								<p class="row-value">••••••••••••</p>
 							</div>
-							<button class="edit" onclick={() => (editingPassword = true)}>Change</button>
+							<button class="edit" onclick={() => (editingPassword = true)}>{t("common.change")}</button>
 						</div>
 					{:else if regeneratedPassword}
-						<p class="row-label">Save your new password now</p>
+						<p class="row-label">{t("settings.account.savePasswordNow")}</p>
 						<p class="hint" style="margin-bottom: 12px;">
-							This is the only time we'll show it. Your old password no longer works.
+							{t("settings.account.savePasswordHint")}
 						</p>
 						<div class="password-box">
 							<code>{regeneratedPassword}</code>
-							<button type="button" class="copy" onclick={copyRegeneratedPassword} title="Copy password">
+							<button type="button" class="copy" onclick={copyRegeneratedPassword} title={t("settings.account.copyPassword")}>
 								{#if passwordCopied}
 									<Check size={15} strokeWidth={2.5} />
 								{:else}
@@ -895,27 +902,26 @@
 							</button>
 						</div>
 						<div class="row-actions" style="margin-top: 12px;">
-							<button class="primary" onclick={closePasswordChange}>Done</button>
+							<button class="primary" onclick={closePasswordChange}>{t("common.done")}</button>
 						</div>
 					{:else}
-						<p class="row-label">Generate a new password?</p>
+						<p class="row-label">{t("settings.account.generateNewQuestion")}</p>
 						<p class="hint" style="margin-bottom: 12px;">
-							HollowChat has no user-chosen passwords — we'll generate a new random one and show it once. Your current password stops working immediately.
+							{t("settings.account.generateNewHint")}
 						</p>
 						<div class="row-actions">
-							<button class="ghost" onclick={() => (editingPassword = false)}>Cancel</button>
+							<button class="ghost" onclick={() => (editingPassword = false)}>{t("common.cancel")}</button>
 							<button class="primary" onclick={regeneratePassword} disabled={regenerating}>
-								{regenerating ? "Generating…" : "Generate New Password"}
+								{regenerating ? t("settings.account.generating") : t("settings.account.generateNew")}
 							</button>
 						</div>
 					{/if}
 
 					<div class="row">
 						<div>
-							<p class="row-label">Password recovery</p>
+							<p class="row-label">{t("settings.account.recovery")}</p>
 							<p class="row-value muted">
-								There is no email or phone number on file, so there is no password reset. Losing
-								your password means losing the account.
+								{t("settings.account.recoveryHint")}
 							</p>
 						</div>
 					</div>
@@ -925,40 +931,39 @@
 					{#if totpStage === "idle"}
 						<div class="row">
 							<div>
-								<p class="row-label">Two-factor authentication</p>
-								<p class="row-value muted">Not enabled. Add an authenticator app for extra login security.</p>
+								<p class="row-label">{t("settings.account.twoFactor")}</p>
+								<p class="row-value muted">{t("settings.account.twoFactorOff")}</p>
 							</div>
 							<button class="edit" onclick={beginTotpSetup} disabled={totpBusy}>
 								<ShieldPlus size={14} strokeWidth={2} />
-								Enable
+								{t("settings.account.enable")}
 							</button>
 						</div>
 					{:else if totpStage === "setting-up"}
-						<p class="row-label">Scan this with your authenticator app</p>
+						<p class="row-label">{t("settings.account.scanTitle")}</p>
 						<p class="hint" style="margin-bottom: 12px;">
-							Google Authenticator, Aegis, 1Password — anything that supports TOTP.
+							{t("settings.account.scanHint")}
 						</p>
 						{#if totpQrDataUrl}
-							<img class="totp-qr" src={totpQrDataUrl} alt="Two-factor authentication QR code" />
+							<img class="totp-qr" src={totpQrDataUrl} alt={t("settings.account.qrAlt")} />
 						{/if}
-						<p class="hint" style="margin: 8px 0 4px;">Or enter this code manually:</p>
+						<p class="hint" style="margin: 8px 0 4px;">{t("settings.account.manualEntry")}</p>
 						<p class="row-value totp-secret">{totpSecret}</p>
 						<label class="field" style="margin-top: 12px;">
-							6-digit code
+							{t("settings.account.sixDigitCode")}
 							<input class="inline-input" type="text" bind:value={totpCodeInput} placeholder="123456" maxlength="6" />
 						</label>
 						{#if totpError}<p class="error-text">{totpError}</p>{/if}
 						<div class="row-actions" style="margin-top: 12px;">
-							<button class="ghost" onclick={() => (totpStage = "idle")}>Cancel</button>
+							<button class="ghost" onclick={() => (totpStage = "idle")}>{t("common.cancel")}</button>
 							<button class="primary" onclick={confirmTotpSetup} disabled={totpBusy || totpCodeInput.trim().length !== 6}>
-								{totpBusy ? "Verifying…" : "Verify & Enable"}
+								{totpBusy ? t("settings.account.verifying") : t("settings.account.verifyEnable")}
 							</button>
 						</div>
 					{:else if totpStage === "backup-codes"}
-						<p class="row-label">Save your backup codes</p>
+						<p class="row-label">{t("settings.account.saveBackupCodes")}</p>
 						<p class="hint" style="margin-bottom: 12px;">
-							Each code works once, if you lose access to your authenticator app. There's no other
-							way back into the account — store these somewhere safe.
+							{t("settings.account.backupCodesHint")}
 						</p>
 						<div class="backup-codes">
 							{#each totpBackupCodes as code (code)}
@@ -966,49 +971,49 @@
 							{/each}
 						</div>
 						<div class="row-actions" style="margin-top: 12px;">
-							<button class="primary" onclick={finishBackupCodesReview}>I saved these codes</button>
+							<button class="primary" onclick={finishBackupCodesReview}>{t("settings.account.savedCodes")}</button>
 						</div>
 					{:else if totpStage === "disabling"}
-						<p class="row-label">Disable two-factor authentication</p>
-						<p class="hint" style="margin-bottom: 12px;">Enter a current code from your app, or a backup code, to confirm.</p>
+						<p class="row-label">{t("settings.account.disableTwoFactor")}</p>
+						<p class="hint" style="margin-bottom: 12px;">{t("settings.account.disableHint")}</p>
 						<label class="field">
-							Code
+							{t("settings.account.code")}
 							<input class="inline-input" type="text" bind:value={totpCodeInput} placeholder="123456" />
 						</label>
 						{#if totpError}<p class="error-text">{totpError}</p>{/if}
 						<div class="row-actions" style="margin-top: 12px;">
-							<button class="ghost" onclick={() => (totpStage = "enabled")}>Cancel</button>
+							<button class="ghost" onclick={() => (totpStage = "enabled")}>{t("common.cancel")}</button>
 							<button class="primary danger-fill" onclick={confirmTotpDisable} disabled={totpBusy || !totpCodeInput.trim()}>
-								{totpBusy ? "Disabling…" : "Disable"}
+								{totpBusy ? t("settings.account.disabling") : t("settings.account.disable")}
 							</button>
 						</div>
 					{:else if totpStage === "regenerating"}
-						<p class="row-label">Regenerate backup codes</p>
-						<p class="hint" style="margin-bottom: 12px;">This invalidates your old backup codes. Confirm with a current code.</p>
+						<p class="row-label">{t("settings.account.regenerateTitle")}</p>
+						<p class="hint" style="margin-bottom: 12px;">{t("settings.account.regenerateHint")}</p>
 						<label class="field">
-							Code
+							{t("settings.account.code")}
 							<input class="inline-input" type="text" bind:value={totpCodeInput} placeholder="123456" />
 						</label>
 						{#if totpError}<p class="error-text">{totpError}</p>{/if}
 						<div class="row-actions" style="margin-top: 12px;">
-							<button class="ghost" onclick={() => (totpStage = "enabled")}>Cancel</button>
+							<button class="ghost" onclick={() => (totpStage = "enabled")}>{t("common.cancel")}</button>
 							<button class="primary" onclick={confirmRegenerateBackupCodes} disabled={totpBusy || !totpCodeInput.trim()}>
-								{totpBusy ? "Generating…" : "Regenerate"}
+								{totpBusy ? t("settings.account.generating") : t("settings.account.regenerate")}
 							</button>
 						</div>
 					{:else}
 						<div class="row">
 							<div>
-								<p class="row-label">Two-factor authentication</p>
-								<p class="row-value muted">Enabled — your login also asks for a code from your authenticator app.</p>
+								<p class="row-label">{t("settings.account.twoFactor")}</p>
+								<p class="row-value muted">{t("settings.account.twoFactorOn")}</p>
 							</div>
 						</div>
 						<div class="row-actions">
 							<button class="ghost" onclick={() => { totpCodeInput = ""; totpError = ""; totpStage = "regenerating"; }}>
-								New Backup Codes
+								{t("settings.account.newBackupCodes")}
 							</button>
 							<button class="edit danger-text" onclick={() => { totpCodeInput = ""; totpError = ""; totpStage = "disabling"; }}>
-								Disable
+								{t("settings.account.disable")}
 							</button>
 						</div>
 					{/if}
@@ -1018,57 +1023,56 @@
 					{#if deviceLink.phase === "idle" || deviceLink.phase === "error"}
 						<div class="row">
 							<div>
-								<p class="row-label">Linked devices</p>
-								<p class="row-value muted">Move your encryption keys to a new device without losing your conversations.</p>
+								<p class="row-label">{t("settings.account.linkedDevices")}</p>
+								<p class="row-value muted">{t("settings.account.linkedDevicesHint")}</p>
 							</div>
 							<button class="edit" onclick={beginDeviceLink}>
 								<Smartphone size={14} strokeWidth={2} />
-								Link a Device
+								{t("settings.account.linkDevice")}
 							</button>
 						</div>
 						{#if deviceLink.phase === "error" && deviceLink.error}
 							<p class="error-text" style="margin-top: 8px;">{deviceLink.error}</p>
 						{/if}
 					{:else if deviceLink.phase === "connecting" || deviceLink.phase === "waiting-for-peer"}
-						<p class="row-label">Waiting for the new device…</p>
+						<p class="row-label">{t("settings.account.waitingForDevice")}</p>
 						<p class="hint" style="margin-bottom: 12px;">
-							On the new device, sign in with this account, then choose "Link with another device" when asked.
+							{t("settings.account.waitingForDeviceHint")}
 						</p>
 						<div class="row-actions">
-							<button class="ghost" onclick={cancelDeviceLink}>Cancel</button>
+							<button class="ghost" onclick={cancelDeviceLink}>{t("common.cancel")}</button>
 						</div>
 					{:else if deviceLink.phase === "confirm"}
-						<p class="row-label">Confirm this code matches on both devices</p>
+						<p class="row-label">{t("settings.account.confirmCodeMatch")}</p>
 						<p class="row-value totp-secret">{deviceLink.fingerprint}</p>
 						<div class="row-actions" style="margin-top: 12px;">
-							<button class="ghost" onclick={cancelDeviceLink}>Cancel</button>
-							<button class="primary" onclick={confirmDeviceLink}>Codes Match — Send Keys</button>
+							<button class="ghost" onclick={cancelDeviceLink}>{t("common.cancel")}</button>
+							<button class="primary" onclick={confirmDeviceLink}>{t("settings.account.codesMatchSend")}</button>
 						</div>
 					{:else if deviceLink.phase === "sending"}
-						<p class="row-label">Sending your encryption keys…</p>
+						<p class="row-label">{t("settings.account.sendingKeys")}</p>
 					{:else if deviceLink.phase === "done"}
 						<div class="row">
 							<div>
-								<p class="row-label">Linked devices</p>
-								<p class="row-value muted">Keys sent. The new device can now read your conversations.</p>
+								<p class="row-label">{t("settings.account.linkedDevices")}</p>
+								<p class="row-value muted">{t("settings.account.keysSent")}</p>
 							</div>
 							<button class="edit" onclick={() => deviceLink.reset()}>
 								<Smartphone size={14} strokeWidth={2} />
-								Link Another
+								{t("settings.account.linkAnother")}
 							</button>
 						</div>
 					{/if}
 				</div>
 			{:else if section === "privacy"}
-				<h2>Privacy &amp; Safety</h2>
+				<h2>{t("settings.nav.privacy")}</h2>
 
 				<div class="card">
 					<div class="switch-row">
 						<div>
-							<p class="row-label">Show activity status</p>
+							<p class="row-label">{t("settings.privacy.activityStatus")}</p>
 							<p class="row-value muted">
-								Let friends see what you're playing, watching, or listening to via Rich
-								Presence. Off clears it for everyone but you.
+								{t("settings.privacy.activityStatusHint")}
 							</p>
 						</div>
 						<label class="switch">
@@ -1083,92 +1087,86 @@
 				</div>
 
 				<div class="card">
-					<p class="row-label">Browser extension</p>
+					<p class="row-label">{t("settings.privacy.extension")}</p>
 					<p class="row-value muted" style="margin-bottom: 12px;">
-						Adds Rich Presence for YouTube, SoundCloud, Spotify, and Twitch — shows up next to game
-						activity, gated by the same toggle above. Browsers block silent extension installs, so
-						this is a two-minute manual step, not a store listing.
+						{t("settings.privacy.extensionHint")}
 					</p>
 					<ol class="extension-steps">
-						<li>Click below to reveal the extension folder</li>
+						<li>{t("settings.privacy.extensionStep1")}</li>
 						<li>
-							Open <code>chrome://extensions</code> (or your browser's equivalent), turn on
-							<strong>Developer mode</strong>
+							{t("settings.privacy.extensionStep2a")} <code>chrome://extensions</code>
+							{t("settings.privacy.extensionStep2b")}
+							<strong>{t("settings.privacy.extensionStep2DevMode")}</strong>
 						</li>
-						<li>Click <strong>Load unpacked</strong> and pick that folder</li>
+						<li>{t("settings.privacy.extensionStep3a")} <strong>{t("settings.privacy.extensionStep3Load")}</strong> {t("settings.privacy.extensionStep3b")}</li>
 					</ol>
-					<button class="edit" onclick={revealExtensionFolder}>Open Extension Folder</button>
+					<button class="edit" onclick={revealExtensionFolder}>{t("settings.privacy.openExtensionFolder")}</button>
 				</div>
 
 				<div class="card">
 					<div class="row">
 						<div>
-							<p class="row-label">Data collected</p>
-							<p class="row-value muted">Username and a password hash. Nothing else.</p>
+							<p class="row-label">{t("settings.privacy.dataCollected")}</p>
+							<p class="row-value muted">{t("settings.privacy.dataCollectedHint")}</p>
 						</div>
 					</div>
 					<div class="row">
 						<div>
-							<p class="row-label">Direct message storage</p>
+							<p class="row-label">{t("settings.privacy.dmStorage")}</p>
 							<p class="row-value muted">
-								End-to-end encrypted (X3DH + Double Ratchet). The server only ever sees ciphertext.
+								{t("settings.privacy.dmStorageHint")}
 							</p>
 						</div>
 					</div>
 					<div class="row">
 						<div>
-							<p class="row-label">Server channel storage</p>
+							<p class="row-label">{t("settings.privacy.channelStorage")}</p>
 							<p class="row-value muted">
-								Message text and file attachments are end-to-end encrypted with a per-channel
-								sender key, shared directly between members — the server only ever sees
-								ciphertext. A member removed from the server can still read messages sent with a
-								key they already received until the channel is next re-keyed.
+								{t("settings.privacy.channelStorageHint")}
 							</p>
 						</div>
 					</div>
 					<div class="row">
 						<div>
-							<p class="row-label">IP logging</p>
+							<p class="row-label">{t("settings.privacy.ipLogging")}</p>
 							<p class="row-value muted">
-								None. HollowChat doesn't record your IP address or device info against your
-								account, even for active sessions — a server compromise can't link your
-								account to a network or a device.
+								{t("settings.privacy.ipLoggingHint")}
 							</p>
 						</div>
 					</div>
 				</div>
 
 				<div class="card">
-					<p class="row-label" style="margin-bottom: 12px;">Blocked users</p>
+					<p class="row-label" style="margin-bottom: 12px;">{t("settings.privacy.blockedUsers")}</p>
 					{#if blocked.length === 0}
-						<p class="row-value muted">You haven't blocked anyone.</p>
+						<p class="row-value muted">{t("settings.privacy.noBlocked")}</p>
 					{:else}
 						{#each blocked as b (b.id)}
 							<div class="row">
 								<p class="row-value">{b.username}</p>
-								<button class="edit" onclick={() => unblock(b.id)}>Unblock</button>
+								<button class="edit" onclick={() => unblock(b.id)}>{t("settings.privacy.unblock")}</button>
 							</div>
 						{/each}
 					{/if}
 				</div>
 			{:else if section === "notifications"}
-				<h2>Notifications</h2>
+				<h2>{t("settings.nav.notifications")}</h2>
 
 				<div class="card">
 					<div class="switch-row">
 						<div>
-							<p class="row-label">Messages</p>
-							<p class="row-value muted">Notify when someone sends you a message.</p>
+							<p class="row-label">{t("settings.notifications.messages")}</p>
+							<p class="row-value muted">{t("settings.notifications.messagesHint")}</p>
 						</div>
 						<label class="switch">
-							<input type="checkbox" bind:checked={notifyMessages} onchange={() => toggle((v) => (notifyMessages = v), !notifyMessages, "Message notifications")} />
+							<input type="checkbox" bind:checked={notifyMessages} onchange={() => toggle((v) => (notifyMessages = v), !notifyMessages, t("settings.notifications.messagesLabel"))} />
 							<span class="track"><span class="thumb"></span></span>
 						</label>
 					</div>
 					<div class="switch-row">
 						<div>
-							<p class="row-label">Mentions</p>
-							<p class="row-value muted">Notify when someone @mentions you.</p>
+							<p class="row-label">{t("settings.notifications.mentions")}</p>
+							<p class="row-value muted">{t("settings.notifications.mentionsHint")}</p>
 						</div>
 						<label class="switch">
 							<input
@@ -1177,7 +1175,7 @@
 							onchange={(e) => {
 								const value = (e.target as HTMLInputElement).checked;
 								notificationSettings.setMentionsEnabled(value);
-								toast.push(`Mention notifications ${value ? "enabled" : "disabled"}`);
+								toast.push(t(value ? "toast.toggledOn" : "toast.toggledOff", { label: t("settings.notifications.mentionsLabel") }));
 							}}
 						/>
 							<span class="track"><span class="thumb"></span></span>
@@ -1185,31 +1183,49 @@
 					</div>
 					<div class="switch-row">
 						<div>
-							<p class="row-label">Notification sounds</p>
-							<p class="row-value muted">Play a sound for incoming notifications.</p>
+							<p class="row-label">{t("settings.notifications.sounds")}</p>
+							<p class="row-value muted">{t("settings.notifications.soundsHint")}</p>
 						</div>
 						<label class="switch">
-							<input type="checkbox" bind:checked={notifySounds} onchange={() => toggle((v) => (notifySounds = v), !notifySounds, "Notification sounds")} />
+							<input type="checkbox" bind:checked={notifySounds} onchange={() => toggle((v) => (notifySounds = v), !notifySounds, t("settings.notifications.soundsLabel"))} />
 							<span class="track"><span class="thumb"></span></span>
 						</label>
 					</div>
 				</div>
 			{:else if section === "voice"}
-				<h2>Voice &amp; Video</h2>
+				<h2>{t("settings.nav.voice")}</h2>
 				<div class="card">
 					<VoiceSettingsPanel focus="all" />
 				</div>
 			{:else if section === "appearance"}
-				<h2>Appearance</h2>
+				<h2>{t("settings.appearance.title")}</h2>
+
+				<div class="card">
+					<div class="row">
+						<div>
+							<p class="row-label">{t("settings.language.label")}</p>
+							<p class="row-value muted">{t("settings.language.help")}</p>
+						</div>
+						<select
+							class="font-select"
+							value={i18n.lang}
+							onchange={(e) => changeLanguage((e.currentTarget as HTMLSelectElement).value as LocaleCode)}
+						>
+							{#each LOCALES as locale (locale.code)}
+								<option value={locale.code}>{locale.label}</option>
+							{/each}
+						</select>
+					</div>
+				</div>
 
 				<div class="card">
 					<div class="switch-row">
 						<div>
-							<p class="row-label">Compact mode</p>
-							<p class="row-value muted">Reduce spacing between messages.</p>
+							<p class="row-label">{t("settings.appearance.compact")}</p>
+							<p class="row-value muted">{t("settings.appearance.compactHelp")}</p>
 						</div>
 						<label class="switch">
-							<input type="checkbox" bind:checked={compactMode} onchange={() => toggle((v) => (compactMode = v), !compactMode, "Compact mode")} />
+							<input type="checkbox" bind:checked={compactMode} onchange={() => toggle((v) => (compactMode = v), !compactMode, t("settings.appearance.compact"))} />
 							<span class="track"><span class="thumb"></span></span>
 						</label>
 					</div>
@@ -1218,8 +1234,8 @@
 				<div class="card">
 					<div class="row">
 						<div>
-							<p class="row-label">Font</p>
-							<p class="row-value muted">Changes the interface font everywhere in HollowChat.</p>
+							<p class="row-label">{t("settings.appearance.font")}</p>
+							<p class="row-value muted">{t("settings.appearance.fontHelp")}</p>
 						</div>
 					</div>
 					<div class="theme-options">
@@ -1228,21 +1244,21 @@
 							class:active={fontStore.current === "default"}
 							onclick={() => fontStore.setMode("default")}
 						>
-							Default
+							{t("settings.appearance.fontDefault")}
 						</button>
 						<button
 							class="theme-option"
 							class:active={fontStore.current === "preset"}
 							onclick={() => fontStore.setMode("preset")}
 						>
-							Preset
+							{t("settings.appearance.fontPreset")}
 						</button>
 						<button
 							class="theme-option"
 							class:active={fontStore.current === "link"}
 							onclick={() => fontStore.setMode("link")}
 						>
-							Link
+							{t("settings.appearance.fontLink")}
 						</button>
 					</div>
 
@@ -1261,13 +1277,13 @@
 							<input
 								type="text"
 								class="font-link-input"
-								placeholder="Font family name (e.g. Fira Code)"
+								placeholder={t("settings.appearance.fontFamilyPlaceholder")}
 								bind:value={customFontFamilyDraft}
 							/>
 							<input
 								type="text"
 								class="font-link-input"
-								placeholder="Stylesheet URL (e.g. Google Fonts CSS link)"
+								placeholder={t("settings.appearance.fontUrlPlaceholder")}
 								bind:value={customFontUrlDraft}
 							/>
 							<button
@@ -1275,7 +1291,7 @@
 								disabled={!customFontFamilyDraft.trim() || !customFontUrlDraft.trim()}
 								onclick={() => fontStore.setCustom(customFontFamilyDraft.trim(), customFontUrlDraft.trim())}
 							>
-								Apply
+								{t("common.apply")}
 							</button>
 						</div>
 					{/if}
@@ -1284,8 +1300,8 @@
 				<div class="card">
 					<div class="row">
 						<div>
-							<p class="row-label">Theme</p>
-							<p class="row-value muted">Hollow Theme lets you recolor every surface of the app.</p>
+							<p class="row-label">{t("settings.appearance.theme")}</p>
+							<p class="row-value muted">{t("settings.appearance.themeHelp")}</p>
 						</div>
 					</div>
 					<div class="theme-options">
@@ -1294,21 +1310,21 @@
 							class:active={themeStore.settings.mode === "default"}
 							onclick={() => themeStore.setMode("default")}
 						>
-							Default
+							{t("settings.appearance.themeDefault")}
 						</button>
 						<button
 							class="theme-option"
 							class:active={themeStore.settings.mode === "custom"}
 							onclick={() => themeStore.setMode("custom")}
 						>
-							Hollow Theme
+							{t("settings.appearance.themeCustom")}
 						</button>
 					</div>
 				</div>
 
 				{#if themeStore.settings.mode === "custom"}
 					<div class="card">
-						<p class="row-label" style="margin-bottom: 8px;">Presets</p>
+						<p class="row-label" style="margin-bottom: 8px;">{t("settings.appearance.presets")}</p>
 						<div class="preset-grid">
 							{#each THEME_PRESETS as preset (preset.id)}
 								<button
@@ -1342,11 +1358,11 @@
 						</div>
 					{/each}
 					<button class="theme-option" onclick={() => themeStore.resetColors()}>
-						Reset colors to default
+						{t("settings.appearance.resetColors")}
 					</button>
 				{/if}
 			{:else if section === "accessibility"}
-				<h2>Accessibility</h2>
+				<h2>{t("settings.nav.accessibility")}</h2>
 
 				<div class="card">
 					<div class="switch-row">
@@ -1361,27 +1377,27 @@
 					</div>
 				</div>
 			{:else if section === "sessions"}
-				<h2>Devices</h2>
-				<p class="hint" style="margin-bottom: 16px;">Sessions currently signed in to your account.</p>
+				<h2>{t("settings.nav.devices")}</h2>
+				<p class="hint" style="margin-bottom: 16px;">{t("settings.devices.subtitle")}</p>
 
 				<div class="card">
 					{#if sessions.length === 0}
-						<p class="row-value muted">No active sessions.</p>
+						<p class="row-value muted">{t("settings.devices.none")}</p>
 					{/if}
 					{#each sessions as s (s.id)}
 						<div class="row">
 							<div>
-								<p class="row-label">{s.current ? "This device" : "Other device"}</p>
+								<p class="row-label">{s.current ? t("settings.devices.thisDevice") : t("settings.devices.otherDevice")}</p>
 								<p class="row-value muted">{describeSession(s)}</p>
 							</div>
 							{#if !s.current}
-								<button class="edit danger-text" onclick={() => revoke(s.id)}>Revoke</button>
+								<button class="edit danger-text" onclick={() => revoke(s.id)}>{t("settings.devices.revoke")}</button>
 							{/if}
 						</div>
 					{/each}
 				</div>
 			{:else if section === "billing"}
-				<h2>Billing</h2>
+				<h2>{t("settings.nav.billing")}</h2>
 
 				<div class="card plan-card" class:premium={billing?.tier === "premium"}>
 					<div class="plan-header">
@@ -1390,40 +1406,38 @@
 						{:else}
 							<CreditCard size={18} strokeWidth={2} />
 						{/if}
-						<p class="row-label">{billing?.tier === "premium" ? "Premium" : "Free"} plan</p>
+						<p class="row-label">{billing?.tier === "premium" ? t("settings.billing.premiumPlan") : t("settings.billing.freePlan")}</p>
 					</div>
 					<p class="row-value muted">
 						{#if billing?.tier === "premium"}
-							File uploads up to 2GB. Thanks for supporting HollowChat.
+							{t("settings.billing.premiumBlurb")}
 						{:else}
-							File uploads up to 50MB. Upgrade for 2GB uploads.
+							{t("settings.billing.freeBlurb")}
 						{/if}
 					</p>
 					{#if billing?.subscription_status && billing.subscription_status !== "active"}
-						<p class="row-value muted">Subscription status: {billing.subscription_status}</p>
+						<p class="row-value muted">{t("settings.billing.subscriptionStatus", { status: billing.subscription_status })}</p>
 					{/if}
 				</div>
 
 				{#if billing?.tier !== "premium"}
 					<div class="card">
-						<p class="row-label">Upgrade to Premium</p>
+						<p class="row-label">{t("settings.billing.upgradeTitle")}</p>
 						<p class="row-value muted" style="margin-bottom: 12px;">
-							2GB uploads, up to 8 linked devices, a Supporter badge, and 2 Void Shards to boost
-							servers with.
+							{t("settings.billing.upgradeBlurb")}
 						</p>
 						<button class="edit" onclick={upgrade} disabled={checkoutLoading}>
-							{checkoutLoading ? "Opening checkout…" : "Upgrade"}
+							{checkoutLoading ? t("settings.billing.openingCheckout") : t("settings.billing.upgrade")}
 						</button>
 					</div>
 				{:else}
 					<div class="card">
-						<p class="row-label">Void Shards</p>
+						<p class="row-label">{t("settings.billing.voidShards")}</p>
 						<p class="row-value muted" style="margin-bottom: 12px;">
-							{billing.boost_slots_used} of {billing.boost_slots_total} assigned. Boosting a server
-							raises its custom emoji slots for everyone in it.
+							{t("settings.billing.voidShardsHint", { used: billing.boost_slots_used, total: billing.boost_slots_total })}
 						</p>
 						{#if myServers.length === 0}
-							<p class="row-value muted">You're not in any servers yet.</p>
+							<p class="row-value muted">{t("settings.billing.noServers")}</p>
 						{:else}
 							<div class="boost-list">
 								{#each myServers as server (server.id)}
@@ -1444,7 +1458,7 @@
 											disabled={boostBusyId === server.id || outOfSlots}
 											onclick={() => toggleBoost(server.id)}
 										>
-											{boosted ? "Boosted" : "Boost"}
+											{boosted ? t("settings.billing.boosted") : t("settings.billing.boost")}
 										</button>
 									</div>
 								{/each}
@@ -1457,69 +1471,65 @@
 				{#if openReport}
 					<button type="button" class="back-link" onclick={() => (openReportId = null)}>
 						<ArrowLeft size={14} strokeWidth={2.25} />
-						Back to reports
+						{t("settings.moderation.backToReports")}
 					</button>
 
 					<div class="card ticket-card">
 						<p class="ticket-field">
-							<span class="ticket-label">Report from</span>
+							<span class="ticket-label">{t("settings.moderation.reportFrom")}</span>
 							<span class="ticket-value">{openReport.reporter_username}</span>
 						</p>
 						<p class="ticket-field">
-							<span class="ticket-label">Reported</span>
+							<span class="ticket-label">{t("settings.moderation.reported")}</span>
 							<span class="ticket-value">{openReport.reported_username}</span>
 						</p>
 						<p class="ticket-field">
-							<span class="ticket-label">Context</span>
+							<span class="ticket-label">{t("settings.moderation.context")}</span>
 							<span class="ticket-value">{openReport.context_kind}</span>
 						</p>
 						<p class="ticket-field">
-							<span class="ticket-label">Filed</span>
+							<span class="ticket-label">{t("settings.moderation.filed")}</span>
 							<span class="ticket-value">{new Date(openReport.created_at).toLocaleString()}</span>
 						</p>
 						<p class="ticket-field">
-							<span class="ticket-label">Status</span>
+							<span class="ticket-label">{t("settings.moderation.status")}</span>
 							<select
 								value={openReport.status}
 								onchange={(e) => setReportStatus(openReport, e.currentTarget.value as api.ReportStatus)}
 							>
-								<option value="open">Open</option>
-								<option value="reviewing">Reviewing</option>
-								<option value="resolved">Resolved</option>
-								<option value="dismissed">Dismissed</option>
+								<option value="open">{t("settings.moderation.status.open")}</option>
+								<option value="reviewing">{t("settings.moderation.status.reviewing")}</option>
+								<option value="resolved">{t("settings.moderation.status.resolved")}</option>
+								<option value="dismissed">{t("settings.moderation.status.dismissed")}</option>
 							</select>
 						</p>
 						<button type="button" class="save" onclick={() => messageReporter(openReport.reporter_username)}>
 							<MessageSquare size={14} strokeWidth={2} />
-							Message reporter
+							{t("settings.moderation.messageReporter")}
 						</button>
 					</div>
 
 					<div class="card">
-						<p class="row-label" style="margin-bottom: 8px;">Reason & Messages</p>
+						<p class="row-label" style="margin-bottom: 8px;">{t("settings.moderation.reasonMessages")}</p>
 						<p class="row-value muted" style="margin-bottom: 12px;">
-							The reason text, quoted messages, and attachments for this report are end-to-end sealed
-							to an offline moderator key — this panel (and the server) never holds it. Fetch the sealed
-							row and decrypt it on an air-gapped machine with <code>tools/decrypt-report.mjs</code>.
+							{t("settings.moderation.reasonMessagesHint")} <code>tools/decrypt-report.mjs</code>.
 						</p>
 						<div class="ticket-actions">
 							<button type="button" class="theme-option" onclick={() => copyReportId(openReport.id)}>
 								<Copy size={13} strokeWidth={2} />
-								Copy report ID
+								{t("settings.moderation.copyReportId")}
 							</button>
 							<button type="button" class="theme-option" onclick={() => copyFetchCommand(openReport.id)}>
 								<Copy size={13} strokeWidth={2} />
-								Copy psql fetch command
+								{t("settings.moderation.copyPsql")}
 							</button>
 						</div>
 					</div>
 				{:else}
-					<h2>Moderation</h2>
+					<h2>{t("settings.nav.moderation")}</h2>
 					<div class="card">
 						<p class="row-value muted" style="margin-bottom: 12px;">
-							Report contents are sealed to a key this app never holds — decrypt them offline with
-							<code>tools/decrypt-report.mjs</code>. This just tracks who reported whom and lets you
-							open a reply DM as Hollow Support.
+							{t("settings.moderation.overviewHintA")} <code>tools/decrypt-report.mjs</code>. {t("settings.moderation.overviewHintB")}
 						</p>
 						<div class="report-filter">
 							{#each REPORT_FILTERS as filter (filter)}
@@ -1529,31 +1539,31 @@
 									class:active={reportStatusFilter === filter}
 									onclick={() => (reportStatusFilter = filter)}
 								>
-									{filter}
+									{t(`settings.moderation.status.${filter}`)}
 								</button>
 							{/each}
 						</div>
 					</div>
 					{#if reportsLoading}
-						<p class="row-value muted">Loading…</p>
+						<p class="row-value muted">{t("common.loading")}</p>
 					{:else if visibleReports.length === 0}
-						<p class="row-value muted">No reports here.</p>
+						<p class="row-value muted">{t("settings.moderation.noReports")}</p>
 					{:else}
 						<div class="report-list">
 							{#each visibleReports as report (report.id)}
 								<div class="report-row">
 									<div class="report-main">
 										<p class="report-line">
-											<strong>{report.reporter_username}</strong> reported
+											<strong>{report.reporter_username}</strong> {t("settings.moderation.reportedConnector")}
 											<strong>{report.reported_username}</strong>
 										</p>
 										<p class="report-meta">
 											{report.context_kind} · {new Date(report.created_at).toLocaleString()}
 										</p>
 									</div>
-									<span class="status-pill {report.status}">{report.status}</span>
+									<span class="status-pill {report.status}">{t(`settings.moderation.status.${report.status}`)}</span>
 									<button type="button" class="save" onclick={() => (openReportId = report.id)}>
-										Open
+										{t("settings.moderation.openButton")}
 									</button>
 								</div>
 							{/each}

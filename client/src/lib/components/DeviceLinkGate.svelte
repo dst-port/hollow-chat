@@ -5,6 +5,7 @@
 	import { ensureIdentity, syncIdentityToServer } from "$lib/crypto/identity";
 	import { deviceLink } from "$lib/devicelink/link.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 	import Logo from "$lib/components/Logo.svelte";
 
 	type Step = "choice" | "linking" | "fresh";
@@ -30,7 +31,7 @@
 			session.completeDeviceSetup();
 		} catch (err) {
 			console.error("startFresh failed", err);
-			toast.push("Couldn't set up encryption — check your connection and try again");
+			toast.push(t("deviceLink.setupFailed"));
 			step = "choice";
 		} finally {
 			freshBusy = false;
@@ -63,42 +64,41 @@
 		{#key step}
 			<div class="pane" in:fly={{ y: 8, duration: 260, easing: cubicOut }}>
 				{#if step === "choice"}
-					<h1>Set up encryption</h1>
+					<h1>{t("deviceLink.setupTitle")}</h1>
 					<p class="subtitle">
-						This device doesn't have your encryption keys yet. Link it to a device you're already
-						signed in on to keep reading your conversations, or start fresh.
+						{t("deviceLink.setupBody")}
 					</p>
 					<div class="actions">
-						<button type="button" class="primary" onclick={startLinking}>Link with another device</button>
+						<button type="button" class="primary" onclick={startLinking}>{t("deviceLink.linkDevice")}</button>
 						<button type="button" class="ghost" onclick={startFresh} disabled={freshBusy}>
-							This is my only device
+							{t("deviceLink.onlyDevice")}
 						</button>
 					</div>
 				{:else if step === "linking"}
 					{#if deviceLink.phase === "connecting" || deviceLink.phase === "waiting-for-peer"}
-						<h1>Waiting for your other device</h1>
+						<h1>{t("deviceLink.waitingTitle")}</h1>
 						<p class="subtitle">
-							On your other device, open Settings → Account and choose "Link a Device".
+							{t("deviceLink.waitingBody")}
 						</p>
-						<button type="button" class="link" onclick={backToChoice}>Cancel</button>
+						<button type="button" class="link" onclick={backToChoice}>{t("common.cancel")}</button>
 					{:else if deviceLink.phase === "confirm"}
-						<h1>Confirm this code matches</h1>
-						<p class="subtitle">Check that this code is shown on both devices before continuing.</p>
+						<h1>{t("deviceLink.confirmTitle")}</h1>
+						<p class="subtitle">{t("deviceLink.confirmBody")}</p>
 						<p class="fingerprint">{deviceLink.fingerprint}</p>
-						<p class="subtitle">Waiting for the other device to confirm and send your keys…</p>
-						<button type="button" class="link" onclick={backToChoice}>Cancel</button>
+						<p class="subtitle">{t("deviceLink.confirmWaiting")}</p>
+						<button type="button" class="link" onclick={backToChoice}>{t("common.cancel")}</button>
 					{:else if deviceLink.phase === "receiving"}
-						<h1>Receiving your keys…</h1>
+						<h1>{t("deviceLink.receivingTitle")}</h1>
 					{:else if deviceLink.phase === "done"}
-						<h1>Linked</h1>
-						<p class="subtitle">Your encryption keys are synced. Loading your conversations…</p>
+						<h1>{t("deviceLink.linkedTitle")}</h1>
+						<p class="subtitle">{t("deviceLink.linkedBody")}</p>
 					{:else if deviceLink.phase === "error"}
-						<h1>Couldn't link this device</h1>
+						<h1>{t("deviceLink.errorTitle")}</h1>
 						<p class="subtitle error">{deviceLink.error}</p>
-						<button type="button" class="link" onclick={backToChoice}>Try again</button>
+						<button type="button" class="link" onclick={backToChoice}>{t("common.retry")}</button>
 					{/if}
 				{:else if step === "fresh"}
-					<h1>Setting up encryption…</h1>
+					<h1>{t("deviceLink.settingUpTitle")}</h1>
 				{/if}
 			</div>
 		{/key}

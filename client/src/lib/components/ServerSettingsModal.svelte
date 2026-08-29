@@ -17,6 +17,7 @@
 	import InviteModal from "$lib/components/InviteModal.svelte";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { t, tp } from "$lib/i18n/index.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import {
 		renameServer,
@@ -88,7 +89,7 @@
 			inviteCode = invite.code;
 			vanityCode = invite.code;
 		} catch {
-			toast.push("Couldn't load invite");
+			toast.push(t("serverSettings.invites.loadFailed"));
 		}
 		if (isOwner) {
 			try {
@@ -109,14 +110,14 @@
 			const invite = await setVanityInvite(token, server.id, code);
 			inviteCode = invite.code;
 			vanityCode = invite.code;
-			toast.push("Invite link updated");
+			toast.push(t("serverSettings.invites.updated"));
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 403) {
-				toast.push("Void Shards are a Premium perk");
+				toast.push(t("serverSettings.vanity.premiumOnly"));
 			} else if (err instanceof ApiError && err.status === 400) {
-				toast.push("3-32 letters, numbers, or dashes");
+				toast.push(t("serverSettings.vanity.rules"));
 			} else {
-				toast.push("That code is already taken");
+				toast.push(t("serverSettings.vanity.taken"));
 			}
 		} finally {
 			vanitySaving = false;
@@ -134,7 +135,7 @@
 			boostStatus = status;
 			customEmoji = emoji;
 		} catch {
-			toast.push("Couldn't load emoji");
+			toast.push(t("serverSettings.emoji.loadFailed"));
 		}
 	}
 
@@ -151,10 +152,10 @@
 			newEmojiName = "";
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 409) {
-				if (err.message.includes("slot")) toast.push("No emoji slots left — boost this server for more");
-				else toast.push("That name is already used");
+				if (err.message.includes("slot")) toast.push(t("serverSettings.emoji.noSlots"));
+				else toast.push(t("serverSettings.emoji.nameUsed"));
 			} else {
-				toast.push("Couldn't add emoji — name must be 2-32 letters/numbers/underscores");
+				toast.push(t("serverSettings.emoji.addFailed"));
 			}
 		} finally {
 			emojiUploading = false;
@@ -169,7 +170,7 @@
 			await removeCustomEmoji(token, server.id, emoji.id);
 			customEmoji = customEmoji.filter((e) => e.id !== emoji.id);
 		} catch {
-			toast.push("Couldn't remove emoji");
+			toast.push(t("serverSettings.emoji.removeFailed"));
 		}
 	}
 
@@ -186,7 +187,7 @@
 			const updated = await setServerIcon(token, server.id, attachment.id);
 			server.iconUrl = updated.icon_url;
 		} catch {
-			toast.push("Couldn't update server icon");
+			toast.push(t("serverSettings.overview.iconUpdateFailed"));
 		} finally {
 			iconUploading = false;
 			if (iconInput) iconInput.value = "";
@@ -200,7 +201,7 @@
 			const updated = await clearServerIcon(token, server.id);
 			server.iconUrl = updated.icon_url;
 		} catch {
-			toast.push("Couldn't remove server icon");
+			toast.push(t("serverSettings.overview.iconRemoveFailed"));
 		}
 	}
 
@@ -210,7 +211,7 @@
 		try {
 			roles = await listRoles(token, server.id);
 		} catch {
-			toast.push("Couldn't load roles");
+			toast.push(t("serverSettings.roles.loadFailed"));
 		}
 	}
 
@@ -220,7 +221,7 @@
 		try {
 			members = await listMembers(token, server.id);
 		} catch {
-			toast.push("Couldn't load members");
+			toast.push(t("serverSettings.members.loadFailed"));
 		}
 	}
 
@@ -230,7 +231,7 @@
 		try {
 			bans = await listBans(token, server.id);
 		} catch {
-			toast.push("Couldn't load bans");
+			toast.push(t("serverSettings.bans.loadFailed"));
 		}
 	}
 
@@ -254,7 +255,7 @@
 			roles.push(role);
 			newRoleName = "";
 		} catch {
-			toast.push("Couldn't create role");
+			toast.push(t("serverSettings.roles.createFailed"));
 		}
 	}
 
@@ -267,7 +268,7 @@
 			await updateRole(token, server.id, role.id, { permissions: next });
 		} catch {
 			role.permissions = next ^ bit;
-			toast.push("Couldn't update role");
+			toast.push(t("serverSettings.roles.updateFailed"));
 		}
 	}
 
@@ -279,7 +280,7 @@
 			await updateRole(token, server.id, role.id, { name: trimmed });
 			role.name = trimmed;
 		} catch {
-			toast.push("Couldn't rename role");
+			toast.push(t("serverSettings.roles.renameFailed"));
 		}
 	}
 
@@ -290,7 +291,7 @@
 		try {
 			await updateRole(token, server.id, role.id, { color });
 		} catch {
-			toast.push("Couldn't recolor role");
+			toast.push(t("serverSettings.roles.recolorFailed"));
 		}
 	}
 
@@ -302,7 +303,7 @@
 			roles = roles.filter((r) => r.id !== role.id);
 			for (const member of members) member.roles = member.roles.filter((r) => r.id !== role.id);
 		} catch {
-			toast.push("Couldn't delete role");
+			toast.push(t("serverSettings.roles.deleteFailed"));
 		}
 	}
 
@@ -319,7 +320,7 @@
 				member.roles = [...member.roles, role];
 			}
 		} catch {
-			toast.push("Couldn't update member's roles");
+			toast.push(t("serverSettings.members.rolesUpdateFailed"));
 		}
 	}
 
@@ -329,9 +330,9 @@
 		try {
 			await kickMember(token, server.id, member.id);
 			members = members.filter((m) => m.id !== member.id);
-			toast.push(`Kicked ${member.username}`);
+			toast.push(t("serverSettings.members.kickedToast", { name: member.username }));
 		} catch {
-			toast.push("Couldn't kick member");
+			toast.push(t("serverSettings.members.kickFailed"));
 		}
 	}
 
@@ -341,9 +342,9 @@
 		try {
 			await banMember(token, server.id, member.id);
 			members = members.filter((m) => m.id !== member.id);
-			toast.push(`Banned ${member.username}`);
+			toast.push(t("serverSettings.members.bannedToast", { name: member.username }));
 		} catch {
-			toast.push("Couldn't ban member");
+			toast.push(t("serverSettings.members.banFailed"));
 		}
 	}
 
@@ -354,12 +355,12 @@
 			await unbanMember(token, server.id, ban.user_id);
 			bans = bans.filter((b) => b.user_id !== ban.user_id);
 		} catch {
-			toast.push("Couldn't unban member");
+			toast.push(t("serverSettings.bans.unbanFailed"));
 		}
 	}
 
 	const SLOWMODE_OPTIONS = [
-		{ label: "Off", seconds: 0 },
+		{ label: t("serverSettings.channels.slowmodeOff"), seconds: 0 },
 		{ label: "5s", seconds: 5 },
 		{ label: "10s", seconds: 10 },
 		{ label: "30s", seconds: 30 },
@@ -382,7 +383,7 @@
 			const channel = server.channels.find((c) => c.id === channelId);
 			if (channel) channel.slowmodeSeconds = seconds;
 		} catch {
-			toast.push("Couldn't update slowmode");
+			toast.push(t("serverSettings.channels.slowmodeFailed"));
 		}
 	}
 
@@ -398,16 +399,16 @@
 			await renameServer(token, server.id, trimmed);
 			server.name = trimmed;
 			server.initials = trimmed.slice(0, 2).toUpperCase();
-			toast.push("Server updated");
+			toast.push(t("serverSettings.overview.updatedToast"));
 		} catch {
-			toast.push("Couldn't rename server");
+			toast.push(t("serverSettings.overview.renameFailed"));
 		}
 	}
 
 	function deleteServer() {
 		onClose();
 		onLeave();
-		toast.push(`${server.name} deleted`);
+		toast.push(t("serverSettings.deletedToast", { name: server.name }));
 	}
 </script>
 
@@ -418,7 +419,7 @@
 		class="modal"
 		role="dialog"
 		aria-modal="true"
-		aria-label="Server settings"
+		aria-label={t("serverSettings.title")}
 		tabindex="-1"
 		onclick={(e) => e.stopPropagation()}
 		transition:scale={{ duration: 180, start: 0.97, easing: cubicOut }}
@@ -427,52 +428,52 @@
 			<p class="nav-label">{server.name}</p>
 			<button class="nav-item" class:active={section === "overview"} onclick={() => (section = "overview")}>
 				<LayoutGrid size={16} strokeWidth={2} />
-				Overview
+				{t("serverSettings.nav.overview")}
 			</button>
 			<button class="nav-item" class:active={section === "channels"} onclick={() => (section = "channels")}>
 				<Hash size={16} strokeWidth={2} />
-				Channels
+				{t("serverSettings.nav.channels")}
 			</button>
 			<button class="nav-item" class:active={section === "invites"} onclick={() => (section = "invites")}>
 				<UserPlus size={16} strokeWidth={2} />
-				Invites
+				{t("serverSettings.nav.invites")}
 			</button>
 			<button class="nav-item" class:active={section === "emoji"} onclick={() => (section = "emoji")}>
 				<Smile size={16} strokeWidth={2} />
-				Emoji
+				{t("serverSettings.nav.emoji")}
 			</button>
 			<button class="nav-item" class:active={section === "roles"} onclick={() => (section = "roles")}>
 				<ShieldCheck size={16} strokeWidth={2} />
-				Roles
+				{t("serverSettings.nav.roles")}
 			</button>
 			<button class="nav-item" class:active={section === "members"} onclick={() => (section = "members")}>
 				<Users size={16} strokeWidth={2} />
-				Members
+				{t("serverSettings.nav.members")}
 			</button>
 			<button class="nav-item" class:active={section === "bans"} onclick={() => (section = "bans")}>
 				<UserX size={16} strokeWidth={2} />
-				Bans
+				{t("serverSettings.nav.bans")}
 			</button>
 			<button class="nav-item" class:active={section === "moderation"} onclick={() => (section = "moderation")}>
 				<ShieldAlert size={16} strokeWidth={2} />
-				Moderation
+				{t("serverSettings.nav.moderation")}
 			</button>
 
 			<div class="nav-spacer"></div>
 
 			<button class="nav-item danger" onclick={() => (confirmDelete = true)}>
 				<Trash2 size={16} strokeWidth={2} />
-				Delete Server
+				{t("serverSettings.nav.deleteServer")}
 			</button>
 		</nav>
 
 		<div class="content">
-			<button class="close" onclick={onClose} title="Close">
+			<button class="close" onclick={onClose} title={t("common.close")}>
 				<X size={20} strokeWidth={2} />
 			</button>
 
 			{#if section === "overview"}
-				<h2>Server Overview</h2>
+				<h2>{t("serverSettings.overview.title")}</h2>
 
 				<div class="card">
 					<div class="identity">
@@ -481,54 +482,54 @@
 							style:background-image={server.iconUrl ? `url(${resolveUrl(server.iconUrl, session.token)})` : undefined}
 							onclick={() => iconInput?.click()}
 							disabled={iconUploading}
-							title="Change server icon"
+							title={t("serverSettings.overview.changeIcon")}
 						>
 							{#if !server.iconUrl}{server.initials}{/if}
 						</button>
 						<input bind:this={iconInput} type="file" accept="image/*" hidden onchange={onIconChosen} />
 						<div>
-							<p class="hint">Server icon</p>
+							<p class="hint">{t("serverSettings.overview.serverIcon")}</p>
 							<p class="hint muted">
 								{#if server.iconUrl}
-									<button class="link" onclick={() => iconInput?.click()}>Change</button> ·
-									<button class="link" onclick={removeIcon}>Remove</button>
+									<button class="link" onclick={() => iconInput?.click()}>{t("common.change")}</button> ·
+									<button class="link" onclick={removeIcon}>{t("common.remove")}</button>
 								{:else}
-									Click the icon to upload one — otherwise initials are used.
+									{t("serverSettings.overview.iconHint")}
 								{/if}
 							</p>
 						</div>
 					</div>
 
 					<label class="field">
-						Server name
+						{t("serverSettings.overview.serverName")}
 						<div class="row-input">
 							<input type="text" bind:value={name} maxlength="48" />
 							<button class="save" disabled={!name.trim() || name === server.name} onclick={saveName}>
-								Save
+								{t("common.save")}
 							</button>
 						</div>
 					</label>
 
 					<div class="row">
 						<div>
-							<p class="row-label">Server ID</p>
+							<p class="row-label">{t("serverSettings.overview.serverId")}</p>
 							<p class="row-value muted">{server.id}</p>
 						</div>
 					</div>
 
 					<div class="row">
 						<div>
-							<p class="row-label">Channels</p>
-							<p class="row-value muted">{server.channels.length} total</p>
+							<p class="row-label">{t("serverSettings.overview.channelsLabel")}</p>
+							<p class="row-value muted">{tp("serverSettings.overview.channelsTotal", server.channels.length)}</p>
 						</div>
 					</div>
 				</div>
 			{:else if section === "channels"}
-				<h2>Channels</h2>
+				<h2>{t("serverSettings.channels.title")}</h2>
 				<div class="card">
-					<p class="row-label">Slowmode</p>
+					<p class="row-label">{t("serverSettings.channels.slowmode")}</p>
 					<p class="row-value muted" style="margin-bottom: 12px;">
-						Limit how often each member can send a message in a text channel.
+						{t("serverSettings.channels.slowmodeHint")}
 					</p>
 					{#each server.channels.filter((c) => c.type === "text") as channel (channel.id)}
 						<div class="row slowmode-row">
@@ -547,27 +548,27 @@
 								</select>
 							{:else}
 								<span class="row-value muted">
-									{SLOWMODE_OPTIONS.find((o) => o.seconds === (channel.slowmodeSeconds ?? 0))?.label ?? "Off"}
+									{SLOWMODE_OPTIONS.find((o) => o.seconds === (channel.slowmodeSeconds ?? 0))?.label ?? t("serverSettings.channels.slowmodeOff")}
 								</span>
 							{/if}
 						</div>
 					{/each}
 				</div>
 			{:else if section === "invites"}
-				<h2>Invites</h2>
+				<h2>{t("serverSettings.invites.title")}</h2>
 				<div class="card">
-					<p class="row-label">Active invite link</p>
+					<p class="row-label">{t("serverSettings.invites.activeLink")}</p>
 					<p class="row-value muted" style="margin-bottom: 12px;">
-						Anyone with this link can join. It never expires.
+						{t("serverSettings.invites.activeLinkHint")}
 					</p>
-					<button class="save" onclick={() => (inviteOpen = true)}>Show Invite Link</button>
+					<button class="save" onclick={() => (inviteOpen = true)}>{t("serverSettings.invites.showLink")}</button>
 				</div>
 				{#if isOwner}
 					<div class="card">
-						<p class="row-label">Vanity invite code</p>
+						<p class="row-label">{t("serverSettings.invites.vanityCode")}</p>
 						{#if isPremiumOwner}
 							<p class="row-value muted" style="margin-bottom: 12px;">
-								Pick your own code instead of a random one — a Premium perk.
+								{t("serverSettings.invites.vanityHint")}
 							</p>
 							<div class="row-input">
 								<input type="text" bind:value={vanityCode} maxlength="32" placeholder="your-server" />
@@ -576,28 +577,28 @@
 									disabled={vanitySaving || !vanityCode.trim() || vanityCode === inviteCode}
 									onclick={saveVanityCode}
 								>
-									{vanitySaving ? "Saving…" : "Save"}
+									{vanitySaving ? t("common.saving") : t("common.save")}
 								</button>
 							</div>
 						{:else}
 							<p class="row-value muted">
-								Upgrade to Premium to pick your own invite code instead of a random one.
+								{t("serverSettings.invites.vanityUpsell")}
 							</p>
 						{/if}
 					</div>
 				{/if}
 			{:else if section === "emoji"}
-				<h2>Custom Emoji</h2>
+				<h2>{t("serverSettings.emoji.title")}</h2>
 				<div class="card">
-					<p class="row-label">Slots</p>
+					<p class="row-label">{t("serverSettings.emoji.slots")}</p>
 					<p class="row-value muted" style="margin-bottom: 12px;">
 						{#if boostStatus}
-							{customEmoji.length} of {boostStatus.emoji_slots} used.
+							{t("serverSettings.emoji.slotsUsed", { used: customEmoji.length, total: boostStatus.emoji_slots })}
 							{#if boostStatus.emoji_slots < 30}
-								Boost this server with Void Shards to unlock more.
+								{t("serverSettings.emoji.slotsMore")}
 							{/if}
 						{:else}
-							Loading…
+							{t("common.loading")}
 						{/if}
 					</p>
 					{#if isOwner}
@@ -608,7 +609,7 @@
 								disabled={emojiUploading || !newEmojiName.trim() || (boostStatus ? customEmoji.length >= boostStatus.emoji_slots : true)}
 								onclick={() => emojiInput?.click()}
 							>
-								{emojiUploading ? "Uploading…" : "Upload"}
+								{emojiUploading ? t("common.uploading") : t("serverSettings.emoji.upload")}
 							</button>
 							<input bind:this={emojiInput} type="file" accept="image/*" hidden onchange={onEmojiFileChosen} />
 						</div>
@@ -621,7 +622,7 @@
 								<img src={resolveUrl(emoji.image_url, session.token)} alt={emoji.name} />
 								<span class="emoji-name">:{emoji.name}:</span>
 								{#if isOwner}
-									<button class="emoji-remove" title="Remove" onclick={() => removeEmoji(emoji)}>
+									<button class="emoji-remove" title={t("common.remove")} onclick={() => removeEmoji(emoji)}>
 										<Trash2 size={13} strokeWidth={2} />
 									</button>
 								{/if}
@@ -630,13 +631,13 @@
 					</div>
 				{/if}
 			{:else if section === "roles"}
-				<h2>Roles</h2>
+				<h2>{t("serverSettings.roles.title")}</h2>
 				<div class="card">
 					<div class="row-input" style="margin-bottom: 4px;">
-						<input type="text" placeholder="New role name" bind:value={newRoleName} maxlength="32" />
+						<input type="text" placeholder={t("serverSettings.roles.newRoleName")} bind:value={newRoleName} maxlength="32" />
 						<button class="save" disabled={!newRoleName.trim()} onclick={addRole}>
 							<Plus size={14} strokeWidth={2.5} />
-							Create
+							{t("common.create")}
 						</button>
 					</div>
 				</div>
@@ -652,7 +653,7 @@
 								onblur={(e) => renameRole(role, e.currentTarget.value)}
 							/>
 							<ColorPicker bind:value={role.color} onCommit={(hex) => recolorRole(role, hex)} />
-							<button class="icon-danger" title="Delete role" onclick={() => removeRole(role)}>
+							<button class="icon-danger" title={t("serverSettings.roles.deleteRole")} onclick={() => removeRole(role)}>
 								<Trash2 size={14} strokeWidth={2} />
 							</button>
 						</div>
@@ -679,21 +680,21 @@
 					</div>
 				{/each}
 				{#if roles.length === 0}
-					<p class="row-value muted">No roles yet. Members without a role can only send messages and read channels.</p>
+					<p class="row-value muted">{t("serverSettings.roles.empty")}</p>
 				{/if}
 			{:else if section === "members"}
-				<h2>Members</h2>
+				<h2>{t("serverSettings.members.title")}</h2>
 				{#each members as member (member.id)}
 					<div class="card member-card">
 						<div class="member-header">
 							<span class="member-name">
 								{member.username}
-								{#if member.is_owner}<span class="owner-badge">Owner</span>{/if}
+								{#if member.is_owner}<span class="owner-badge">{t("serverSettings.members.owner")}</span>{/if}
 							</span>
 							{#if !member.is_owner}
 								<div class="member-actions">
-									<button class="ghost-small" onclick={() => kick(member)}>Kick</button>
-									<button class="ghost-small danger-text" onclick={() => ban(member)}>Ban</button>
+									<button class="ghost-small" onclick={() => kick(member)}>{t("serverSettings.members.kick")}</button>
+									<button class="ghost-small danger-text" onclick={() => ban(member)}>{t("serverSettings.members.ban")}</button>
 								</div>
 							{/if}
 						</div>
@@ -715,32 +716,32 @@
 					</div>
 				{/each}
 			{:else if section === "bans"}
-				<h2>Bans</h2>
+				<h2>{t("serverSettings.bans.title")}</h2>
 				{#if bans.length === 0}
-					<p class="row-value muted">No banned members.</p>
+					<p class="row-value muted">{t("serverSettings.bans.empty")}</p>
 				{/if}
 				{#each bans as b (b.user_id)}
 					<div class="card member-card">
 						<div class="member-header">
 							<span class="member-name">{b.username}</span>
-							<button class="ghost-small" onclick={() => unban(b)}>Unban</button>
+							<button class="ghost-small" onclick={() => unban(b)}>{t("serverSettings.bans.unban")}</button>
 						</div>
 						{#if b.reason}<p class="row-value muted">{b.reason}</p>{/if}
 					</div>
 				{/each}
 			{:else}
-				<h2>Moderation</h2>
+				<h2>{t("serverSettings.moderation.title")}</h2>
 				<div class="card">
 					<div class="row">
 						<div>
-							<p class="row-label">Verification level</p>
-							<p class="row-value muted">None — anyone with an invite link can join instantly.</p>
+							<p class="row-label">{t("serverSettings.moderation.verificationLevel")}</p>
+							<p class="row-value muted">{t("serverSettings.moderation.verificationLevelHint")}</p>
 						</div>
 					</div>
 					<div class="row">
 						<div>
-							<p class="row-label">Message logging</p>
-							<p class="row-value muted">Off. HollowChat never logs message content, even for admins.</p>
+							<p class="row-label">{t("serverSettings.moderation.messageLogging")}</p>
+							<p class="row-value muted">{t("serverSettings.moderation.messageLoggingHint")}</p>
 						</div>
 					</div>
 				</div>
@@ -756,11 +757,11 @@
 {#if confirmDelete}
 	<div class="confirm-overlay" role="presentation" onclick={() => (confirmDelete = false)} transition:fade={{ duration: 120 }}>
 		<div class="confirm" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-			<h3>Delete "{server.name}"?</h3>
-			<p>This can't be undone. All channels and messages in this server will be gone.</p>
+			<h3>{t("serverSettings.deleteConfirm.title", { name: server.name })}</h3>
+			<p>{t("serverSettings.deleteConfirm.body")}</p>
 			<div class="confirm-actions">
-				<button class="cancel" onclick={() => (confirmDelete = false)}>Cancel</button>
-				<button class="delete" onclick={deleteServer}>Delete Server</button>
+				<button class="cancel" onclick={() => (confirmDelete = false)}>{t("common.cancel")}</button>
+				<button class="delete" onclick={deleteServer}>{t("serverSettings.nav.deleteServer")}</button>
 			</div>
 		</div>
 	</div>

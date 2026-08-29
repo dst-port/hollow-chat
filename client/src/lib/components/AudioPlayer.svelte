@@ -4,6 +4,7 @@
 	import Volume2 from "@lucide/svelte/icons/volume-2";
 	import VolumeX from "@lucide/svelte/icons/volume-x";
 	import Music from "@lucide/svelte/icons/music";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { src, filename, sizeBytes }: {
 		src: string;
@@ -69,7 +70,7 @@
 		<span class="audio-filename">{filename}</span>
 		<span class="audio-size">{formatSize(sizeBytes)}</span>
 		<div class="audio-controls">
-			<button type="button" class="audio-play" onclick={toggle} title={playing ? "Pause" : "Play"}>
+			<button type="button" class="audio-play" onclick={toggle} title={playing ? t("audioPlayer.pause") : t("audioPlayer.play")}>
 				{#if playing}
 					<Pause size={14} strokeWidth={2} fill="currentColor" />
 				{:else}
@@ -86,7 +87,7 @@
 				value={currentTime}
 				oninput={seek}
 			/>
-			<button type="button" class="audio-mute" onclick={toggleMute} title={muted ? "Unmute" : "Mute"}>
+			<button type="button" class="audio-mute" onclick={toggleMute} title={muted ? t("audioPlayer.unmute") : t("audioPlayer.mute")}>
 				{#if muted}
 					<VolumeX size={16} strokeWidth={2} />
 				{:else}

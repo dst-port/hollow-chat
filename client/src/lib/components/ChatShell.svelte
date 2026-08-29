@@ -20,6 +20,7 @@
 	import { call } from "$lib/webrtc/call.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
 	import * as api from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 
 	initRichPresenceBridge();
 
@@ -77,7 +78,7 @@
 			})
 			.catch(() => {
 				loaded = true;
-				toast.push("Couldn't load servers");
+				toast.push(t("toast.serverLoadFailed"));
 			});
 	});
 
@@ -150,7 +151,7 @@
 		try {
 			await call.join(token, activeChannel.id, `${activeServer.name} / ${activeChannel.name}`);
 		} catch {
-			toast.push("Couldn't join voice — check microphone permissions");
+			toast.push(t("toast.voiceJoinFailed"));
 		}
 	}
 
@@ -164,9 +165,9 @@
 				serverList.push(entry);
 				createServerOpen = false;
 				selectServer(entry.id);
-				toast.push(`${name} created`);
+				toast.push(t("channelSidebar.channelCreated", { name }));
 			})
-			.catch(() => toast.push("Couldn't create server"));
+			.catch(() => toast.push(t("toast.serverCreateFailed")));
 	}
 
 	function joinServer(server: api.ApiServer) {
@@ -174,7 +175,7 @@
 		if (!serverList.some((s) => s.id === entry.id)) serverList.push(entry);
 		createServerOpen = false;
 		selectServer(entry.id);
-		toast.push(`Joined ${entry.name}`);
+		toast.push(t("toast.serverJoined", { name: entry.name }));
 	}
 
 	function createChannel(name: string, type: ChannelType) {
@@ -191,7 +192,7 @@
 					slowmodeSeconds: channel.slowmode_seconds
 				});
 			})
-			.catch(() => toast.push("Couldn't create channel"));
+			.catch(() => toast.push(t("toast.channelCreateFailed")));
 	}
 
 	function leaveServer() {
@@ -205,9 +206,9 @@
 				serverList = serverList.filter((s) => s.id !== id);
 				activeServerId = serverList[0]?.id ?? null;
 				activeChannelId = activeServerId ? (defaultChannelId(serverList[0]) ?? null) : null;
-				toast.push(`Left ${name}`);
+				toast.push(t("toast.serverLeft", { name }));
 			})
-			.catch(() => toast.push("Couldn't leave server"));
+			.catch(() => toast.push(t("toast.serverLeaveFailed")));
 	}
 </script>
 
@@ -246,7 +247,7 @@
 	{#key activeServerId}
 		<div class="content" in:fade={{ duration: 140 }}>
 			{#if viewport.isMobile && !mobileNavOpen}
-				<button class="mobile-back" onclick={openMobileNav} aria-label="Back">
+				<button class="mobile-back" onclick={openMobileNav} aria-label={t("common.back")}>
 					<ArrowLeft size={18} strokeWidth={2.25} />
 				</button>
 			{/if}

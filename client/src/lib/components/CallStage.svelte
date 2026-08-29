@@ -25,6 +25,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import * as api from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 	import type { Channel, ServerEntry } from "$lib/data/mock";
 
 	let { server, channel, onJoin }: {
@@ -115,8 +116,8 @@
 	<div class="prejoin" transition:fade={{ duration: 140 }}>
 		<div class="prejoin-icon"><Volume2 size={40} strokeWidth={1.5} /></div>
 		<h2>{channel.name}</h2>
-		<p>{server ? "No one is connected to this voice channel from this window." : "Not connected to this call."}</p>
-		<button class="join-btn" onclick={onJoin}>{server ? "Join Voice" : "Join Call"}</button>
+		<p>{server ? t("call.noneConnected") : t("call.notConnected")}</p>
+		<button class="join-btn" onclick={onJoin}>{server ? t("call.joinVoice") : t("call.join")}</button>
 	</div>
 {:else}
 	{@const HeaderQualityIcon = qualityIcon(SELF_KEY)}
@@ -128,7 +129,7 @@
 				<HeaderQualityIcon size={14} strokeWidth={2.25} />
 			</span>
 			<div class="header-spacer"></div>
-			<button class="fullscreen-btn" title={fullscreen ? "Exit fullscreen" : "Fullscreen"} onclick={() => (fullscreen = !fullscreen)}>
+			<button class="fullscreen-btn" title={fullscreen ? t("call.exitFullscreen") : t("call.fullscreen")} onclick={() => (fullscreen = !fullscreen)}>
 				{#if fullscreen}<Minimize2 size={15} strokeWidth={2} />{:else}<Maximize2 size={15} strokeWidth={2} />{/if}
 			</button>
 		</div>
@@ -138,7 +139,7 @@
 				{#if call.screenSharing}
 					<div class="spotlight-tile screen">
 						<video use:attachLocalScreenStream autoplay playsinline muted></video>
-						<span class="tile-name">Your screen</span>
+						<span class="tile-name">{t("call.yourScreen")}</span>
 					</div>
 				{/if}
 				{#each call.participants as participant (participant.userId)}
@@ -206,19 +207,19 @@
 		{/if}
 
 		<div class="controls">
-			<button class="ctrl" class:active-danger={call.muted} aria-label={call.muted ? "Unmute" : "Mute"} onclick={() => call.toggleMute()}>
+			<button class="ctrl" class:active-danger={call.muted} aria-label={call.muted ? t("call.unmute") : t("call.mute")} onclick={() => call.toggleMute()}>
 				{#if call.muted}<MicOff size={18} strokeWidth={2} />{:else}<Mic size={18} strokeWidth={2} />{/if}
 			</button>
-			<button class="ctrl" class:active-danger={call.deafened} aria-label={call.deafened ? "Undeafen" : "Deafen"} onclick={() => call.toggleDeafen()}>
+			<button class="ctrl" class:active-danger={call.deafened} aria-label={call.deafened ? t("call.undeafen") : t("call.deafen")} onclick={() => call.toggleDeafen()}>
 				{#if call.deafened}<HeadphoneOff size={18} strokeWidth={2} />{:else}<Headphones size={18} strokeWidth={2} />{/if}
 			</button>
-			<button class="ctrl" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? "Turn Off Camera" : "Turn On Camera"} onclick={() => call.toggleCamera()}>
+			<button class="ctrl" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")} onclick={() => call.toggleCamera()}>
 				{#if call.cameraEnabled}<Video size={18} strokeWidth={2} />{:else}<VideoOff size={18} strokeWidth={2} />{/if}
 			</button>
-			<button class="ctrl" class:active={call.screenSharing} aria-label={call.screenSharing ? "Stop Sharing" : "Share Your Screen"} onclick={() => call.toggleScreenShare()}>
+			<button class="ctrl" class:active={call.screenSharing} aria-label={call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")} onclick={() => call.toggleScreenShare()}>
 				{#if call.screenSharing}<ScreenShareOff size={18} strokeWidth={2} />{:else}<ScreenShare size={18} strokeWidth={2} />{/if}
 			</button>
-			<button class="ctrl leave" aria-label="Disconnect" onclick={() => call.leave()}>
+			<button class="ctrl leave" aria-label={t("call.disconnect")} onclick={() => call.leave()}>
 				<PhoneOff size={18} strokeWidth={2} />
 			</button>
 		</div>

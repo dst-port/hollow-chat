@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Modal from "$lib/components/Modal.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { src, filename, onCancel, onConfirm }: {
 		src: string;
@@ -74,9 +75,9 @@
 	}
 </script>
 
-<Modal title="Edit image" onClose={onCancel} width={560}>
+<Modal title={t("crop.title")} onClose={onCancel} width={560}>
 	<div class="crop-body">
-		<p class="hint">Drag to select a crop area, or leave it as-is to keep the full image.</p>
+		<p class="hint">{t("crop.hint")}</p>
 		<div
 			class="frame"
 			bind:this={frameEl}
@@ -90,10 +91,10 @@
 			{/if}
 		</div>
 		<div class="actions">
-			<button type="button" class="ghost" onclick={resetSelection} disabled={!rect}>Reset selection</button>
+			<button type="button" class="ghost" onclick={resetSelection} disabled={!rect}>{t("crop.resetSelection")}</button>
 			<div class="spacer"></div>
-			<button type="button" class="ghost" onclick={onCancel}>Cancel</button>
-			<button type="button" class="primary" onclick={confirmCrop}>Apply</button>
+			<button type="button" class="ghost" onclick={onCancel}>{t("common.cancel")}</button>
+			<button type="button" class="primary" onclick={confirmCrop}>{t("common.apply")}</button>
 		</div>
 	</div>
 </Modal>

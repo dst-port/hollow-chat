@@ -2,6 +2,7 @@
 	import { fly } from "svelte/transition";
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import type { Message } from "$lib/data/mock";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { results, query, loading, exhausted, onClose }: {
 		results: Message[];
@@ -17,9 +18,9 @@
 </script>
 
 <div class="popover" use:clickOutside={onClose} transition:fly={{ y: -6, duration: 140 }}>
-	<p class="title">Search Results</p>
+	<p class="title">{t("search.results")}</p>
 	{#if !query.trim()}
-		<p class="empty">Type to search this conversation's history.</p>
+		<p class="empty">{t("search.typePrompt")}</p>
 	{:else if results.length === 0 && loading}
 		<p class="empty">Searching…</p>
 	{:else if results.length === 0}
@@ -37,7 +38,7 @@
 		{#if loading}
 			<p class="empty">Searching further back…</p>
 		{:else if !exhausted}
-			<p class="empty">Showing the most recent matches. Keep typing to narrow it down.</p>
+			<p class="empty">{t("search.recentHint")}</p>
 		{/if}
 	{/if}
 </div>

@@ -6,6 +6,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
+	import { t, tp } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, onViewFullProfile }: {
@@ -66,19 +67,19 @@
 
 		<p class="mutual">
 			<Users size={12} strokeWidth={2} />
-			{mutualFriends.length} Mutual Friend{mutualFriends.length === 1 ? "" : "s"}
+			{tp("profile.full.mutualFriends", mutualFriends.length)}
 		</p>
 
 		{#if profile?.bio}
 			<div class="section">
-				<p class="section-label">About Me</p>
+				<p class="section-label">{t("profile.full.aboutMe")}</p>
 				<p class="bio">{profile.bio}</p>
 			</div>
 		{/if}
 
 		{#if profile?.activity_application}
 			<ActivityCard
-				label="Playing"
+				label={t("profile.full.playing")}
 				application={profile.activity_application}
 				details={profile.activity_details}
 				activityState={profile.activity_state}
@@ -100,13 +101,13 @@
 
 		{#if memberSince}
 			<div class="section">
-				<p class="section-label">Member Since</p>
+				<p class="section-label">{t("profile.full.memberSince")}</p>
 				<p class="member-since"><CalendarDays size={13} strokeWidth={2} /> {memberSince}</p>
 			</div>
 		{/if}
 	</div>
 
-	<button class="view-full" onclick={onViewFullProfile}>View Full Profile</button>
+	<button class="view-full" onclick={onViewFullProfile}>{t("profile.dmPanel.viewFullProfile")}</button>
 </aside>
 
 <style>

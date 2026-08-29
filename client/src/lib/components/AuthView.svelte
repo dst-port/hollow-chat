@@ -7,6 +7,7 @@
 	import { register, login, completeTotpLogin, ApiError } from "$lib/api/client";
 	import { session } from "$lib/stores/session.svelte";
 	import Logo from "$lib/components/Logo.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 
 	type Mode = "login" | "register" | "reveal" | "totp";
 
@@ -44,7 +45,7 @@
 				session.set(result.token, username);
 			}
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : "something went wrong";
+			error = err instanceof ApiError ? err.message : t("auth.error.generic");
 		} finally {
 			loading = false;
 		}
@@ -58,7 +59,7 @@
 			const result = await completeTotpLogin(challengeId, totpCode.trim());
 			if (result.token) session.set(result.token, pendingUsername);
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : "invalid code";
+			error = err instanceof ApiError ? err.message : t("auth.error.invalidCode");
 		} finally {
 			loading = false;
 		}
@@ -75,7 +76,7 @@
 			confirmed = false;
 			mode = "reveal";
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : "something went wrong";
+			error = err instanceof ApiError ? err.message : t("auth.error.generic");
 		} finally {
 			loading = false;
 		}
@@ -95,7 +96,7 @@
 				session.set(result.token, revealedUsername, true);
 			}
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : "something went wrong";
+			error = err instanceof ApiError ? err.message : t("auth.error.generic");
 		} finally {
 			loading = false;
 		}
@@ -119,16 +120,16 @@
 		{#key mode}
 			<div class="pane" in:fly={{ y: 8, duration: 260, easing: cubicOut }}>
 				{#if mode === "login"}
-					<h1>Welcome back</h1>
-					<p class="subtitle">Log in with your username and password.</p>
+					<h1>{t("auth.login.title")}</h1>
+					<p class="subtitle">{t("auth.login.subtitle")}</p>
 
 					<form onsubmit={submitLogin}>
 						<label>
-							Username
+							{t("auth.field.username")}
 							<input type="text" bind:value={username} autocomplete="username" required />
 						</label>
 						<label>
-							Password
+							{t("auth.field.password")}
 							<input
 								type="password"
 								bind:value={password}
@@ -140,23 +141,23 @@
 						{#if error}<p class="error">{error}</p>{/if}
 
 						<button type="submit" disabled={loading}>
-							{loading ? "Logging in…" : "Log in"}
+							{loading ? t("auth.login.submitting") : t("auth.login.submit")}
 						</button>
 					</form>
 
 					<p class="switch">
-						Don't have an account?
+						{t("auth.login.switchPrompt")}
 						<button type="button" class="link" onclick={() => switchMode("register")}>
-							Register
+							{t("auth.login.switchAction")}
 						</button>
 					</p>
 				{:else if mode === "register"}
-					<h1>Create an account</h1>
-					<p class="subtitle">Just a username — no email, no phone.</p>
+					<h1>{t("auth.register.title")}</h1>
+					<p class="subtitle">{t("auth.register.subtitle")}</p>
 
 					<form onsubmit={submitRegister}>
 						<label>
-							Username
+							{t("auth.field.username")}
 							<input
 								type="text"
 								bind:value={username}
@@ -170,23 +171,23 @@
 						{#if error}<p class="error">{error}</p>{/if}
 
 						<button type="submit" disabled={loading}>
-							{loading ? "Creating…" : "Create account"}
+							{loading ? t("auth.register.submitting") : t("auth.register.submit")}
 						</button>
 					</form>
 
 					<p class="switch">
-						Already have an account?
+						{t("auth.register.switchPrompt")}
 						<button type="button" class="link" onclick={() => switchMode("login")}>
-							Log in
+							{t("auth.register.switchAction")}
 						</button>
 					</p>
 				{:else if mode === "totp"}
-					<h1>Two-factor authentication</h1>
-					<p class="subtitle">Enter the 6-digit code from your authenticator app, or a backup code.</p>
+					<h1>{t("auth.totp.title")}</h1>
+					<p class="subtitle">{t("auth.totp.subtitle")}</p>
 
 					<form onsubmit={submitTotp}>
 						<label>
-							Code
+							{t("auth.field.code")}
 							<input
 								type="text"
 								bind:value={totpCode}
@@ -199,26 +200,25 @@
 						{#if error}<p class="error">{error}</p>{/if}
 
 						<button type="submit" disabled={loading || !totpCode.trim()}>
-							{loading ? "Verifying…" : "Verify"}
+							{loading ? t("auth.totp.submitting") : t("auth.totp.submit")}
 						</button>
 					</form>
 
 					<p class="switch">
 						<button type="button" class="link" onclick={() => switchMode("login")}>
-							Back to login
+							{t("auth.totp.back")}
 						</button>
 					</p>
 				{:else}
-					<h1>Save your password now</h1>
+					<h1>{t("auth.reveal.title")}</h1>
 					<p class="subtitle warning">
 						<TriangleAlert size={14} strokeWidth={2.5} />
-						This is the only time we'll show it. There is no email or phone number to recover
-						it — if you lose it, the account is gone for good.
+						{t("auth.reveal.warning")}
 					</p>
 
 					<div class="password-box">
 						<code>{revealedPassword}</code>
-						<button type="button" class="copy" onclick={copyPassword} title="Copy password">
+						<button type="button" class="copy" onclick={copyPassword} title={t("common.copy")}>
 							{#if copied}
 								<Check size={15} strokeWidth={2.5} />
 							{:else}
@@ -232,13 +232,13 @@
 						<span class="checkbox">
 							{#if confirmed}<Check size={12} strokeWidth={3} />{/if}
 						</span>
-						I saved my password
+						{t("auth.reveal.confirm")}
 					</label>
 
 					{#if error}<p class="error">{error}</p>{/if}
 
 					<button type="button" disabled={!confirmed || loading} onclick={continueAfterReveal}>
-						{loading ? "Continuing…" : "Continue"}
+						{loading ? t("auth.reveal.continuing") : t("auth.reveal.continue")}
 					</button>
 				{/if}
 			</div>

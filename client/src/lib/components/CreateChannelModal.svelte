@@ -2,6 +2,7 @@
 	import Hash from "@lucide/svelte/icons/hash";
 	import Volume2 from "@lucide/svelte/icons/volume-2";
 	import Modal from "$lib/components/Modal.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 	import type { ChannelType } from "$lib/data/mock";
 
 	let { onClose, onCreate }: {
@@ -20,28 +21,28 @@
 	}
 </script>
 
-<Modal title="Create channel" {onClose}>
+<Modal title={t("channel.create.title")} {onClose}>
 	<form onsubmit={submit}>
 		<div class="type-picker">
 			<button type="button" class="type" class:active={type === "text"} onclick={() => (type = "text")}>
 				<Hash size={18} strokeWidth={2} />
-				Text
+				{t("channel.create.typeText")}
 			</button>
 			<button type="button" class="type" class:active={type === "voice"} onclick={() => (type = "voice")}>
 				<Volume2 size={18} strokeWidth={2} />
-				Voice
+				{t("channel.create.typeVoice")}
 			</button>
 		</div>
 
 		<label>
-			Channel name
+			{t("channel.create.nameLabel")}
 			<div class="input-wrap">
 				{#if type === "text"}<Hash size={16} strokeWidth={2} />{:else}<Volume2 size={16} strokeWidth={2} />{/if}
-				<input type="text" bind:value={name} required maxlength="32" placeholder="new-channel" />
+				<input type="text" bind:value={name} required maxlength="32" placeholder={t("channel.create.namePlaceholder")} />
 			</div>
 		</label>
 
-		<button type="submit" disabled={!name.trim()}>Create Channel</button>
+		<button type="submit" disabled={!name.trim()}>{t("channel.create.submit")}</button>
 	</form>
 </Modal>
 

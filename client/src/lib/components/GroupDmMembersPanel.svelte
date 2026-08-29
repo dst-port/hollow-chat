@@ -4,6 +4,7 @@
 	import { colorForName } from "$lib/utils/color";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
+	import { t, tp } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 
 	let { dm, onChanged, onLeft }: {
@@ -25,7 +26,7 @@
 			onChanged(updated);
 			addDraft = "";
 		} catch (err) {
-			toast.push(err instanceof api.ApiError ? err.message : "Couldn't add member");
+			toast.push(err instanceof api.ApiError ? err.message : t("toast.memberAddFailed"));
 		} finally {
 			busy = false;
 		}
@@ -39,7 +40,7 @@
 			await api.leaveDm(token, dm.id);
 			onLeft();
 		} catch {
-			toast.push("Couldn't leave group");
+			toast.push(t("toast.groupLeaveFailed"));
 		} finally {
 			busy = false;
 		}
@@ -47,8 +48,8 @@
 </script>
 
 <aside class="panel">
-	<p class="title">{dm.name || "Group DM"}</p>
-	<p class="count">{dm.members.length} members</p>
+	<p class="title">{dm.name || t("groupDm.panel.fallbackName")}</p>
+	<p class="count">{tp("members.count", dm.members.length)}</p>
 
 	<div class="members">
 		{#each dm.members as member (member.id)}
@@ -62,7 +63,7 @@
 	</div>
 
 	<form class="add-form" onsubmit={(e) => (e.preventDefault(), addMember())}>
-		<input type="text" placeholder="Add friend by username" bind:value={addDraft} maxlength="32" />
+		<input type="text" placeholder={t("groupDm.panel.addPlaceholder")} bind:value={addDraft} maxlength="32" />
 		<button type="submit" disabled={!addDraft.trim() || busy}>
 			<UserPlus size={14} strokeWidth={2.25} />
 		</button>
@@ -70,7 +71,7 @@
 
 	<button type="button" class="leave-btn" onclick={leave} disabled={busy}>
 		<LogOut size={14} strokeWidth={2.25} />
-		Leave Group
+		{t("groupDm.panel.leave")}
 	</button>
 </aside>
 

@@ -36,6 +36,7 @@
 	import ThreadPanel from "$lib/components/ThreadPanel.svelte";
 	import { emojify } from "$lib/actions/emojify";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { t, tp } from "$lib/i18n/index.svelte";
 	import { notifyDesktop } from "$lib/utils/notify";
 	import { playNotificationSound } from "$lib/utils/sound";
 	import { session } from "$lib/stores/session.svelte";
@@ -604,7 +605,7 @@
 					: await loadAttachmentBlobUrl(token, attachment.id, attachment.filename);
 			triggerDownload(url, attachment.filename);
 		} catch {
-			toast.push("Couldn't download file");
+			toast.push(t("toast.downloadFailed"));
 		}
 	}
 
@@ -803,11 +804,11 @@
 			}
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 413) {
-				toast.push("File is too large for your plan (50MB free / 2GB premium)");
+				toast.push(t("toast.fileTooLarge"));
 			} else if (err instanceof ApiError && err.status === 429) {
-				toast.push(err.message || "You're sending messages too fast — slow down");
+				toast.push(err.message || t("toast.sendingTooFast"));
 			} else {
-				toast.push("Message failed to send");
+				toast.push(t("toast.messageSendFailed"));
 			}
 		} finally {
 			uploading = false;
@@ -832,7 +833,7 @@
 
 	function copyText(message: Message) {
 		navigator.clipboard.writeText(message.content);
-		toast.push("Copied");
+		toast.push(t("toast.copied"));
 	}
 
 	function isMine(message: Message) {
@@ -847,10 +848,10 @@
 		try {
 			if (next) await apiPinMessage(token, scope, channel.id, message.id);
 			else await apiUnpinMessage(token, scope, channel.id, message.id);
-			toast.push(next ? "Message pinned" : "Message unpinned");
+			toast.push(next ? t("toast.messagePinned") : t("toast.messageUnpinned"));
 		} catch {
 			message.pinned = !next;
-			toast.push("Couldn't update pin");
+			toast.push(t("toast.pinUpdateFailed"));
 		}
 	}
 
@@ -861,10 +862,10 @@
 		messages = messages.filter((m) => m.id !== message.id);
 		try {
 			await apiDeleteMessage(token, scope, channel.id, message.id);
-			toast.push("Message deleted");
+			toast.push(t("toast.messageDeleted"));
 		} catch {
 			messages = backup;
-			toast.push("Couldn't delete message");
+			toast.push(t("toast.messageDeleteFailed"));
 		}
 	}
 
@@ -890,7 +891,7 @@
 			if (wasReacted) await apiRemoveReaction(token, scope, channel.id, message.id, emoji);
 			else await apiAddReaction(token, scope, channel.id, message.id, emoji);
 		} catch {
-			toast.push("Couldn't update reaction");
+			toast.push(t("toast.reactionFailed"));
 		}
 	}
 
@@ -951,7 +952,7 @@
 			editingId = null;
 			editDraft = "";
 		} catch {
-			toast.push("Couldn't edit message");
+			toast.push(t("toast.editFailed"));
 		}
 	}
 
@@ -961,7 +962,7 @@
 		try {
 			await call.join(token, channel.id, channel.name);
 		} catch {
-			toast.push("Couldn't start the call — check microphone permissions");
+			toast.push(t("toast.callStartFailed"));
 		}
 	}
 
@@ -981,7 +982,7 @@
 			openThreadId = thread.id;
 			threadsOpen = true;
 		} catch {
-			toast.push("Couldn't create thread");
+			toast.push(t("toast.threadCreateFailed"));
 		}
 	}
 
@@ -1075,7 +1076,7 @@
 <div class="chat-row">
 <section
 	class="chat"
-	aria-label="Message area"
+	aria-label={t("chat.messageArea")}
 	ondragenter={onChatDragEnter}
 	ondragover={onChatDragOver}
 	ondragleave={onChatDragLeave}
@@ -1085,8 +1086,8 @@
 		<div class="drop-overlay">
 			<div class="drop-card">
 				<UploadCloud size={30} strokeWidth={1.75} class="drop-card-bg-icon" />
-				<h3>Upload to {isDm ? channel.name : `#${channel.name}`}</h3>
-				<p>You can add comments before uploading. Hold shift to upload directly.</p>
+				<h3>{t("chat.dropTitle", { target: isDm ? channel.name : `#${channel.name}` })}</h3>
+				<p>{t("chat.dropBody")}</p>
 				<span class="drop-card-badge"><FileIcon size={18} strokeWidth={2} /></span>
 			</div>
 		</div>
@@ -1103,12 +1104,12 @@
 		<div class="spacer"></div>
 		<div class="header-icons">
 			{#if isDm}
-				<button class="icon-button" title="Voice call" onclick={startDmCall}>
+				<button class="icon-button" title={t("chat.header.voiceCall")} onclick={startDmCall}>
 					<Phone size={17} strokeWidth={2} />
 				</button>
 			{/if}
 			<div class="anchor">
-				<button class="icon-button" title="Pinned messages" onclick={openPinned}>
+				<button class="icon-button" title={t("chat.header.pinned")} onclick={openPinned}>
 					<Pin size={17} strokeWidth={2} />
 				</button>
 				{#if pinnedOpen}
@@ -1119,15 +1120,15 @@
 				<button
 					class="icon-button"
 					class:active={muted}
-					title="Notification settings"
+					title={t("chat.header.notifications")}
 					onclick={() => (notificationsOpen = !notificationsOpen)}
 				>
 					<Bell size={17} strokeWidth={2} />
 				</button>
 				{#if notificationsOpen}
-					<InfoPopover title="Notifications" onClose={() => (notificationsOpen = false)}>
+					<InfoPopover title={t("chat.header.notificationsTitle")} onClose={() => (notificationsOpen = false)}>
 						<div class="toggle-row">
-							<span>Mute channel</span>
+							<span>{t("chat.header.muteChannel")}</span>
 							<label class="switch">
 								<input type="checkbox" bind:checked={muted} />
 								<span class="track"><span class="thumb"></span></span>
@@ -1137,14 +1138,14 @@
 				{/if}
 			</div>
 			{#if !isDm}
-				<button class="icon-button" class:active={threadsOpen} title="Threads" onclick={openThreads}>
+				<button class="icon-button" class:active={threadsOpen} title={t("chat.header.threads")} onclick={openThreads}>
 					<MessagesSquare size={17} strokeWidth={2} />
 				</button>
-				<button class="icon-button" title="Members" onclick={onToggleMembers}>
+				<button class="icon-button" title={t("chat.header.members")} onclick={onToggleMembers}>
 					<Users size={17} strokeWidth={2} />
 				</button>
 			{:else}
-				<button class="icon-button" title="Profile" onclick={onToggleMembers}>
+				<button class="icon-button" title={t("chat.header.profile")} onclick={onToggleMembers}>
 					<Users size={17} strokeWidth={2} />
 				</button>
 			{/if}
@@ -1153,7 +1154,7 @@
 					<Search size={13} strokeWidth={2.5} />
 					<input
 						type="text"
-						placeholder="Search"
+						placeholder={t("common.search")}
 						value={searchQuery}
 						oninput={(e) => onSearchInput(e.currentTarget.value)}
 						onfocus={() => (searchOpen = true)}
@@ -1170,12 +1171,12 @@
 				{/if}
 			</div>
 			<div class="anchor">
-				<button class="icon-button" title="Inbox" onclick={() => (inboxOpen = !inboxOpen)}>
+				<button class="icon-button" title={t("chat.header.inbox")} onclick={() => (inboxOpen = !inboxOpen)}>
 					<Inbox size={17} strokeWidth={2} />
 				</button>
 				{#if inboxOpen}
-					<InfoPopover title="Inbox" onClose={() => (inboxOpen = false)}>
-						<p class="inbox-empty">You're all caught up.</p>
+					<InfoPopover title={t("chat.header.inbox")} onClose={() => (inboxOpen = false)}>
+						<p class="inbox-empty">{t("chat.header.inboxEmpty")}</p>
 					</InfoPopover>
 				{/if}
 			</div>
@@ -1195,10 +1196,10 @@
 				</div>
 				{#if isDm}
 					<h2>{channel.name}</h2>
-					<p>This is the start of your conversation with {channel.name}.</p>
+					<p>{t("chat.welcome.dmBody", { name: channel.name })}</p>
 				{:else}
-					<h2>Welcome to #{channel.name}</h2>
-					<p>This is the start of the channel.</p>
+					<h2>{t("chat.welcome.channelTitle", { name: channel.name })}</h2>
+					<p>{t("chat.welcome.channelBody")}</p>
 				{/if}
 			</div>
 		{/if}
@@ -1242,7 +1243,7 @@
 									onkeydown={(e) => e.key === "Enter" && openAuthorProfile(message.author)}
 								>{displayNameFor(message.author)}</span>
 								<span class="time">{formatMessageTime(message)}</span>
-								{#if message.edited}<span class="edited-flag">(edited)</span>{/if}
+								{#if message.edited}<span class="edited-flag">{t("chat.edited")}</span>{/if}
 								{#if message.pinned}<Pin size={11} strokeWidth={2.5} class="pinned-flag" />{/if}
 							</p>
 						{/if}
@@ -1250,20 +1251,20 @@
 							<form class="edit-form" onsubmit={(e) => (e.preventDefault(), saveEdit(message))}>
 								<input type="text" bind:value={editDraft} />
 								<div class="edit-actions">
-									<button type="button" class="ghost-small" onclick={cancelEdit}>Cancel</button>
-									<button type="submit" class="primary-small" disabled={!editDraft.trim()}>Save</button>
+									<button type="button" class="ghost-small" onclick={cancelEdit}>{t("common.cancel")}</button>
+									<button type="submit" class="primary-small" disabled={!editDraft.trim()}>{t("common.save")}</button>
 								</div>
 							</form>
 						{:else if message.content}
 							<p class="content" use:emojify>
 								{@html renderMarkdown(message.content, session.username ?? undefined, customEmojiMap)}
-								{#if message.edited && isGrouped(index)}<span class="edited-flag">(edited)</span>{/if}
+								{#if message.edited && isGrouped(index)}<span class="edited-flag">{t("chat.edited")}</span>{/if}
 							</p>
 							{@const previewUrl = firstUrl(message.content)}
 							{#if previewUrl && linkPreviews[previewUrl] && !dismissedPreviews.has(message.id)}
 								{@const preview = linkPreviews[previewUrl]}
 								<div class="link-preview">
-									<button class="link-preview-close" onclick={() => dismissedPreviews.add(message.id)} title="Dismiss preview">
+									<button class="link-preview-close" onclick={() => dismissedPreviews.add(message.id)} title={t("chat.dismissPreview")}>
 										<X size={12} strokeWidth={2} />
 									</button>
 									<div class="link-preview-body">
@@ -1289,7 +1290,7 @@
 									<FileIcon size={20} strokeWidth={2} />
 									<span class="attachment-info">
 										<span class="attachment-name">{displayFilename(message.attachment.filename)}</span>
-										<span class="attachment-size">Expired — no longer stored on the server</span>
+										<span class="attachment-size">{t("chat.attachmentExpired")}</span>
 									</span>
 								</div>
 							{:else if message.attachment.mimeType.startsWith("image/") && imageUrls[message.attachment.id]}
@@ -1313,7 +1314,7 @@
 										<img src={imageUrls[message.attachment.id]} alt="" />
 										<span class="spoiler-overlay">
 											<EyeOff size={20} strokeWidth={2} />
-											Spoiler — click to reveal
+											{t("chat.spoilerReveal")}
 										</span>
 									</button>
 								{/if}
@@ -1323,7 +1324,7 @@
 										<video src={imageUrls[message.attachment.id]} controls></video>
 										<button
 											class="video-expand"
-											title="Open larger"
+											title={t("chat.openLarger")}
 											onclick={() =>
 												(lightbox = {
 													src: imageUrls[message.attachment!.id],
@@ -1342,7 +1343,7 @@
 										<video src={imageUrls[message.attachment.id]} muted></video>
 										<span class="spoiler-overlay">
 											<EyeOff size={20} strokeWidth={2} />
-											Spoiler — click to reveal
+											{t("chat.spoilerReveal")}
 										</span>
 									</button>
 								{/if}
@@ -1364,7 +1365,7 @@
 									{/if}
 									<span class="attachment-info">
 										<span class="attachment-name">
-											{revealed ? displayFilename(message.attachment.filename) : "Spoiler — click to reveal"}
+											{revealed ? displayFilename(message.attachment.filename) : t("chat.spoilerReveal")}
 										</span>
 										{#if revealed}<span class="attachment-size">{formatSize(message.attachment.sizeBytes)}</span>{/if}
 									</span>
@@ -1390,17 +1391,17 @@
 
 					<div class="hover-actions">
 						{#each quickEmoji as emoji (emoji)}
-							<button class="icon-button small quick-react" use:emojify title={`React with ${emoji}`} onclick={() => react(message, emoji)}>
+							<button class="icon-button small quick-react" use:emojify title={t("chat.reactWith", { emoji })} onclick={() => react(message, emoji)}>
 								{emoji}
 							</button>
 						{/each}
-						<button class="icon-button small" title="Reply" onclick={() => (replyingTo = message)}>
+						<button class="icon-button small" title={t("chat.reply")} onclick={() => (replyingTo = message)}>
 							<Reply size={15} strokeWidth={2} />
 						</button>
 						<div class="anchor">
 							<button
 								class="icon-button small"
-								title="More"
+								title={t("chat.more")}
 								onclick={() => (openMenuId = openMenuId === message.id ? null : message.id)}
 							>
 								<MoreHorizontal size={15} strokeWidth={2} />
@@ -1430,7 +1431,7 @@
 	{#if replyingTo}
 		<div class="reply-banner" transition:fly={{ y: 8, duration: 140 }}>
 			<Reply size={14} strokeWidth={2} />
-			<span>Replying to <strong>{displayNameFor(replyingTo.author)}</strong></span>
+			<span>{t("chat.replyingTo")} <strong>{displayNameFor(replyingTo.author)}</strong></span>
 			<button class="cancel-reply" onclick={() => (replyingTo = null)}>
 				<X size={14} strokeWidth={2} />
 			</button>
@@ -1442,8 +1443,7 @@
 			<FileIcon size={18} strokeWidth={2} />
 			<div class="upload-banner-body">
 				<span class="upload-banner-title">
-					Uploading {uploadingTotalCount === 1 ? "1 File" : `${uploadingTotalCount} Files`}
-					{" \u2014 "}{formatSize(uploadingTotalBytes)}
+					{tp("chat.uploadingCount", uploadingTotalCount, { size: formatSize(uploadingTotalBytes) })}
 				</span>
 				<div class="upload-banner-track">
 					<div
@@ -1468,7 +1468,7 @@
 							<FileIcon size={22} strokeWidth={1.5} />
 						{/if}
 						{#if isSpoiler}
-							<span class="spoiler-tag">Spoiler</span>
+							<span class="spoiler-tag">{t("chat.spoilerTag")}</span>
 						{/if}
 						{#if uploading}
 							<div class="attachment-uploading">
@@ -1477,19 +1477,19 @@
 						{:else}
 							<div class="attachment-hover-actions">
 								{#if previewUrl}
-									<button type="button" title="Edit" onclick={() => openCrop(i)}>
+									<button type="button" title={t("common.edit")} onclick={() => openCrop(i)}>
 										<Pencil size={16} strokeWidth={2} />
 									</button>
 									<button
 										type="button"
 										class:active={isSpoiler}
-										title={isSpoiler ? "Unmark spoiler" : "Mark as spoiler"}
+										title={isSpoiler ? t("chat.unmarkSpoiler") : t("chat.markSpoiler")}
 										onclick={() => toggleSpoiler(i)}
 									>
 										<EyeOff size={16} strokeWidth={2} />
 									</button>
 								{/if}
-								<button type="button" title="Remove" onclick={() => clearPendingFile(i)}>
+								<button type="button" title={t("common.remove")} onclick={() => clearPendingFile(i)}>
 									<Trash2 size={16} strokeWidth={2} />
 								</button>
 							</div>
@@ -1534,7 +1534,7 @@
 			onchange={onFileChosen}
 			style="display: none;"
 		/>
-		<button type="button" class="attach" title="Upload a file" onclick={pickFile}>
+		<button type="button" class="attach" title={t("chat.uploadFile")} onclick={pickFile}>
 			<Paperclip size={18} strokeWidth={2} />
 		</button>
 		<div class="anchor composer-input-wrap">
@@ -1572,7 +1572,9 @@
 			<input
 				type="text"
 				bind:this={composerInputEl}
-				placeholder={isDm ? `Message ${channel.name}` : `Message #${channel.name}`}
+				placeholder={isDm
+					? t("chat.composer.placeholderDm", { name: channel.name })
+					: t("chat.composer.placeholderChannel", { name: channel.name })}
 				bind:value={draft}
 				onpaste={onComposerPaste}
 				oninput={onComposerInput}
@@ -1580,7 +1582,7 @@
 			/>
 		</div>
 		<div class="anchor">
-			<button type="button" class="emoji-toggle" title="Emoji" onclick={() => (composerEmojiOpen = !composerEmojiOpen)}>
+			<button type="button" class="emoji-toggle" title={t("chat.emoji")} onclick={() => (composerEmojiOpen = !composerEmojiOpen)}>
 				<Smile size={18} strokeWidth={2} />
 			</button>
 			{#if composerEmojiOpen}

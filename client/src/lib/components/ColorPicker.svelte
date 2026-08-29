@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { clickOutside } from "$lib/actions/clickOutside";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { value = $bindable(), onCommit }: {
 		value: string;
@@ -192,7 +193,7 @@
 </script>
 
 <div class="picker">
-	<button class="swatch" style:background={value} onclick={() => { hexDraft = value; open = !open; }} title="Choose color"></button>
+	<button class="swatch" style:background={value} onclick={() => { hexDraft = value; open = !open; }} title={t("colorPicker.chooseColor")}></button>
 	{#if open}
 		<div class="panel" use:clickOutside={() => (open = false)}>
 			<div class="wheel-wrap">

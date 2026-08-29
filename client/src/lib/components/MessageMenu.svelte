@@ -8,6 +8,7 @@
 	import MessagesSquare from "@lucide/svelte/icons/messages-square";
 	import Flag from "@lucide/svelte/icons/flag";
 	import { clickOutside } from "$lib/actions/clickOutside";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { pinned, canEdit, canDelete, canReport, onClose, onCopy, onTogglePin, onEdit, onDelete, onCreateThread, onReport }: {
 		pinned: boolean;
@@ -33,7 +34,7 @@
 		}}
 	>
 		<Copy size={14} strokeWidth={2} />
-		Copy Text
+		{t("msgMenu.copyText")}
 	</button>
 	<button
 		class="item"
@@ -43,7 +44,7 @@
 		}}
 	>
 		{#if pinned}<PinOff size={14} strokeWidth={2} />{:else}<Pin size={14} strokeWidth={2} />{/if}
-		{pinned ? "Unpin Message" : "Pin Message"}
+		{pinned ? t("msgMenu.unpinMessage") : t("msgMenu.pinMessage")}
 	</button>
 	{#if onCreateThread}
 		<button
@@ -54,7 +55,7 @@
 			}}
 		>
 			<MessagesSquare size={14} strokeWidth={2} />
-			Create Thread
+			{t("msgMenu.createThread")}
 		</button>
 	{/if}
 	{#if canEdit && onEdit}
@@ -66,7 +67,7 @@
 			}}
 		>
 			<SquarePen size={14} strokeWidth={2} />
-			Edit Message
+			{t("msgMenu.editMessage")}
 		</button>
 	{/if}
 	{#if canDelete && onDelete}
@@ -78,7 +79,7 @@
 			}}
 		>
 			<Trash2 size={14} strokeWidth={2} />
-			Delete Message
+			{t("msgMenu.deleteMessage")}
 		</button>
 	{/if}
 	{#if canReport && onReport}
@@ -90,7 +91,7 @@
 			}}
 		>
 			<Flag size={14} strokeWidth={2} />
-			Report Message
+			{t("msgMenu.reportMessage")}
 		</button>
 	{/if}
 </div>

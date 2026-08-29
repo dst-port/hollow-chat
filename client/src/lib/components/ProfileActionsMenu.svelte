@@ -12,6 +12,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { packPayload } from "$lib/crypto/messagePayload";
 	import { encryptForPeer } from "$lib/crypto/dm";
+	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 
 	const MENU_WIDTH = 210;
@@ -39,7 +40,7 @@
 
 	function copyUserId() {
 		navigator.clipboard.writeText(member.id);
-		toast.push("User ID copied");
+		toast.push(t("profile.actions.toast.userIdCopied"));
 		onClose();
 	}
 
@@ -49,7 +50,7 @@
 	}
 
 	function ignoreUser() {
-		toast.push("Ignore isn't available yet");
+		toast.push(t("profile.actions.toast.ignoreUnavailable"));
 		onClose();
 	}
 
@@ -58,13 +59,13 @@
 		if (!token) return;
 		api
 			.blockUser(token, member.id)
-			.then(() => toast.push(`Blocked ${member.name}`))
-			.catch(() => toast.push("Couldn't block user"));
+			.then(() => toast.push(t("profile.actions.toast.blocked", { name: member.name })))
+			.catch(() => toast.push(t("profile.actions.toast.blockFailed")));
 		onClose();
 	}
 
 	function reportProfile() {
-		toast.push("Profile reports aren't available yet");
+		toast.push(t("profile.actions.toast.reportUnavailable"));
 		onClose();
 	}
 
@@ -125,12 +126,12 @@
 			const { code } = await api.getServerInvite(token, server.id);
 			const link = `hollowchat.org/invite/${code}`;
 			const dm = await api.openDm(token, member.name);
-			const packed = packPayload(`Join ${server.name}: ${link}`);
+			const packed = packPayload(t("profile.actions.inviteMessage", { server: server.name, link }));
 			const payload = await encryptForPeer(token, myUsername, member.name, packed);
 			await api.sendDmMessage(token, dm.id, payload);
-			toast.push(`Invite sent to ${member.name}`);
+			toast.push(t("profile.actions.toast.inviteSent", { name: member.name }));
 		} catch {
-			toast.push("Couldn't send invite");
+			toast.push(t("profile.actions.toast.inviteFailed"));
 		} finally {
 			sendingInviteTo = null;
 			inviteOpen = false;
@@ -149,12 +150,12 @@
 >
 	<button class="menu-item" onclick={viewFullProfile}>
 		<Eye size={14} strokeWidth={2} />
-		View Full Profile
+		{t("profile.actions.viewFullProfile")}
 	</button>
 	{#if !isSelf}
 		<button bind:this={inviteButtonEl} class="menu-item" class:active={inviteOpen} onclick={toggleInvite}>
 			<UserPlus size={14} strokeWidth={2} />
-			Invite to Server
+			{t("profile.actions.inviteToServer")}
 			<ChevronRight size={13} strokeWidth={2} class="chevron" />
 		</button>
 
@@ -162,18 +163,18 @@
 
 		<button class="menu-item" onclick={ignoreUser}>
 			<EyeOff size={14} strokeWidth={2} />
-			Ignore
+			{t("profile.actions.ignore")}
 		</button>
 
 		<div class="divider"></div>
 
 		<button class="menu-item danger" onclick={blockUser}>
 			<Ban size={14} strokeWidth={2} />
-			Block
+			{t("profile.actions.block")}
 		</button>
 		<button class="menu-item danger" onclick={reportProfile}>
 			<Flag size={14} strokeWidth={2} />
-			Report User Profile
+			{t("profile.actions.reportProfile")}
 		</button>
 	{/if}
 
@@ -181,7 +182,7 @@
 
 	<button class="menu-item" onclick={copyUserId}>
 		<IdCard size={14} strokeWidth={2} />
-		Copy User ID
+		{t("profile.actions.copyUserId")}
 	</button>
 </div>
 
@@ -194,13 +195,13 @@
 		transition:fly={{ x: -4, duration: 120 }}
 	>
 		{#if inviteLoading}
-			<p class="submenu-hint">Loading your servers…</p>
+			<p class="submenu-hint">{t("profile.actions.loadingServers")}</p>
 		{:else if !inviteServers || inviteServers.length === 0}
-			<p class="submenu-hint">No servers you can invite from</p>
+			<p class="submenu-hint">{t("profile.actions.noServers")}</p>
 		{:else}
 			{#each inviteServers as server (server.id)}
 				<button class="menu-item" disabled={sendingInviteTo === server.id} onclick={() => sendInvite(server)}>
-					{sendingInviteTo === server.id ? "Sending…" : server.name}
+					{sendingInviteTo === server.id ? t("profile.actions.sending") : server.name}
 				</button>
 			{/each}
 		{/if}

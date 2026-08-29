@@ -13,6 +13,7 @@
 	import Badges from "$lib/components/Badges.svelte";
 	import ActivityCard from "$lib/components/ActivityCard.svelte";
 	import StatusModal from "$lib/components/StatusModal.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, anchor, onEditProfile, onClose }: {
@@ -55,19 +56,19 @@
 		presenceMenuOpen = !presenceMenuOpen;
 	}
 
-	const PRESENCE_OPTIONS: { value: api.PresenceState; label: string; description?: string }[] = [
-		{ value: "online", label: "Online" },
-		{ value: "idle", label: "Idle" },
-		{ value: "dnd", label: "Do Not Disturb", description: "You will not receive desktop notifications" },
-		{ value: "invisible", label: "Invisible", description: "You will appear offline" }
-	];
+	const PRESENCE_OPTIONS = $derived<{ value: api.PresenceState; label: string; description?: string }[]>([
+		{ value: "online", label: t("presence.online") },
+		{ value: "idle", label: t("profile.own.idle") },
+		{ value: "dnd", label: t("presence.dnd"), description: t("presence.dndHint") },
+		{ value: "invisible", label: t("presence.invisible"), description: t("presence.invisibleHint") }
+	]);
 
-	const PRESENCE_LABELS: Record<api.PresenceState, string> = {
-		online: "Online",
-		idle: "Idle",
-		dnd: "Do Not Disturb",
-		invisible: "Invisible"
-	};
+	const PRESENCE_LABELS = $derived<Record<api.PresenceState, string>>({
+		online: t("presence.online"),
+		idle: t("profile.own.idle"),
+		dnd: t("presence.dnd"),
+		invisible: t("presence.invisible")
+	});
 
 	async function pickPresence(value: api.PresenceState) {
 		const token = session.token;
@@ -76,7 +77,7 @@
 		try {
 			profileStore.set(await api.setPresence(token, value));
 		} catch {
-			toast.push("Couldn't change status");
+			toast.push(t("profile.own.toast.presenceFailed"));
 		}
 	}
 
@@ -87,7 +88,7 @@
 			const updated = await api.updateProfile(token, { status_text: "", status_clear_minutes: 0 });
 			profileStore.set(updated);
 		} catch {
-			toast.push("Couldn't clear status");
+			toast.push(t("status.toast.clearFailed"));
 		}
 	}
 
@@ -108,7 +109,7 @@
 
 	function copyId() {
 		navigator.clipboard.writeText(username);
-		toast.push("User ID copied");
+		toast.push(t("profile.actions.toast.userIdCopied"));
 	}
 
 	function editProfile() {
@@ -140,10 +141,10 @@
 			<div class="status-bubble" transition:fly={{ y: 4, duration: 140 }}>
 				{profile.status_text}
 				<div class="status-bubble-actions">
-					<button class="bubble-action" title="Edit status" onclick={() => (statusModalOpen = true)}>
+					<button class="bubble-action" title={t("profile.own.editStatus")} onclick={() => (statusModalOpen = true)}>
 						<Pencil size={11} strokeWidth={2.5} />
 					</button>
-					<button class="bubble-action" title="Clear status" onclick={quickClearStatus}>
+					<button class="bubble-action" title={t("profile.own.clearStatus")} onclick={quickClearStatus}>
 						<Trash2 size={11} strokeWidth={2.5} />
 					</button>
 				</div>
@@ -160,13 +161,13 @@
 		</p>
 
 		<div class="card">
-			<p class="card-label">About me</p>
-			<p class="card-text">{profile?.bio || "No bio yet."}</p>
+			<p class="card-label">{t("profile.own.aboutMe")}</p>
+			<p class="card-text">{profile?.bio || t("profile.own.noBio")}</p>
 		</div>
 
 		{#if profile?.activity_application}
 			<ActivityCard
-				label="Playing"
+				label={t("profile.full.playing")}
 				application={profile.activity_application}
 				details={profile.activity_details}
 				activityState={profile.activity_state}
@@ -181,13 +182,13 @@
 
 		<button class="cta" onclick={editProfile}>
 			<Pencil size={16} strokeWidth={2.25} />
-			Edit Profile
+			{t("settings.editProfile")}
 		</button>
 
 		<div class="list">
 			<button class="list-row" onclick={() => (statusModalOpen = true)}>
 				<SmilePlus size={17} strokeWidth={2} class="list-row-icon" />
-				<span class="list-row-label">{profile?.status_text ? "Edit Status" : "Set Status"}</span>
+				<span class="list-row-label">{profile?.status_text ? t("profile.own.editStatus") : t("profile.own.setStatus")}</span>
 			</button>
 
 			<div class="list-row-wrapper">
@@ -223,7 +224,7 @@
 
 			<button class="list-row last" onclick={copyId}>
 				<IdCard size={17} strokeWidth={2} class="list-row-icon" />
-				<span class="list-row-label">Copy User ID</span>
+				<span class="list-row-label">{t("profile.actions.copyUserId")}</span>
 			</button>
 		</div>
 	</div>

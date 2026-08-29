@@ -5,6 +5,7 @@
 	import Minus from "@lucide/svelte/icons/minus";
 	import Square from "@lucide/svelte/icons/square";
 	import X from "@lucide/svelte/icons/x";
+	import { t } from "$lib/i18n/index.svelte";
 
 	const appWindow = getCurrentWindow();
 	let os = $state("windows");
@@ -42,10 +43,10 @@
 <div class="titlebar" class:mac={os === "macos"} onmousedown={startDrag}>
 	{#if os === "macos"}
 		<div class="traffic-lights">
-			<button class="tl close" onmousedown={stopDrag} onclick={close} aria-label="Close"></button>
-			<button class="tl minimize" onmousedown={stopDrag} onclick={minimize} aria-label="Minimize"
+			<button class="tl close" onmousedown={stopDrag} onclick={close} aria-label={t("common.close")}></button>
+			<button class="tl minimize" onmousedown={stopDrag} onclick={minimize} aria-label={t("titleBar.minimize")}
 			></button>
-			<button class="tl maximize" onmousedown={stopDrag} onclick={toggleMaximize} aria-label="Maximize"
+			<button class="tl maximize" onmousedown={stopDrag} onclick={toggleMaximize} aria-label={t("titleBar.maximize")}
 			></button>
 		</div>
 		<div class="titlebar-title">HollowChat</div>
@@ -53,13 +54,13 @@
 	{:else}
 		<div class="titlebar-title">HollowChat</div>
 		<div class="titlebar-controls">
-			<button onmousedown={stopDrag} onclick={minimize} aria-label="Minimize">
+			<button onmousedown={stopDrag} onclick={minimize} aria-label={t("titleBar.minimize")}>
 				<Minus size={15} />
 			</button>
-			<button onmousedown={stopDrag} onclick={toggleMaximize} aria-label="Maximize">
+			<button onmousedown={stopDrag} onclick={toggleMaximize} aria-label={t("titleBar.maximize")}>
 				<Square size={12} />
 			</button>
-			<button class="close" onmousedown={stopDrag} onclick={close} aria-label="Close">
+			<button class="close" onmousedown={stopDrag} onclick={close} aria-label={t("common.close")}>
 				<X size={16} />
 			</button>
 		</div>

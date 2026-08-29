@@ -3,6 +3,7 @@
 	import { fade, scale } from "svelte/transition";
 	import { cubicOut } from "svelte/easing";
 	import X from "@lucide/svelte/icons/x";
+	import { t } from "$lib/i18n/index.svelte";
 
 	let { title, onClose, width = 440, children }: {
 		title: string;
@@ -31,7 +32,7 @@
 	>
 		<div class="header">
 			<h2>{title}</h2>
-			<button class="close" onclick={onClose} title="Close">
+			<button class="close" onclick={onClose} title={t("common.close")}>
 				<X size={18} strokeWidth={2} />
 			</button>
 		</div>

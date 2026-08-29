@@ -4,6 +4,7 @@
 	import Logo from "$lib/components/Logo.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import { resolveUrl } from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { servers, activeId, onSelect, onSelectHome, onAddServer }: {
@@ -42,11 +43,11 @@
 	<button
 		class="home"
 		class:active={activeId === null}
-		aria-label="Direct Messages"
+		aria-label={t("nav.directMessages")}
 		onclick={onSelectHome}
-		onmouseenter={show("Direct Messages")}
+		onmouseenter={show(t("nav.directMessages"))}
 		onmouseleave={hide}
-		onfocus={show("Direct Messages")}
+		onfocus={show(t("nav.directMessages"))}
 		onblur={hide}
 	>
 		<span class="pill" class:active={activeId === null}></span>
@@ -56,11 +57,11 @@
 
 	<button
 		class="add"
-		aria-label="Add a server"
+		aria-label={t("server.add.title")}
 		onclick={onAddServer}
-		onmouseenter={show("Add a Server")}
+		onmouseenter={show(t("server.add.title"))}
 		onmouseleave={hide}
-		onfocus={show("Add a Server")}
+		onfocus={show(t("server.add.title"))}
 		onblur={hide}
 	>
 		<Plus size={20} strokeWidth={2.25} />

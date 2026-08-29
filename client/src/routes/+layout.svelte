@@ -6,6 +6,7 @@
 	import UpdateBanner from "$lib/components/UpdateBanner.svelte";
 	import { themeStore } from "$lib/stores/theme.svelte";
 	import { fontStore } from "$lib/stores/font.svelte";
+	import { i18n } from "$lib/i18n/index.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
 	import { initAutoUpdateCheck } from "$lib/stores/updater.svelte";
 	import { isTauri } from "$lib/utils/isTauri";
@@ -14,6 +15,7 @@
 
 	const inTauri = isTauri();
 
+	i18n.init();
 	themeStore.init();
 	fontStore.init();
 	viewport.init();

@@ -8,6 +8,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
+	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, onClose }: {
@@ -17,13 +18,13 @@
 
 	const profile = $derived(profileStore.forUser(username));
 
-	const CLEAR_OPTIONS = [
-		{ label: "Don't clear", minutes: 0 },
-		{ label: "30 minutes", minutes: 30 },
-		{ label: "1 hour", minutes: 60 },
-		{ label: "4 hours", minutes: 240 },
-		{ label: "24 hours", minutes: 1440 }
-	];
+	const CLEAR_OPTIONS = $derived([
+		{ label: t("status.clear.never"), minutes: 0 },
+		{ label: t("status.clear.30m"), minutes: 30 },
+		{ label: t("status.clear.1h"), minutes: 60 },
+		{ label: t("status.clear.4h"), minutes: 240 },
+		{ label: t("status.clear.24h"), minutes: 1440 }
+	]);
 
 	const MAX_LEN = 128;
 
@@ -44,7 +45,7 @@
 			profileStore.set(updated);
 			onClose();
 		} catch {
-			toast.push("Couldn't save status");
+			toast.push(t("status.toast.saveFailed"));
 		} finally {
 			saving = false;
 		}
@@ -59,14 +60,14 @@
 			profileStore.set(updated);
 			onClose();
 		} catch {
-			toast.push("Couldn't clear status");
+			toast.push(t("status.toast.clearFailed"));
 		} finally {
 			saving = false;
 		}
 	}
 </script>
 
-<Modal title="Set your status" {onClose} width={520}>
+<Modal title={t("status.title")} {onClose} width={520}>
 	<div class="preview">
 		<div class="preview-banner" style:background={api.bannerBackground(profile, session.token)}></div>
 		<div class="preview-avatar-row">
@@ -86,11 +87,11 @@
 	</div>
 
 	<label class="field">
-		Status
+		{t("status.fieldLabel")}
 		<div class="status-input">
-			<input type="text" bind:value={statusDraft} maxlength={MAX_LEN} placeholder="What's happening?" />
+			<input type="text" bind:value={statusDraft} maxlength={MAX_LEN} placeholder={t("status.placeholder")} />
 			{#if statusDraft}
-				<button class="clear-input" onclick={() => (statusDraft = "")} title="Clear text">
+				<button class="clear-input" onclick={() => (statusDraft = "")} title={t("status.clearText")}>
 					<X size={15} strokeWidth={2.5} />
 				</button>
 			{/if}
@@ -118,11 +119,11 @@
 				</div>
 			{/if}
 		</div>
-		<button class="primary" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+		<button class="primary" onclick={save} disabled={saving}>{saving ? t("common.saving") : t("common.save")}</button>
 	</div>
 
 	{#if profile?.status_text}
-		<button class="ghost-clear" onclick={clearStatus} disabled={saving}>Clear current status</button>
+		<button class="ghost-clear" onclick={clearStatus} disabled={saving}>{t("status.clearCurrent")}</button>
 	{/if}
 </Modal>
 

@@ -21,6 +21,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import * as api from "$lib/api/client";
+	import { t, tp } from "$lib/i18n/index.svelte";
 	import type { Member } from "$lib/data/mock";
 
 	let { username, member, serverName, onClose, onMessage }: {
@@ -98,12 +99,12 @@
 		if (session.token) loadWidgets();
 	});
 
-	const WIDGET_KIND_LABELS: Record<api.WidgetKind, string> = {
-		favorite_game: "Favorite Game",
-		want_to_play: "Want to Play",
-		games_i_like: "Games I Like",
-		games_in_rotation: "Games in Rotation"
-	};
+	const WIDGET_KIND_LABELS = $derived<Record<api.WidgetKind, string>>({
+		favorite_game: t("profile.edit.widgetKind.favoriteGame"),
+		want_to_play: t("profile.edit.widgetKind.wantToPlay"),
+		games_i_like: t("profile.edit.widgetKind.gamesILike"),
+		games_in_rotation: t("profile.edit.widgetKind.gamesInRotation")
+	});
 
 	type BoardTab = "board" | "activity" | "wishlist";
 	let boardTab = $state<BoardTab>("board");
@@ -124,9 +125,9 @@
 		try {
 			await api.sendFriendRequest(token, username);
 			friendRequested = true;
-			toast.push(`Friend request sent to ${username}`);
+			toast.push(t("profile.full.friendRequestSentTo", { name: username }));
 		} catch (err) {
-			toast.push(err instanceof api.ApiError ? err.message : "Couldn't send friend request");
+			toast.push(err instanceof api.ApiError ? err.message : t("toast.friendRequestFailed"));
 		}
 	}
 
@@ -155,8 +156,8 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="overlay" role="presentation" onclick={onClose} transition:fade={{ duration: 140 }}>
-<div class="modal" role="dialog" aria-modal="true" aria-label="Profile" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-	<button class="close" onclick={onClose} title="Close">
+<div class="modal" role="dialog" aria-modal="true" aria-label={t("chat.header.profile")} tabindex="-1" onclick={(e) => e.stopPropagation()}>
+	<button class="close" onclick={onClose} title={t("common.close")}>
 		<X size={20} strokeWidth={2} />
 	</button>
 
@@ -174,15 +175,15 @@
 
 				{#if !isSelf}
 					<div class="actions">
-						<button class="action primary" onclick={addFriend} disabled={friendRequested} title="Add Friend">
+						<button class="action primary" onclick={addFriend} disabled={friendRequested} title={t("profile.full.addFriend")}>
 							<UserPlus size={14} strokeWidth={2} />
-							{friendRequested ? "Requested" : "Add Friend"}
+							{friendRequested ? t("profile.full.requested") : t("profile.full.addFriend")}
 						</button>
-						<button class="action" onclick={message} title="Message">
+						<button class="action" onclick={message} title={t("profile.full.message")}>
 							<MessageSquare size={14} strokeWidth={2} />
-							Message
+							{t("profile.full.message")}
 						</button>
-						<button bind:this={moreButtonEl} class="action icon-only" onclick={toggleMore} title="More">
+						<button bind:this={moreButtonEl} class="action icon-only" onclick={toggleMore} title={t("profile.full.more")}>
 							<MoreHorizontal size={14} strokeWidth={2} />
 						</button>
 					</div>
@@ -203,26 +204,26 @@
 			{#if !isSelf}
 				<p class="mutual">
 					<Users size={12} strokeWidth={2} />
-					{mutualFriends.length} Mutual Friend{mutualFriends.length === 1 ? "" : "s"}
+					{tp("profile.full.mutualFriends", mutualFriends.length)}
 				</p>
 				{#if serverName}
 					<p class="mutual">
 						<Users size={12} strokeWidth={2} />
-						1 Mutual Server — {serverName}
+						{t("profile.full.mutualServer", { server: serverName })}
 					</p>
 				{/if}
 			{/if}
 
 			{#if bioLines.length > 0}
 				<div class="info-block">
-					<p class="info-label">About Me</p>
+					<p class="info-label">{t("profile.full.aboutMe")}</p>
 					{#each bioLines as line}<p class="bio-line">{line}</p>{/each}
 				</div>
 			{/if}
 
 			{#if profile?.activity_application}
 				<ActivityCard
-					label="Playing"
+					label={t("profile.full.playing")}
 					application={profile.activity_application}
 					details={profile.activity_details}
 					activityState={profile.activity_state}
@@ -244,14 +245,14 @@
 
 			{#if memberSince}
 				<div class="info-block">
-					<p class="info-label">Member Since</p>
+					<p class="info-label">{t("profile.full.memberSince")}</p>
 					<p class="info-value"><CalendarDays size={13} strokeWidth={2} /> {memberSince}</p>
 				</div>
 			{/if}
 
 			{#if connections.length > 0}
 				<div class="info-block">
-					<p class="info-label">Connections</p>
+					<p class="info-label">{t("profile.full.connections")}</p>
 					{#each connections as connection (connection.id)}
 						<div class="connection-row">
 							{#if BRAND_ICONS[connection.service]}
@@ -269,10 +270,10 @@
 			{/if}
 
 			<div class="info-block">
-				<p class="info-label">Note (only visible to you)</p>
+				<p class="info-label">{t("profile.full.noteLabel")}</p>
 				<textarea
 					class="note"
-					placeholder="Click to add a note"
+					placeholder={t("profile.full.notePlaceholder")}
 					bind:value={note}
 					onblur={saveNote}
 				></textarea>
@@ -282,16 +283,16 @@
 
 	<div class="col-right">
 		<div class="tabs">
-			<button class="tab" class:active={boardTab === "board"} onclick={() => (boardTab = "board")}>Board</button>
-			<button class="tab" class:active={boardTab === "activity"} onclick={() => (boardTab = "activity")}>Activity</button>
-			<button class="tab" class:active={boardTab === "wishlist"} onclick={() => (boardTab = "wishlist")}>Wishlist</button>
+			<button class="tab" class:active={boardTab === "board"} onclick={() => (boardTab = "board")}>{t("profile.full.tabBoard")}</button>
+			<button class="tab" class:active={boardTab === "activity"} onclick={() => (boardTab = "activity")}>{t("profile.full.tabActivity")}</button>
+			<button class="tab" class:active={boardTab === "wishlist"} onclick={() => (boardTab = "wishlist")}>{t("profile.full.tabWishlist")}</button>
 		</div>
 
 		{#if boardTab === "board"}
 			{#if widgets.length === 0}
 				<div class="empty">
-					<h3>No widgets yet</h3>
-					<p>{displayName} hasn't added anything to their Board.</p>
+					<h3>{t("profile.full.widgetsEmptyTitle")}</h3>
+					<p>{t("profile.full.widgetsEmptyBody", { name: displayName })}</p>
 				</div>
 			{:else}
 				<div class="widgets-list">
@@ -319,13 +320,13 @@
 			{/if}
 		{:else if boardTab === "activity"}
 			<div class="empty">
-				<h3>No activity yet</h3>
-				<p>Live activity (games, music, apps) isn't tracked yet — this tab is a placeholder for now.</p>
+				<h3>{t("profile.full.activityEmptyTitle")}</h3>
+				<p>{t("profile.full.activityEmptyBody")}</p>
 			</div>
 		{:else}
 			<div class="empty">
-				<h3>No wishlist yet</h3>
-				<p>Wishlists aren't available yet — this tab is a placeholder for now.</p>
+				<h3>{t("profile.full.wishlistEmptyTitle")}</h3>
+				<p>{t("profile.full.wishlistEmptyBody")}</p>
 			</div>
 		{/if}
 	</div>

@@ -4,10 +4,19 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { sealReport, type ReportedMessage } from "$lib/crypto/moderation";
 	import { submitReport } from "$lib/api/client";
+	import { t } from "$lib/i18n/index.svelte";
 	import type { Message } from "$lib/data/mock";
 
 	const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 	const CATEGORIES = ["Spam", "Harassment", "NSFW", "Scam / Fraud", "Other"];
+	const CATEGORY_LABEL_KEYS: Record<string, string> = {
+		Spam: "report.catSpam",
+		Harassment: "report.catHarassment",
+		NSFW: "report.catNsfw",
+		"Scam / Fraud": "report.catScam",
+		Other: "report.catOther"
+	};
+	const categoryLabel = (value: string) => t(CATEGORY_LABEL_KEYS[value] ?? value);
 
 	let {
 		token,
@@ -49,7 +58,7 @@
 		const file = (event.target as HTMLInputElement).files?.[0];
 		if (!file) return;
 		if (file.size > MAX_SCREENSHOT_BYTES) {
-			toast.push("Screenshot must be under 5 MB");
+			toast.push(t("report.screenshotTooLarge"));
 			return;
 		}
 		const reader = new FileReader();
@@ -63,11 +72,11 @@
 
 	async function submit() {
 		if (selected.size === 0 && !screenshot) {
-			toast.push("Select at least one message or attach a screenshot");
+			toast.push(t("report.selectSomething"));
 			return;
 		}
 		if (!reason.trim()) {
-			toast.push("Describe what happened");
+			toast.push(t("report.describePrompt"));
 			return;
 		}
 
@@ -106,67 +115,67 @@
 				payload_ciphertext: sealed.payloadCiphertext
 			});
 
-			toast.push("Report sent to HollowChat staff");
+			toast.push(t("report.sent"));
 			onClose();
 		} catch {
-			toast.push("Couldn't send report, try again");
+			toast.push(t("report.failed"));
 		} finally {
 			submitting = false;
 		}
 	}
 </script>
 
-<Modal title={`Report ${reportedUsername}`} {onClose} width={420}>
+<Modal title={t("report.title", { name: reportedUsername })} {onClose} width={420}>
 	<div class="form">
 		<label class="field">
-			<span>Category</span>
+			<span>{t("report.category")}</span>
 			<select bind:value={category}>
 				{#each CATEGORIES as c (c)}
-					<option value={c}>{c}</option>
+					<option value={c}>{categoryLabel(c)}</option>
 				{/each}
 			</select>
 		</label>
 
 		<label class="field">
-			<span>What happened?</span>
-			<textarea bind:value={reason} rows="3" placeholder="Describe the issue for our moderators"></textarea>
+			<span>{t("report.whatHappened")}</span>
+			<textarea bind:value={reason} rows="3" placeholder={t("report.reasonPlaceholder")}></textarea>
 		</label>
 
 		<div class="field">
-			<span>Messages to include</span>
+			<span>{t("report.messagesToInclude")}</span>
 			<div class="messages">
 				{#each candidates as message (message.id)}
 					<label class="message-row">
 						<input type="checkbox" checked={selected.has(message.id)} onchange={() => toggle(message.id)} />
 						<span class="message-check"></span>
-						<span class="message-text">{message.content || "📎 Attachment"}</span>
+						<span class="message-text">{message.content || t("report.attachment")}</span>
 					</label>
 				{/each}
 			</div>
 		</div>
 
 		<div class="field">
-			<span>Screenshot (optional)</span>
+			<span>{t("report.screenshotOptional")}</span>
 			{#if screenshot}
 				<div class="screenshot-preview">
 					<span>{screenshot.name}</span>
-					<button type="button" onclick={() => (screenshot = null)}>Remove</button>
+					<button type="button" onclick={() => (screenshot = null)}>{t("common.remove")}</button>
 				</div>
 			{:else}
 				<button type="button" class="attach-btn" onclick={() => fileInput?.click()}>
 					<Paperclip size={14} strokeWidth={2} />
-					Attach screenshot
+					{t("report.attachScreenshot")}
 				</button>
 				<input bind:this={fileInput} type="file" accept="image/*" class="hidden-input" onchange={onPickScreenshot} />
 			{/if}
 		</div>
 
 		<p class="notice">
-			Selected content is encrypted so only HollowChat staff can review it — not visible to anyone else with server access.
+			{t("report.notice")}
 		</p>
 
 		<button class="submit-btn" disabled={submitting} onclick={submit}>
-			{submitting ? "Sending…" : "Submit Report"}
+			{submitting ? t("report.submitting") : t("report.submit")}
 		</button>
 	</div>
 </Modal>
