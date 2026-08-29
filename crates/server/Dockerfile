@@ -20,16 +20,19 @@ RUN cargo build --release -p hollowchat-server
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --create-home --shell /usr/sbin/nologin hollowchat
 
 COPY --from=builder /build/target/release/hollowchat-server /usr/local/bin/hollowchat-server
+COPY crates/server/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-USER hollowchat
 WORKDIR /home/hollowchat
 ENV ATTACHMENTS_DIR=/home/hollowchat/attachments
 ENV BIND_ADDR=0.0.0.0:8080
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/hollowchat-server"]
+# Stays root here on purpose - the entrypoint fixes up volume ownership
+# then drops to the unprivileged hollowchat user itself (see entrypoint.sh).
+ENTRYPOINT ["/entrypoint.sh"]
