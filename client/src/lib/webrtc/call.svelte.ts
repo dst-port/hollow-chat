@@ -1,4 +1,5 @@
 import { WS_BASE_URL, fetchIceServers } from "$lib/api/client";
+import { playCallSound } from "$lib/utils/sound";
 import {
 	nativeOutputRoutingAvailable,
 	listNativeAudioSinks,
@@ -359,6 +360,7 @@ class CallStore {
 		this.applyMuted();
 		this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
 		this.refreshNoiseSuppressionActive();
+		playCallSound();
 		this.notify();
 
 		const ws = new WebSocket(`${WS_BASE_URL}/calls/${roomId}?token=${encodeURIComponent(token)}`);
