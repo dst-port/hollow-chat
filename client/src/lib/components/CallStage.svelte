@@ -10,7 +10,12 @@
 	import ScreenShareOff from "@lucide/svelte/icons/screen-share-off";
 	import PhoneOff from "@lucide/svelte/icons/phone-off";
 	import Volume2 from "@lucide/svelte/icons/volume-2";
-	import { call } from "$lib/webrtc/call.svelte";
+	import Maximize2 from "@lucide/svelte/icons/maximize-2";
+	import Minimize2 from "@lucide/svelte/icons/minimize-2";
+	import SignalHigh from "@lucide/svelte/icons/signal-high";
+	import SignalMedium from "@lucide/svelte/icons/signal-medium";
+	import SignalLow from "@lucide/svelte/icons/signal-low";
+	import { call, SELF_KEY } from "$lib/webrtc/call.svelte";
 	import {
 		attachRemoteStream,
 		attachLocalStream,
@@ -29,6 +34,14 @@
 	} = $props();
 
 	const joined = $derived(call.roomId === channel.id);
+	let fullscreen = $state(false);
+
+	function qualityIcon(userId: string) {
+		const level = call.connectionQuality[userId];
+		if (level === "poor") return SignalLow;
+		if (level === "medium") return SignalMedium;
+		return SignalHigh;
+	}
 
 	$effect(() => {
 		const token = session.token;
@@ -106,10 +119,18 @@
 		<button class="join-btn" onclick={onJoin}>{server ? "Join Voice" : "Join Call"}</button>
 	</div>
 {:else}
-	<div class="stage" transition:fade={{ duration: 140 }}>
+	{@const HeaderQualityIcon = qualityIcon(SELF_KEY)}
+	<div class="stage" class:fullscreen transition:fade={{ duration: 140 }}>
 		<div class="stage-header">
 			<Volume2 size={16} strokeWidth={2.25} />
 			<span>{server ? `${server.name} / ${channel.name}` : channel.name}</span>
+			<span class="quality-self" class:good={call.connectionQuality[SELF_KEY] !== "poor" && call.connectionQuality[SELF_KEY] !== "medium"} class:medium={call.connectionQuality[SELF_KEY] === "medium"} class:poor={call.connectionQuality[SELF_KEY] === "poor"}>
+				<HeaderQualityIcon size={14} strokeWidth={2.25} />
+			</span>
+			<div class="header-spacer"></div>
+			<button class="fullscreen-btn" title={fullscreen ? "Exit fullscreen" : "Fullscreen"} onclick={() => (fullscreen = !fullscreen)}>
+				{#if fullscreen}<Minimize2 size={15} strokeWidth={2} />{:else}<Maximize2 size={15} strokeWidth={2} />{/if}
+			</button>
 		</div>
 
 		{#if hasSpotlight}
@@ -129,20 +150,26 @@
 					{/if}
 				{/each}
 				{#if call.cameraEnabled}
+					{@const SelfIcon = qualityIcon(SELF_KEY)}
 					<div class="spotlight-tile" class:speaking={call.selfSpeaking && !call.muted}>
 						<video use:attachLocalStream autoplay playsinline muted></video>
 						<span class="tile-name">
 							{#if call.muted}<MicOff size={12} strokeWidth={2.25} />{:else}<Mic size={12} strokeWidth={2.25} />{/if}
 							{ownProfile?.display_name || session.username} (you)
+							<SelfIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[SELF_KEY] ?? 'good'}" />
 						</span>
 					</div>
 				{/if}
 				{#each call.participants as participant (participant.userId)}
 					{#if camUserIds.has(participant.userId)}
 						{@const remoteProfile = profileStore.forUser(participant.username)}
+						{@const PeerIcon = qualityIcon(participant.userId)}
 						<div class="spotlight-tile" class:speaking={call.speakingUserIds.has(participant.userId)}>
 							<video use:attachRemoteStream={participant.userId} autoplay playsinline muted></video>
-							<span class="tile-name">{remoteProfile?.display_name || participant.username}</span>
+							<span class="tile-name">
+								{remoteProfile?.display_name || participant.username}
+								<PeerIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[participant.userId] ?? 'good'}" />
+							</span>
 						</div>
 					{/if}
 				{/each}
@@ -156,6 +183,8 @@
 				style:grid-template-rows={`repeat(${gridRows}, 1fr)`}
 			>
 				{#each quietParticipants as entry (entry.key)}
+					{@const qualityKey = entry.isSelf ? SELF_KEY : entry.key}
+					{@const CellQualityIcon = qualityIcon(qualityKey)}
 					<div class="cell" class:speaking={entry.speaking}>
 						<div
 							class="cell-avatar"
@@ -169,6 +198,7 @@
 								{#if call.muted}<MicOff size={13} strokeWidth={2.25} />{:else}<Mic size={13} strokeWidth={2.25} />{/if}
 							{/if}
 							<span>{entry.name}{entry.isSelf ? " (you)" : ""}</span>
+							<CellQualityIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[qualityKey] ?? 'good'}" />
 						</div>
 					</div>
 				{/each}
@@ -272,6 +302,62 @@
 		color: var(--ink);
 		font-weight: 700;
 		font-size: 13px;
+	}
+
+	.header-spacer {
+		flex: 1;
+	}
+
+	.fullscreen-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 6px;
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.fullscreen-btn:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.quality-self {
+		display: flex;
+		align-items: center;
+	}
+
+	.quality-self.good {
+		color: var(--online);
+	}
+
+	.quality-self.medium {
+		color: var(--idle);
+	}
+
+	.quality-self.poor {
+		color: var(--danger);
+	}
+
+	.stage.fullscreen {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		border-radius: 0;
+	}
+
+	:global(.quality-good) {
+		color: var(--online);
+	}
+
+	:global(.quality-medium) {
+		color: var(--idle);
+	}
+
+	:global(.quality-poor) {
+		color: var(--danger);
 	}
 
 	.spotlight-row {

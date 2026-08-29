@@ -27,10 +27,11 @@ type ClientMsg =
 
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302"] }];
 
-const SELF_KEY = "__self__";
+export const SELF_KEY = "__self__";
 const SPEAKING_THRESHOLD = 7;
 const SPEAKING_HOLD_MS = 250;
 const SPEAKING_POLL_MS = 70;
+const STATS_POLL_MS = 2500;
 
 const SETTINGS_KEY = "hollowchat.voice-settings";
 
@@ -76,6 +77,7 @@ class CallStore {
 	streamsVersion = $state(0);
 	selfSpeaking = $state(false);
 	speakingUserIds = $state<Set<string>>(new Set());
+	connectionQuality = $state<Record<string, "good" | "medium" | "poor">>({});
 
 	inputDevices = $state<MediaDeviceInfo[]>([]);
 	outputDevices = $state<MediaDeviceInfo[]>([]);
@@ -95,6 +97,7 @@ class CallStore {
 	private analysers = new Map<string, { analyser: AnalyserNode; data: Uint8Array }>();
 	private lastSpokeAt = new Map<string, number>();
 	private speakingInterval: ReturnType<typeof setInterval> | null = null;
+	private statsInterval: ReturnType<typeof setInterval> | null = null;
 	private ws: WebSocket | null = null;
 	private pcs = new Map<string, RTCPeerConnection>();
 	private remoteStreams = new Map<string, MediaStream>();
@@ -636,6 +639,7 @@ class CallStore {
 			source.connect(analyser);
 			this.analysers.set(key, { analyser, data: new Uint8Array(analyser.frequencyBinCount) });
 			this.startSpeakingLoop();
+			this.startStatsPolling();
 		} catch {
 			return;
 		}
@@ -656,6 +660,51 @@ class CallStore {
 			clearInterval(this.speakingInterval);
 			this.speakingInterval = null;
 		}
+	}
+
+	private startStatsPolling() {
+		if (this.statsInterval) return;
+		this.statsInterval = setInterval(() => this.pollStats(), STATS_POLL_MS);
+	}
+
+	private stopStatsPolling() {
+		if (this.statsInterval) {
+			clearInterval(this.statsInterval);
+			this.statsInterval = null;
+		}
+		this.connectionQuality = {};
+	}
+
+	/// Classifies each peer's connection off the selected candidate pair's
+	/// round-trip time - a single number that's meaningful for both
+	/// audio-only and video calls, unlike fishing for jitter/packet-loss
+	/// fields whose shape varies by codec and browser. Self's badge is the
+	/// worst of everyone else's, since a bad connection is symmetric enough
+	/// that "how do they see me" isn't worth a second, separate probe.
+	private async pollStats() {
+		const next: Record<string, "good" | "medium" | "poor"> = {};
+		for (const [peerId, pc] of this.pcs) {
+			try {
+				const stats = await pc.getStats();
+				let rttMs: number | null = null;
+				stats.forEach((report) => {
+					if (
+						report.type === "candidate-pair" &&
+						report.state === "succeeded" &&
+						typeof report.currentRoundTripTime === "number"
+					) {
+						rttMs = report.currentRoundTripTime * 1000;
+					}
+				});
+				if (rttMs === null) continue;
+				next[peerId] = rttMs < 150 ? "good" : rttMs < 350 ? "medium" : "poor";
+			} catch {
+				// stats unavailable for this peer this tick - leave it unset
+			}
+		}
+		const values = Object.values(next);
+		next[SELF_KEY] = values.includes("poor") ? "poor" : values.includes("medium") ? "medium" : "good";
+		this.connectionQuality = next;
 	}
 
 	private pollSpeaking() {
@@ -699,6 +748,7 @@ class CallStore {
 		this.localScreenStream?.getTracks().forEach((track) => track.stop());
 		this.localScreenStream = null;
 		this.stopSpeakingLoop();
+		this.stopStatsPolling();
 		this.analysers.clear();
 		this.lastSpokeAt.clear();
 		this.audioCtx?.close().catch(() => {});
