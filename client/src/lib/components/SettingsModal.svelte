@@ -32,7 +32,7 @@
 	import { deviceLink } from "$lib/devicelink/link.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
-	import { themeStore, COLOR_GROUPS, COLOR_LABELS } from "$lib/stores/theme.svelte";
+	import { themeStore, COLOR_GROUPS, COLOR_LABELS, THEME_PRESETS } from "$lib/stores/theme.svelte";
 	import { fontStore, FONT_STACKS, FONT_LABELS, type FontId } from "$lib/stores/font.svelte";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
@@ -1239,6 +1239,26 @@
 				</div>
 
 				{#if themeStore.settings.mode === "custom"}
+					<div class="card">
+						<p class="row-label" style="margin-bottom: 8px;">Presets</p>
+						<div class="preset-grid">
+							{#each THEME_PRESETS as preset (preset.id)}
+								<button
+									class="preset-swatch"
+									class:active={themeStore.settings.presetId === preset.id}
+									onclick={() => themeStore.applyPreset(preset.id)}
+									title={preset.label}
+								>
+									<span class="preset-preview">
+										<span class="preset-dot" style:background={preset.colors["accent-fill"]}></span>
+										<span class="preset-dot" style:background={preset.colors.panel}></span>
+										<span class="preset-dot" style:background={preset.colors.void}></span>
+									</span>
+									<span class="preset-name">{preset.label}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
 					{#each COLOR_GROUPS as group (group.label)}
 						<div class="card">
 							<p class="row-label" style="margin-bottom: 8px;">{group.label}</p>
@@ -1765,6 +1785,55 @@
 		background: var(--accent-fill);
 		color: var(--accent-fill-ink);
 		border-color: var(--accent-fill);
+	}
+
+	.preset-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+		gap: 8px;
+	}
+
+	.preset-swatch {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 10px 12px;
+		border-radius: 8px;
+		border: 1px solid var(--hairline);
+		background: var(--sidebar);
+		transition: background-color 0.15s ease, border-color 0.15s ease;
+	}
+
+	.preset-swatch:hover {
+		background: var(--hover);
+	}
+
+	.preset-swatch.active {
+		border-color: var(--accent-fill);
+		background: var(--hover);
+	}
+
+	.preset-preview {
+		display: flex;
+		gap: 4px;
+	}
+
+	.preset-dot {
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.preset-name {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--ink-dim);
+	}
+
+	.preset-swatch.active .preset-name {
+		color: var(--ink);
 	}
 
 	.inline-input {
