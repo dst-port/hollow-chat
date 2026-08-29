@@ -205,10 +205,12 @@
 					<Users size={12} strokeWidth={2} />
 					{mutualFriends.length} Mutual Friend{mutualFriends.length === 1 ? "" : "s"}
 				</p>
-				<p class="mutual">
-					<Users size={12} strokeWidth={2} />
-					1 Mutual Server — {serverName}
-				</p>
+				{#if serverName}
+					<p class="mutual">
+						<Users size={12} strokeWidth={2} />
+						1 Mutual Server — {serverName}
+					</p>
+				{/if}
 			{/if}
 
 			{#if bioLines.length > 0}

@@ -253,7 +253,7 @@
 	}
 
 	.banner {
-		height: 60px;
+		height: 100px;
 		background: var(--active);
 	}
 

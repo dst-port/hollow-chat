@@ -138,7 +138,7 @@
 		</p>
 		{#if profile?.status_text}<p class="status">{profile.status_text}</p>{:else if member.activity}<p class="status">{member.activity}</p>{/if}
 
-		{#if !isSelf}
+		{#if !isSelf && serverName}
 			<p class="mutual">
 				<Users size={12} strokeWidth={2} />
 				1 Mutual Server — {serverName}
@@ -232,7 +232,7 @@
 	}
 
 	.banner {
-		height: 52px;
+		height: 90px;
 	}
 
 	.header-row {

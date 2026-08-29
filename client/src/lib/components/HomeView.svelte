@@ -97,9 +97,23 @@
 	});
 
 	const activeDm = $derived(dmChannels.find((d) => d.id === activeDmId) ?? null);
-	const activeDmChannel = $derived<Channel | null>(
-		activeDm ? { id: activeDm.id, name: activeDm.peer_username, type: "text" } : null
-	);
+
+	// Kept referentially stable across the background poll above - a new
+	// object here on every refresh (even with identical id/name) makes
+	// ChatView see it as a different channel prop and reload the
+	// conversation from scratch every few seconds.
+	let memoDmChannel: Channel | null = null;
+	const activeDmChannel = $derived.by<Channel | null>(() => {
+		if (!activeDm) {
+			memoDmChannel = null;
+			return null;
+		}
+		if (memoDmChannel && memoDmChannel.id === activeDm.id && memoDmChannel.name === activeDm.peer_username) {
+			return memoDmChannel;
+		}
+		memoDmChannel = { id: activeDm.id, name: activeDm.peer_username, type: "text" };
+		return memoDmChannel;
+	});
 
 	const incomingRequests = $derived(requests.filter((r) => r.direction === "incoming"));
 	const outgoingRequests = $derived(requests.filter((r) => r.direction === "outgoing"));
