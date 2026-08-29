@@ -260,6 +260,8 @@ export type ApiServer = {
 export type BoostStatus = {
 	boost_count: number;
 	boosted_by_me: boolean;
+	my_boost_count: number;
+	slots_total: number;
 	emoji_slots: number;
 };
 

@@ -752,6 +752,8 @@
 	"settings.moderation.decryptFailed": "Couldn't decrypt — check the staff key",
 	"settings.moderation.forgetKey": "Forget key",
 	"settings.moderation.offlineFallback": "Offline decryption (advanced)",
+	"settings.billing.boostAdd": "Add a boost",
+	"settings.billing.boostRemove": "Remove a boost",
 	"members.count.one": "멤버 {count}명",
 	"members.count.other": "멤버 {count}명",
 	"online.count.one": "{count}명 온라인",

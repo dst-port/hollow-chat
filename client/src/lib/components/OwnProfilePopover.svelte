@@ -271,7 +271,7 @@
 
 	.avatar-row {
 		position: relative;
-		margin: -26px 0 0 var(--container-padding);
+		margin: -38px 0 0 var(--container-padding);
 		width: fit-content;
 	}
 
@@ -321,9 +321,9 @@
 	}
 
 	.avatar {
-		width: 56px;
-		height: 56px;
-		border: 2px solid var(--ink-faint);
+		width: 80px;
+		height: 80px;
+		border: 3px solid var(--ink-faint);
 		border-radius: 50%;
 		background: var(--accent-fill) center/cover;
 		color: var(--accent-fill-ink);
@@ -332,7 +332,7 @@
 		justify-content: center;
 		font-family: var(--font-body);
 		font-weight: 700;
-		font-size: 16px;
+		font-size: 24px;
 		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
 	}
 

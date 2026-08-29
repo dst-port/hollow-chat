@@ -253,12 +253,12 @@
 		align-items: flex-end;
 		justify-content: space-between;
 		padding: 0 16px;
-		margin-top: -26px;
+		margin-top: -38px;
 	}
 
 	.avatar {
-		width: 56px;
-		height: 56px;
+		width: 80px;
+		height: 80px;
 		border-radius: 50%;
 		background-position: center;
 		background-size: cover;
@@ -267,7 +267,7 @@
 		justify-content: center;
 		font-family: var(--font-body);
 		font-weight: 700;
-		font-size: 16px;
+		font-size: 24px;
 		color: var(--void);
 	}
 

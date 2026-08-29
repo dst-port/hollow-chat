@@ -19,6 +19,8 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { t, tp } from "$lib/i18n/index.svelte";
 	import { session } from "$lib/stores/session.svelte";
+	import { squareCrop } from "$lib/image";
+	import Dropdown from "$lib/components/Dropdown.svelte";
 	import {
 		renameServer,
 		setServerIcon,
@@ -183,7 +185,7 @@
 		if (!token || !file) return;
 		iconUploading = true;
 		try {
-			const attachment = await uploadFile(token, file);
+			const attachment = await uploadFile(token, await squareCrop(file));
 			const updated = await setServerIcon(token, server.id, attachment.id);
 			server.iconUrl = updated.icon_url;
 		} catch {
@@ -538,14 +540,16 @@
 								{channel.name}
 							</span>
 							{#if isOwner}
-								<select
-									value={channel.slowmodeSeconds ?? 0}
-									onchange={(e) => changeSlowmode(channel.id, Number(e.currentTarget.value))}
-								>
-									{#each SLOWMODE_OPTIONS as opt (opt.seconds)}
-										<option value={opt.seconds}>{opt.label}</option>
-									{/each}
-								</select>
+								<span class="select-slot">
+									<Dropdown
+										value={String(channel.slowmodeSeconds ?? 0)}
+										options={SLOWMODE_OPTIONS.map((opt) => ({
+											value: String(opt.seconds),
+											label: opt.label
+										}))}
+										onChange={(v) => changeSlowmode(channel.id, Number(v))}
+									/>
+								</span>
 							{:else}
 								<span class="row-value muted">
 									{SLOWMODE_OPTIONS.find((o) => o.seconds === (channel.slowmodeSeconds ?? 0))?.label ?? t("serverSettings.channels.slowmodeOff")}
@@ -1081,14 +1085,10 @@
 		color: var(--ink-faint);
 	}
 
-	.slowmode-row select {
-		background: var(--panel);
-		border: 1px solid var(--hairline);
-		border-radius: 6px;
-		padding: 6px 8px;
-		color: var(--ink);
-		font-family: var(--font-body);
-		font-size: 13px;
+	.select-slot {
+		display: block;
+		width: 150px;
+		flex-shrink: 0;
 	}
 
 	.role-card {

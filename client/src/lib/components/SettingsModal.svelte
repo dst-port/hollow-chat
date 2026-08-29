@@ -40,6 +40,7 @@
 	import { t, i18n, LOCALES, type LocaleCode } from "$lib/i18n/index.svelte";
 	import Badges from "$lib/components/Badges.svelte";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
+	import Dropdown from "$lib/components/Dropdown.svelte";
 	import VoiceSettingsPanel from "$lib/components/VoiceSettingsPanel.svelte";
 	import * as api from "$lib/api/client";
 	import { openReport, type ReportPayload } from "$lib/crypto/moderation";
@@ -91,7 +92,7 @@
 	let billing = $state<api.BillingStatus | null>(null);
 	let checkoutLoading = $state(false);
 	let myServers = $state<api.ApiServer[]>([]);
-	let boostedServerIds = $state<Set<string>>(new Set());
+	let myBoostCounts = $state<Record<string, number>>({});
 	let boostBusyId = $state<string | null>(null);
 
 	$effect(() => {
@@ -110,10 +111,12 @@
 			.listServers(token)
 			.then((servers) => {
 				myServers = servers;
-				return Promise.all(servers.map((s) => api.getBoosts(token, s.id).then((b) => [s.id, b.boosted_by_me] as const)));
+				return Promise.all(
+					servers.map((s) => api.getBoosts(token, s.id).then((b) => [s.id, b.my_boost_count] as const))
+				);
 			})
 			.then((pairs) => {
-				boostedServerIds = new Set(pairs.filter(([, boosted]) => boosted).map(([id]) => id));
+				myBoostCounts = Object.fromEntries(pairs);
 			})
 			.catch(() => {});
 	});
@@ -206,22 +209,20 @@
 	}
 
 	const REPORT_FILTERS: (api.ReportStatus | "all")[] = ["open", "reviewing", "resolved", "dismissed", "all"];
+	const REPORT_STATUSES_LIST: api.ReportStatus[] = ["open", "reviewing", "resolved", "dismissed"];
 
-	async function toggleBoost(serverId: string) {
+	async function changeBoost(serverId: string, delta: 1 | -1) {
 		const token = session.token;
 		if (!token || boostBusyId) return;
 		boostBusyId = serverId;
-		const wasBoosted = boostedServerIds.has(serverId);
 		try {
-			const status = wasBoosted
-				? await api.removeBoost(token, serverId)
-				: await api.addBoost(token, serverId);
-			const next = new Set(boostedServerIds);
-			if (status.boosted_by_me) next.add(serverId);
-			else next.delete(serverId);
-			boostedServerIds = next;
+			const status =
+				delta === 1
+					? await api.addBoost(token, serverId)
+					: await api.removeBoost(token, serverId);
+			myBoostCounts = { ...myBoostCounts, [serverId]: status.my_boost_count };
 			if (billing) {
-				billing = { ...billing, boost_slots_used: billing.boost_slots_used + (wasBoosted ? -1 : 1) };
+				billing = { ...billing, boost_slots_used: billing.boost_slots_used + delta };
 			}
 		} catch (err) {
 			if (err instanceof api.ApiError && err.status === 409) {
@@ -1239,15 +1240,13 @@
 							<p class="row-label">{t("settings.language.label")}</p>
 							<p class="row-value muted">{t("settings.language.help")}</p>
 						</div>
-						<select
-							class="font-select"
-							value={i18n.lang}
-							onchange={(e) => changeLanguage((e.currentTarget as HTMLSelectElement).value as LocaleCode)}
-						>
-							{#each LOCALES as locale (locale.code)}
-								<option value={locale.code}>{locale.label}</option>
-							{/each}
-						</select>
+						<div class="select-slot">
+							<Dropdown
+								value={i18n.lang}
+								options={LOCALES.map((l) => ({ value: l.code, label: l.label }))}
+								onChange={(v) => changeLanguage(v as LocaleCode)}
+							/>
+						</div>
 					</div>
 				</div>
 
@@ -1296,15 +1295,13 @@
 					</div>
 
 					{#if fontStore.current === "preset"}
-						<select
-							class="font-select"
-							value={fontStore.settings.presetId}
-							onchange={(e) => fontStore.setPreset((e.currentTarget as HTMLSelectElement).value as FontId)}
-						>
-							{#each PRESET_FONT_IDS as id (id)}
-								<option value={id} style:font-family={FONT_STACKS[id]}>{FONT_LABELS[id]}</option>
-							{/each}
-						</select>
+						<div class="select-slot wide">
+							<Dropdown
+								value={fontStore.settings.presetId}
+								options={PRESET_FONT_IDS.map((id) => ({ value: id, label: FONT_LABELS[id] }))}
+								onChange={(v) => fontStore.setPreset(v as FontId)}
+							/>
+						</div>
 					{:else if fontStore.current === "link"}
 						<div class="font-link-form">
 							<input
@@ -1474,8 +1471,8 @@
 						{:else}
 							<div class="boost-list">
 								{#each myServers as server (server.id)}
-									{@const boosted = boostedServerIds.has(server.id)}
-									{@const outOfSlots = !boosted && billing.boost_slots_used >= billing.boost_slots_total}
+									{@const mine = myBoostCounts[server.id] ?? 0}
+									{@const outOfSlots = billing.boost_slots_used >= billing.boost_slots_total}
 									<div class="boost-row">
 										<span class="boost-name">{server.name}</span>
 										{#if server.boost_count > 0}
@@ -1484,15 +1481,23 @@
 												{server.boost_count}
 											</span>
 										{/if}
-										<button
-											type="button"
-											class="boost-toggle"
-											class:active={boosted}
-											disabled={boostBusyId === server.id || outOfSlots}
-											onclick={() => toggleBoost(server.id)}
-										>
-											{boosted ? t("settings.billing.boosted") : t("settings.billing.boost")}
-										</button>
+										<div class="boost-stepper" class:active={mine > 0}>
+											<button
+												type="button"
+												class="boost-step"
+												aria-label={t("settings.billing.boostRemove")}
+												disabled={boostBusyId === server.id || mine === 0}
+												onclick={() => changeBoost(server.id, -1)}
+											>−</button>
+											<span class="boost-mine">{mine}</span>
+											<button
+												type="button"
+												class="boost-step"
+												aria-label={t("settings.billing.boostAdd")}
+												disabled={boostBusyId === server.id || outOfSlots}
+												onclick={() => changeBoost(server.id, 1)}
+											>+</button>
+										</div>
 									</div>
 								{/each}
 							</div>
@@ -1526,15 +1531,16 @@
 						</p>
 						<p class="ticket-field">
 							<span class="ticket-label">{t("settings.moderation.status")}</span>
-							<select
-								value={openReport.status}
-								onchange={(e) => setReportStatus(openReport, e.currentTarget.value as api.ReportStatus)}
-							>
-								<option value="open">{t("settings.moderation.status.open")}</option>
-								<option value="reviewing">{t("settings.moderation.status.reviewing")}</option>
-								<option value="resolved">{t("settings.moderation.status.resolved")}</option>
-								<option value="dismissed">{t("settings.moderation.status.dismissed")}</option>
-							</select>
+							<span class="select-slot">
+								<Dropdown
+									value={openReport.status}
+									options={REPORT_STATUSES_LIST.map((s) => ({
+										value: s,
+										label: t(`settings.moderation.status.${s}`)
+									}))}
+									onChange={(v) => setReportStatus(openReport, v as api.ReportStatus)}
+								/>
+							</span>
 						</p>
 						<button type="button" class="save" onclick={() => messageReporter(openReport.reporter_username)}>
 							<MessageSquare size={14} strokeWidth={2} />
@@ -2014,6 +2020,17 @@
 		font-size: 13px;
 	}
 
+	.select-slot {
+		width: 200px;
+		flex-shrink: 0;
+	}
+
+	.select-slot.wide {
+		width: 100%;
+		display: block;
+		margin-top: 10px;
+	}
+
 	.font-link-form {
 		display: flex;
 		flex-direction: column;
@@ -2231,6 +2248,52 @@
 		cursor: default;
 	}
 
+	.boost-stepper {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		padding: 2px;
+		border-radius: 6px;
+		background: var(--hover);
+	}
+
+	.boost-stepper.active {
+		background: color-mix(in srgb, var(--online) 22%, transparent);
+	}
+
+	.boost-step {
+		width: 22px;
+		height: 22px;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 15px;
+		font-weight: 700;
+		line-height: 1;
+		color: var(--ink-dim);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.boost-step:hover:not(:disabled) {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
+	}
+
+	.boost-step:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+
+	.boost-mine {
+		min-width: 16px;
+		text-align: center;
+		font-size: 12px;
+		font-weight: 700;
+		color: var(--ink);
+	}
+
 	.report-filter {
 		display: flex;
 		flex-wrap: wrap;
@@ -2289,10 +2352,6 @@
 		font-size: 11px;
 		color: var(--ink-faint);
 		text-transform: capitalize;
-	}
-
-	.report-row select {
-		flex-shrink: 0;
 	}
 
 	.report-row .save {

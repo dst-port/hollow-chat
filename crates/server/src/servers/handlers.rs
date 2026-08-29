@@ -728,6 +728,10 @@ pub async fn join_server(
 pub struct BoostStatusDto {
     pub boost_count: i64,
     pub boosted_by_me: bool,
+    /// How many of this user's boost slots are on THIS server (0..=slots_total).
+    pub my_boost_count: i64,
+    /// The user's total premium boost slots (0 for non-premium).
+    pub slots_total: i64,
     pub emoji_slots: i64,
 }
 
@@ -744,17 +748,25 @@ pub async fn get_boosts(
             .fetch_one(&state.pool)
             .await?;
 
-    let boosted_by_me: Option<(i32,)> = sqlx::query_as(
-        "SELECT 1 FROM server_boosts WHERE server_id = $1 AND user_id = $2",
+    let (my_boost_count,): (i64,) = sqlx::query_as(
+        "SELECT count(*) FROM server_boosts WHERE server_id = $1 AND user_id = $2",
     )
     .bind(id)
     .bind(session.user_id)
-    .fetch_optional(&state.pool)
+    .fetch_one(&state.pool)
     .await?;
+
+    let slots_total = if crate::billing::is_premium(&state.pool, session.user_id).await? {
+        crate::billing::PREMIUM_BOOST_SLOTS
+    } else {
+        0
+    };
 
     Ok(Json(BoostStatusDto {
         boost_count,
-        boosted_by_me: boosted_by_me.is_some(),
+        boosted_by_me: my_boost_count > 0,
+        my_boost_count,
+        slots_total,
         emoji_slots: emoji_slots_for_boosts(boost_count),
     }))
 }
@@ -779,14 +791,13 @@ pub async fn add_boost(
         return Err(AppError::BoostSlotsFull);
     }
 
-    sqlx::query(
-        "INSERT INTO server_boosts (user_id, server_id) VALUES ($1, $2) \
-         ON CONFLICT DO NOTHING",
-    )
-    .bind(session.user_id)
-    .bind(id)
-    .execute(&state.pool)
-    .await?;
+    // One row per boost; a user may stack multiple on the same server up to
+    // their total slot count (checked above).
+    sqlx::query("INSERT INTO server_boosts (user_id, server_id) VALUES ($1, $2)")
+        .bind(session.user_id)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
 
     get_boosts(State(state), session, Path(id)).await
 }
@@ -798,11 +809,18 @@ pub async fn remove_boost(
 ) -> Result<Json<BoostStatusDto>, AppError> {
     require_member(&state.pool, id, session.user_id).await?;
 
-    sqlx::query("DELETE FROM server_boosts WHERE user_id = $1 AND server_id = $2")
-        .bind(session.user_id)
-        .bind(id)
-        .execute(&state.pool)
-        .await?;
+    // Remove a single boost (the most recent), not every boost this user has
+    // on the server - they may have stacked more than one.
+    sqlx::query(
+        "DELETE FROM server_boosts WHERE id = ( \
+             SELECT id FROM server_boosts \
+             WHERE user_id = $1 AND server_id = $2 \
+             ORDER BY id DESC LIMIT 1)",
+    )
+    .bind(session.user_id)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
 
     get_boosts(State(state), session, Path(id)).await
 }

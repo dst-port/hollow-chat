@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Modal from "$lib/components/Modal.svelte";
+	import Dropdown from "$lib/components/Dropdown.svelte";
 	import Paperclip from "@lucide/svelte/icons/paperclip";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { sealReport, type ReportedMessage } from "$lib/crypto/moderation";
@@ -127,14 +128,14 @@
 
 <Modal title={t("report.title", { name: reportedUsername })} {onClose} width={420}>
 	<div class="form">
-		<label class="field">
+		<div class="field">
 			<span>{t("report.category")}</span>
-			<select bind:value={category}>
-				{#each CATEGORIES as c (c)}
-					<option value={c}>{categoryLabel(c)}</option>
-				{/each}
-			</select>
-		</label>
+			<Dropdown
+				value={category}
+				options={CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) }))}
+				onChange={(v) => (category = v)}
+			/>
+		</div>
 
 		<label class="field">
 			<span>{t("report.whatHappened")}</span>
@@ -196,7 +197,6 @@
 		color: var(--ink-dim);
 	}
 
-	select,
 	textarea {
 		background: var(--sidebar);
 		border: 1px solid var(--hairline);
@@ -208,7 +208,6 @@
 		resize: vertical;
 	}
 
-	select:focus,
 	textarea:focus {
 		outline: none;
 		border-color: var(--ink-dim);
