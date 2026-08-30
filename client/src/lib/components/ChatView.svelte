@@ -96,7 +96,7 @@
 	import { rememberDecrypted, recallDecrypted } from "$lib/crypto/sent-cache";
 	import { encryptFile, genericUploadName } from "$lib/crypto/attachment";
 	import { packPayload, unpackPayload } from "$lib/crypto/messagePayload";
-	import { call } from "$lib/webrtc/call.svelte";
+	import { call, micErrorKey } from "$lib/webrtc/call.svelte";
 	import { loadAttachmentBlobUrl, loadEncryptedAttachmentBlobUrl, triggerDownload, AttachmentExpiredError } from "$lib/utils/attachment";
 	import { renderMarkdown } from "$lib/utils/markdown";
 	import type { Channel, Message, MessageAttachment } from "$lib/data/mock";
@@ -1152,8 +1152,8 @@
 		if (!token) return;
 		try {
 			await call.join(token, channel.id, channel.name, true);
-		} catch {
-			toast.push(t("toast.callStartFailed"));
+		} catch (err) {
+			toast.push(t(micErrorKey(err, "toast.callStartFailed")));
 		}
 	}
 

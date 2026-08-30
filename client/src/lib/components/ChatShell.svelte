@@ -20,7 +20,7 @@
 	import { refreshPush } from "$lib/push/push";
 	import { deepLink } from "$lib/stores/deepLink.svelte";
 	import { colorForName } from "$lib/utils/color";
-	import { call } from "$lib/webrtc/call.svelte";
+	import { call, micErrorKey } from "$lib/webrtc/call.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
 	import * as api from "$lib/api/client";
 	import { t } from "$lib/i18n/index.svelte";
@@ -264,8 +264,8 @@
 		if (!token || !activeServer || !activeChannel) return;
 		try {
 			await call.join(token, activeChannel.id, `${activeServer.name} / ${activeChannel.name}`);
-		} catch {
-			toast.push(t("toast.voiceJoinFailed"));
+		} catch (err) {
+			toast.push(t(micErrorKey(err, "toast.voiceJoinFailed")));
 		}
 	}
 

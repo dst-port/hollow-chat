@@ -13,7 +13,7 @@
 	import UserPlus from "@lucide/svelte/icons/user-plus";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
-	import { call } from "$lib/webrtc/call.svelte";
+	import { call, micErrorKey } from "$lib/webrtc/call.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { unreads } from "$lib/stores/unreads.svelte";
@@ -73,8 +73,8 @@
 		if (!token) return;
 		try {
 			await call.join(token, channel.id, `${server.name} / ${channel.name}`);
-		} catch {
-			toast.push(t("toast.voiceJoinFailed"));
+		} catch (err) {
+			toast.push(t(micErrorKey(err, "toast.voiceJoinFailed")));
 		}
 	}
 

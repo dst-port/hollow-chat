@@ -17,7 +17,7 @@
 	import FullProfileModal from "$lib/components/FullProfileModal.svelte";
 	import CreateGroupDmModal from "$lib/components/CreateGroupDmModal.svelte";
 	import GroupDmMembersPanel from "$lib/components/GroupDmMembersPanel.svelte";
-	import { call } from "$lib/webrtc/call.svelte";
+	import { call, micErrorKey } from "$lib/webrtc/call.svelte";
 	import type { Member, Channel } from "$lib/data/mock";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
@@ -154,8 +154,8 @@
 		if (!token || !dm) return;
 		try {
 			await call.join(token, dm.id, dmDisplayName(dm), true);
-		} catch {
-			toast.push(t("toast.callStartFailed"));
+		} catch (err) {
+			toast.push(t(micErrorKey(err, "toast.callStartFailed")));
 		}
 	}
 

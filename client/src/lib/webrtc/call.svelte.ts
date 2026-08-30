@@ -10,6 +10,73 @@ import {
 
 type Participant = { userId: string; username: string };
 
+/** Machine-readable reason a call couldn't get the mic, so the UI can show
+ *  an accurate toast instead of always blaming permissions. */
+export type MicErrorCode = "denied" | "notfound" | "busy" | "unavailable";
+
+export class MicError extends Error {
+	code: MicErrorCode;
+	constructor(code: MicErrorCode, message: string) {
+		super(message);
+		this.code = code;
+	}
+}
+
+/** getUserMedia for the mic, with one retry that drops a stale saved
+ *  `deviceId` - the #1 cause of "calls suddenly stopped working" is a
+ *  previously-picked mic that got unplugged/renamed, which makes
+ *  `{ deviceId: { exact } }` throw OverconstrainedError forever. */
+async function acquireMic(
+	noiseSuppression: boolean,
+	inputDeviceId: string | null
+): Promise<MediaStream> {
+	if (!navigator.mediaDevices?.getUserMedia) {
+		throw new MicError("unavailable", "Microphone API unavailable in this context");
+	}
+	const base: MediaTrackConstraints = { noiseSuppression };
+	try {
+		const constraints = inputDeviceId
+			? { ...base, deviceId: { exact: inputDeviceId } }
+			: base;
+		return await navigator.mediaDevices.getUserMedia({ audio: constraints });
+	} catch (err) {
+		const name = err instanceof DOMException ? err.name : "";
+		if (inputDeviceId && (name === "OverconstrainedError" || name === "NotFoundError")) {
+			return await navigator.mediaDevices.getUserMedia({ audio: base });
+		}
+		throw err;
+	}
+}
+
+/** i18n key for a failed `call.join`: a specific one for the cases the user
+ *  can actually act on, else the caller's generic fallback. */
+export function micErrorKey(err: unknown, fallbackKey: string): string {
+	if (err instanceof MicError) {
+		if (err.code === "busy") return "toast.callMicBusy";
+		if (err.code === "notfound") return "toast.callMicNotFound";
+		if (err.code === "unavailable") return "toast.callMicUnavailable";
+	}
+	return fallbackKey;
+}
+
+function asMicError(err: unknown): MicError {
+	if (err instanceof MicError) return err;
+	const name = err instanceof DOMException ? err.name : "";
+	switch (name) {
+		case "NotAllowedError":
+		case "SecurityError":
+			return new MicError("denied", "Microphone permission is blocked");
+		case "NotFoundError":
+		case "OverconstrainedError":
+			return new MicError("notfound", "No microphone found");
+		case "NotReadableError":
+		case "AbortError":
+			return new MicError("busy", "Microphone is in use by another app");
+		default:
+			return new MicError("unavailable", "Could not access the microphone");
+	}
+}
+
 export type ScreenShareOpts = {
 	width?: number;
 	height?: number;
@@ -391,12 +458,10 @@ class CallStore {
 		}
 
 		try {
-			const constraints: MediaTrackConstraints = { noiseSuppression: this.noiseSuppression };
-			if (this.inputDeviceId) constraints.deviceId = { exact: this.inputDeviceId };
-			this.localStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
-		} catch {
+			this.localStream = await acquireMic(this.noiseSuppression, this.inputDeviceId);
+		} catch (err) {
 			this.teardown();
-			throw new Error("Microphone access was denied");
+			throw asMicError(err);
 		}
 		this.refreshDevices();
 		if (this.pushToTalk) {
