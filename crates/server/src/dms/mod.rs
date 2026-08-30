@@ -17,6 +17,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/{id}/sender-keys", get(handlers::list_sender_keys))
         .route("/{id}/messages", get(handlers::list_messages))
         .route("/{id}/messages", post(handlers::send_message))
+        .route("/{id}/messages/{message_id}", get(handlers::get_message))
         .route("/{id}/pinned", get(handlers::list_pinned))
         .route("/{id}/messages/{message_id}", patch(handlers::edit_message))
         .route("/{id}/messages/{message_id}", delete(handlers::delete_message))

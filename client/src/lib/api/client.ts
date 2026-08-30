@@ -549,6 +549,13 @@ function messagesBase(scope: MessageScope, id: string): string {
 	return scope === "channel" ? `/channels/${id}` : `/dms/${id}`;
 }
 
+/** Fetch one message (used to reconcile edits/reactions/pins pushed over the gateway). */
+export function getMessage(token: string, scope: MessageScope, id: string, messageId: string) {
+	return request<ApiMessage>(`${messagesBase(scope, id)}/messages/${messageId}`, {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
 export function editMessage(
 	token: string,
 	scope: MessageScope,

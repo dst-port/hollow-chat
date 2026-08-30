@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
-use crate::gateway::{dm_member_ids, notify_sync};
+use crate::gateway::{dm_member_ids, notify_sync, push_to_users, GatewayEvent};
 use crate::social::{are_blocked, are_friends, ordered_pair, user_id_by_username};
 use crate::state::AppState;
 
@@ -852,6 +852,65 @@ async fn require_same_dm_message(
     }
 }
 
+// --- live message fan-out to the DM's members ---------------------------
+
+async fn broadcast_dm_created(state: &AppState, dm_id: Uuid, dto: &MessageDto) {
+    let Ok(message) = serde_json::to_value(dto) else {
+        return;
+    };
+    let members = dm_member_ids(&state.pool, dm_id).await;
+    push_to_users(
+        state,
+        &members,
+        &GatewayEvent::MessageCreated {
+            context: "dm".to_string(),
+            channel_id: dm_id,
+            message,
+        },
+    );
+}
+
+async fn broadcast_dm_updated(state: &AppState, dm_id: Uuid, message_id: Uuid) {
+    push_to_users(
+        state,
+        &dm_member_ids(&state.pool, dm_id).await,
+        &GatewayEvent::MessageUpdated {
+            context: "dm".to_string(),
+            channel_id: dm_id,
+            message_id,
+        },
+    );
+}
+
+async fn broadcast_dm_deleted(state: &AppState, dm_id: Uuid, message_id: Uuid) {
+    push_to_users(
+        state,
+        &dm_member_ids(&state.pool, dm_id).await,
+        &GatewayEvent::MessageDeleted {
+            context: "dm".to_string(),
+            channel_id: dm_id,
+            message_id,
+        },
+    );
+}
+
+pub async fn get_message(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((dm_id, message_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<MessageDto>, AppError> {
+    require_participant(&state.pool, dm_id, session.user_id).await?;
+    require_same_dm_message(&state.pool, dm_id, message_id).await?;
+
+    let row: MessageRow = sqlx::query_as(&format!("{SELECT_MESSAGE_ROW} WHERE dm_messages.id = $1"))
+        .bind(message_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+    let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
+    Ok(Json(messages.remove(0)))
+}
+
 pub async fn send_message(
     State(state): State<AppState>,
     session: AuthSession,
@@ -904,7 +963,9 @@ pub async fn send_message(
     .await?;
 
     let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
-    Ok(Json(messages.remove(0)))
+    let dto = messages.remove(0);
+    broadcast_dm_created(&state, dm_id, &dto).await;
+    Ok(Json(dto))
 }
 
 #[derive(Debug, Deserialize)]
@@ -957,6 +1018,7 @@ pub async fn edit_message(
         .await?;
 
     let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
+    broadcast_dm_updated(&state, dm_id, message_id).await;
     Ok(Json(messages.remove(0)))
 }
 
@@ -973,6 +1035,8 @@ pub async fn delete_message(
         .bind(message_id)
         .execute(&state.pool)
         .await?;
+
+    broadcast_dm_deleted(&state, dm_id, message_id).await;
 
     Ok(())
 }
@@ -992,6 +1056,8 @@ async fn set_pinned(
         .bind(message_id)
         .execute(&state.pool)
         .await?;
+
+    broadcast_dm_updated(&state, dm_id, message_id).await;
 
     Ok(())
 }
@@ -1031,6 +1097,8 @@ pub async fn add_reaction(
     .execute(&state.pool)
     .await?;
 
+    broadcast_dm_updated(&state, dm_id, message_id).await;
+
     Ok(())
 }
 
@@ -1050,6 +1118,8 @@ pub async fn remove_reaction(
     .bind(&emoji)
     .execute(&state.pool)
     .await?;
+
+    broadcast_dm_updated(&state, dm_id, message_id).await;
 
     Ok(())
 }

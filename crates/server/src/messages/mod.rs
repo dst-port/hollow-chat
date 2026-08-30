@@ -9,6 +9,10 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/{channel_id}/messages", get(handlers::list_messages))
         .route("/{channel_id}/messages", post(handlers::send_message))
+        .route(
+            "/{channel_id}/messages/{message_id}",
+            get(handlers::get_message),
+        )
         .route("/{channel_id}/pinned", get(handlers::list_pinned))
         .route("/{channel_id}/messages/{message_id}", patch(handlers::edit_message))
         .route("/{channel_id}/messages/{message_id}", delete(handlers::delete_message))

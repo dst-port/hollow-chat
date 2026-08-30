@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::gateway::{channel_member_ids, push_to_users, GatewayEvent};
 use crate::permissions::{require_permission, MANAGE_MESSAGES};
 use crate::state::AppState;
 
@@ -284,6 +285,70 @@ pub struct ListMessagesQuery {
     pub limit: Option<i64>,
 }
 
+// --- live message fan-out to the channel's server members ----------------
+
+async fn broadcast_created(state: &AppState, channel_id: Uuid, dto: &MessageDto) {
+    let Ok(message) = serde_json::to_value(dto) else {
+        return;
+    };
+    let members = channel_member_ids(&state.pool, channel_id).await;
+    push_to_users(
+        state,
+        &members,
+        &GatewayEvent::MessageCreated {
+            context: "channel".to_string(),
+            channel_id,
+            message,
+        },
+    );
+}
+
+async fn broadcast_updated(state: &AppState, channel_id: Uuid, message_id: Uuid) {
+    let members = channel_member_ids(&state.pool, channel_id).await;
+    push_to_users(
+        state,
+        &members,
+        &GatewayEvent::MessageUpdated {
+            context: "channel".to_string(),
+            channel_id,
+            message_id,
+        },
+    );
+}
+
+async fn broadcast_deleted(state: &AppState, channel_id: Uuid, message_id: Uuid) {
+    let members = channel_member_ids(&state.pool, channel_id).await;
+    push_to_users(
+        state,
+        &members,
+        &GatewayEvent::MessageDeleted {
+            context: "channel".to_string(),
+            channel_id,
+            message_id,
+        },
+    );
+}
+
+pub async fn get_message(
+    State(state): State<AppState>,
+    session: AuthSession,
+    Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<MessageDto>, AppError> {
+    require_channel_member(&state.pool, channel_id, session.user_id).await?;
+
+    let row: Option<MessageRow> = sqlx::query_as(&format!(
+        "{SELECT_MESSAGE_ROW} WHERE messages.id = $1 AND messages.channel_id = $2"
+    ))
+    .bind(message_id)
+    .bind(channel_id)
+    .fetch_optional(&state.pool)
+    .await?;
+
+    let row = row.ok_or(AppError::NotFound)?;
+    let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
+    Ok(Json(messages.remove(0)))
+}
+
 pub async fn list_messages(
     State(state): State<AppState>,
     session: AuthSession,
@@ -465,7 +530,9 @@ pub async fn send_message(
     .await?;
 
     let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
-    Ok(Json(messages.remove(0)))
+    let dto = messages.remove(0);
+    broadcast_created(&state, channel_id, &dto).await;
+    Ok(Json(dto))
 }
 
 #[derive(Debug, Deserialize)]
@@ -520,6 +587,7 @@ pub async fn edit_message(
         .await?;
 
     let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
+    broadcast_updated(&state, channel_id, message_id).await;
     Ok(Json(messages.remove(0)))
 }
 
@@ -541,6 +609,8 @@ pub async fn delete_message(
         .execute(&state.pool)
         .await?;
 
+    broadcast_deleted(&state, channel_id, message_id).await;
+
     Ok(())
 }
 
@@ -560,6 +630,8 @@ pub async fn set_pinned(
         .bind(message_id)
         .execute(&state.pool)
         .await?;
+
+    broadcast_updated(&state, channel_id, message_id).await;
 
     Ok(())
 }
@@ -598,6 +670,8 @@ pub async fn add_reaction(
     .bind(&emoji)
     .execute(&state.pool)
     .await?;
+
+    broadcast_updated(&state, channel_id, message_id).await;
 
     Ok(())
 }
@@ -824,6 +898,8 @@ pub async fn remove_reaction(
     .bind(&emoji)
     .execute(&state.pool)
     .await?;
+
+    broadcast_updated(&state, channel_id, message_id).await;
 
     Ok(())
 }

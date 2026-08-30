@@ -23,6 +23,28 @@ pub enum GatewayEvent {
     Sync {
         scope: String,
     },
+    /// A new message landed in a channel or DM the recipient belongs to.
+    /// Carries the fully-assembled message DTO (still E2E-encrypted blob) so
+    /// the client renders it with no follow-up fetch. `context` is
+    /// "channel" | "dm"; `channel_id` is the channel/dm-channel id.
+    MessageCreated {
+        context: String,
+        channel_id: Uuid,
+        message: serde_json::Value,
+    },
+    /// An existing message changed - edit, reaction, or pin. The client
+    /// refetches just that message (its reacted/own-view fields are
+    /// per-recipient, so we can't broadcast one shared copy).
+    MessageUpdated {
+        context: String,
+        channel_id: Uuid,
+        message_id: Uuid,
+    },
+    MessageDeleted {
+        context: String,
+        channel_id: Uuid,
+        message_id: Uuid,
+    },
     Typing {
         /// "channel" or "dm" — where the person is typing.
         context: String,
@@ -96,6 +118,19 @@ pub async fn server_member_ids(pool: &sqlx::PgPool, server_id: Uuid) -> Vec<Uuid
         .fetch_all(pool)
         .await
         .unwrap_or_default()
+}
+
+/// User-ids that can see a server channel (every member of its server).
+pub async fn channel_member_ids(pool: &sqlx::PgPool, channel_id: Uuid) -> Vec<Uuid> {
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT sm.user_id FROM server_members sm \
+         JOIN channels c ON c.server_id = sm.server_id \
+         WHERE c.id = $1",
+    )
+    .bind(channel_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
 }
 
 /// Member user-ids of a DM/group-DM channel.

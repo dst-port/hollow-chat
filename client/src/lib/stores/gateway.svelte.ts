@@ -96,6 +96,33 @@ function emitSync(scope: string) {
 	}
 }
 
+// --- generic gateway events (live messages etc.) ----------------------
+
+type GatewayHandler = (data: Record<string, unknown>) => void;
+const eventHandlers = new Set<{ type: string; fn: GatewayHandler }>();
+
+/**
+ * Subscribe to a raw gateway event by its `type` (e.g. "message-created",
+ * "message-updated", "message-deleted"). Returns an unsubscribe.
+ */
+export function onGatewayEvent(type: string, fn: GatewayHandler): () => void {
+	const entry = { type, fn };
+	eventHandlers.add(entry);
+	return () => eventHandlers.delete(entry);
+}
+
+function emitEvent(type: string, data: Record<string, unknown>) {
+	for (const h of eventHandlers) {
+		if (h.type === type) {
+			try {
+				h.fn(data);
+			} catch {
+				/* isolate handler failures */
+			}
+		}
+	}
+}
+
 let socket: WebSocket | null = null;
 let started = false;
 let hasConnectedOnce = false;
@@ -124,6 +151,7 @@ function connect(token: string) {
 		// own initial load, so skip it to avoid a redundant double-fetch.
 		if (hasConnectedOnce) {
 			for (const scope of SYNC_SCOPES) emitSync(scope);
+			emitEvent("reconnected", {});
 		}
 		hasConnectedOnce = true;
 	};
@@ -141,6 +169,8 @@ function connect(token: string) {
 			typingStore.apply(data as unknown as TypingEvent);
 		} else if (data.type === "sync" && data.scope) {
 			emitSync(data.scope);
+		} else if (typeof data.type === "string") {
+			emitEvent(data.type, data as Record<string, unknown>);
 		}
 	};
 

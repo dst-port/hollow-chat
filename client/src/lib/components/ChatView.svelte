@@ -40,7 +40,7 @@
 	import { notifyDesktop } from "$lib/utils/notify";
 	import { playNotificationSound } from "$lib/utils/sound";
 	import { session } from "$lib/stores/session.svelte";
-	import { sendTyping, typingStore } from "$lib/stores/gateway.svelte";
+	import { sendTyping, typingStore, onGatewayEvent } from "$lib/stores/gateway.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { nameFontStack } from "$lib/stores/font.svelte";
 	import { customEmojiStore } from "$lib/stores/customEmoji.svelte";
@@ -62,6 +62,7 @@
 		listPinned as apiListPinned,
 		addReaction as apiAddReaction,
 		removeReaction as apiRemoveReaction,
+		getMessage as apiGetMessage,
 		createThread as apiCreateThread,
 		listMembers as apiListMembers,
 		publishSenderKeys,
@@ -100,7 +101,9 @@
 	import type { Channel, Message, MessageAttachment } from "$lib/data/mock";
 
 	const DEFAULT_QUICK_EMOJI = ["👍", "❤️", "😂", "🔥", "🎉"];
-	const POLL_INTERVAL_MS = 3000;
+	// New/edited/deleted messages arrive live over the gateway. This slow
+	// poll is only a backstop for anything a socket blip dropped.
+	const SAFETY_POLL_MS = 20000;
 
 	let { channel, isDm = false, serverId, peerId, onToggleMembers }: {
 		channel: Channel;
@@ -427,63 +430,130 @@
 		return isDm ? peerId : memberIdByUsername[message.author];
 	}
 
+	function maybeNotifyMention(built: Message, myUsername: string) {
+		if (
+			built.mentionsMe &&
+			built.author !== myUsername &&
+			notificationSettings.mentionsEnabled
+		) {
+			const summary = `${built.author} mentioned you in #${channel.name}`;
+			toast.push(summary);
+			notifyDesktop(isDm ? `${built.author}` : `#${channel.name}`, built.content || summary);
+			playNotificationSound();
+		}
+	}
+
 	$effect(() => {
 		const token = session.token;
 		const myUsername = session.username;
 		const channelId = channel.id;
 		const fetcher = fetchMessages;
+		const scope: "channel" | "dm" = isDm ? "dm" : "channel";
 		if (!token || !myUsername) return;
 
 		messages = [];
 		lastId = null;
 		let cancelled = false;
 
-		bootstrapChannelKeys(token, myUsername)
-			.catch(() => {})
-			.then(() => fetcher(token, channelId))
-			.then(async (rows) => {
-				if (cancelled) return;
-				const converted = await toMessages(rows);
-				if (cancelled) return;
-				messages = converted;
-				lastId = rows.at(-1)?.id ?? lastId;
-			})
-			.catch(() => {});
+		// Serialise async appends (gateway push + safety poll) so two
+		// near-simultaneous events can't interleave a half-built message.
+		let chain: Promise<void> = Promise.resolve();
+		const enqueue = (job: () => Promise<void>) => {
+			chain = chain.then(job).catch(() => {});
+			return chain;
+		};
 
-		let polling = false;
-		const interval = setInterval(() => {
-			if (!lastId || polling) return;
-			polling = true;
-			fetcher(token, channelId, { after: lastId })
-				.then(async (rows) => {
-					if (cancelled || rows.length === 0) return;
-					const known = new Set(messages.map((m) => m.id));
-					for (const row of rows) {
-						if (cancelled) return;
-						if (known.has(row.id)) continue;
-						const built = await toMessage(row);
-						messages.push(built);
-						if (
-							built.mentionsMe &&
-							built.author !== myUsername &&
-							notificationSettings.mentionsEnabled
-						) {
-							const summary = `${built.author} mentioned you in #${channel.name}`;
-							toast.push(summary);
-							notifyDesktop(isDm ? `${built.author}` : `#${channel.name}`, built.content || summary);
-							playNotificationSound();
-						}
-					}
-					lastId = rows.at(-1)!.id;
-				})
+		async function ingestNew(rows: ApiMessage[]) {
+			if (cancelled || rows.length === 0) return;
+			const known = new Set(messages.map((m) => m.id));
+			for (const row of rows) {
+				if (cancelled) return;
+				if (known.has(row.id)) continue;
+				const built = await toMessage(row);
+				if (cancelled) return;
+				messages.push(built);
+				maybeNotifyMention(built, myUsername!);
+			}
+			const newest = rows.at(-1)?.id;
+			if (newest) lastId = newest;
+		}
+
+		const loadInitial = () =>
+			bootstrapChannelKeys(token, myUsername!)
 				.catch(() => {})
-				.finally(() => {
-					polling = false;
-				});
-		}, POLL_INTERVAL_MS);
+				.then(() => fetcher(token, channelId))
+				.then(async (rows) => {
+					if (cancelled) return;
+					const converted = await toMessages(rows);
+					if (cancelled) return;
+					messages = converted;
+					lastId = rows.at(-1)?.id ?? lastId;
+				})
+				.catch(() => {});
+
+		enqueue(loadInitial);
+
+		const inThisChannel = (data: Record<string, unknown>) =>
+			data.context === scope && data.channel_id === channelId;
+
+		const offCreated = onGatewayEvent("message-created", (data) => {
+			if (cancelled || !inThisChannel(data)) return;
+			enqueue(() => ingestNew([data.message as ApiMessage]));
+		});
+
+		const offUpdated = onGatewayEvent("message-updated", (data) => {
+			if (cancelled || !inThisChannel(data)) return;
+			const messageId = data.message_id as string;
+			enqueue(async () => {
+				if (cancelled) return;
+				const idx = messages.findIndex((m) => m.id === messageId);
+				if (idx === -1) return;
+				try {
+					const fresh = await apiGetMessage(token, scope, channelId, messageId);
+					if (cancelled) return;
+					const rebuilt = await toMessage(fresh);
+					const at = messages.findIndex((m) => m.id === messageId);
+					if (at !== -1) messages[at] = rebuilt;
+				} catch (err) {
+					// Gone already - a delete event will (or did) drop it.
+					if (err instanceof ApiError && err.status === 404) {
+						messages = messages.filter((m) => m.id !== messageId);
+					}
+				}
+			});
+		});
+
+		const offDeleted = onGatewayEvent("message-deleted", (data) => {
+			if (cancelled || !inThisChannel(data)) return;
+			const messageId = data.message_id as string;
+			enqueue(async () => {
+				messages = messages.filter((m) => m.id !== messageId);
+			});
+		});
+
+		// Missed a push during a socket blip? Catch up on reconnect and on a
+		// slow timer.
+		const catchUp = () => {
+			if (cancelled || !lastId) return;
+			enqueue(async () => {
+				if (cancelled || !lastId) return;
+				try {
+					const rows = await fetcher(token, channelId, { after: lastId });
+					await ingestNew(rows);
+				} catch {
+					/* transient */
+				}
+			});
+		};
+		const offReconnect = onGatewayEvent("reconnected", catchUp);
+		const interval = setInterval(catchUp, SAFETY_POLL_MS);
 
 		return () => {
 			cancelled = true;
+			offCreated();
+			offUpdated();
+			offDeleted();
+			offReconnect();
 			clearInterval(interval);
 		};
 	});
