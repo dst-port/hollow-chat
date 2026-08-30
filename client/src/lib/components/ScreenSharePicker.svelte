@@ -1,6 +1,10 @@
 <script lang="ts">
 	import Modal from "$lib/components/Modal.svelte";
 	import Check from "@lucide/svelte/icons/check";
+	import Monitor from "@lucide/svelte/icons/monitor";
+	import AppWindow from "@lucide/svelte/icons/app-window";
+	import PanelTop from "@lucide/svelte/icons/panel-top";
+	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import { t } from "$lib/i18n/index.svelte";
 	import type { ScreenShareOpts } from "$lib/webrtc/call.svelte";
 
@@ -8,6 +12,13 @@
 		onCancel: () => void;
 		onGoLive: (opts: ScreenShareOpts) => void;
 	} = $props();
+
+	type Surface = "screen" | "window" | "tab";
+	const SOURCES: { id: Surface; label: string; hint: string; icon: typeof Monitor }[] = [
+		{ id: "screen", label: t("screenShare.sourceScreen"), hint: t("screenShare.sourceScreenHint"), icon: Monitor },
+		{ id: "window", label: t("screenShare.sourceWindow"), hint: t("screenShare.sourceWindowHint"), icon: AppWindow },
+		{ id: "tab", label: t("screenShare.sourceTab"), hint: t("screenShare.sourceTabHint"), icon: PanelTop }
+	];
 
 	const RES: { label: string; w: number; h: number }[] = [
 		{ label: "480", w: 854, h: 480 },
@@ -18,52 +29,42 @@
 	];
 	const FPS = [15, 30, 60];
 
+	let surface = $state<Surface>("screen");
 	let resIndex = $state(1); // 720
 	let fps = $state(30);
 	let contentHint = $state<"motion" | "detail">("motion");
 	let shareAudio = $state(false);
+	let advancedOpen = $state(false);
 
 	function goLive() {
 		const r = RES[resIndex];
-		onGoLive({ width: r.w, height: r.h, frameRate: fps, contentHint, audio: shareAudio });
+		onGoLive({
+			surface,
+			width: r.w,
+			height: r.h,
+			frameRate: fps,
+			contentHint,
+			audio: shareAudio
+		});
 	}
 </script>
 
-<Modal title={t("screenShare.title")} onClose={onCancel} width={440}>
+<Modal title={t("screenShare.title")} onClose={onCancel} width={460}>
 	<div class="picker">
-		<div class="field">
-			<span class="field-label">{t("screenShare.resolution")}</span>
-			<div class="segments">
-				{#each RES as r, i (r.label)}
-					<button type="button" class="seg" class:active={resIndex === i} onclick={() => (resIndex = i)}>
-						{r.label}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<div class="field">
-			<span class="field-label">{t("screenShare.frameRate")}</span>
-			<div class="segments">
-				{#each FPS as f (f)}
-					<button type="button" class="seg" class:active={fps === f} onclick={() => (fps = f)}>{f}</button>
-				{/each}
-			</div>
-		</div>
-
-		<div class="field">
-			<span class="field-label">{t("screenShare.contentType")}</span>
-			<div class="segments wide">
-				<button type="button" class="seg" class:active={contentHint === "motion"} onclick={() => (contentHint = "motion")}>
-					{t("screenShare.smoothness")}
+		<div class="sources">
+			{#each SOURCES as s (s.id)}
+				{@const Icon = s.icon}
+				<button
+					type="button"
+					class="source"
+					class:active={surface === s.id}
+					onclick={() => (surface = s.id)}
+				>
+					<Icon size={22} strokeWidth={1.75} />
+					<span class="source-label">{s.label}</span>
+					<span class="source-hint">{s.hint}</span>
 				</button>
-				<button type="button" class="seg" class:active={contentHint === "detail"} onclick={() => (contentHint = "detail")}>
-					{t("screenShare.clarity")}
-				</button>
-			</div>
-			<p class="hint">
-				{contentHint === "detail" ? t("screenShare.clarityHint") : t("screenShare.smoothnessHint")}
-			</p>
+			{/each}
 		</div>
 
 		<label class="audio-row">
@@ -71,8 +72,54 @@
 			<span class="box" aria-hidden="true">
 				{#if shareAudio}<Check size={12} strokeWidth={3} />{/if}
 			</span>
-			<span>{t("screenShare.shareAudio")}</span>
+			<span>{surface === "tab" ? t("screenShare.shareTabAudio") : t("screenShare.shareAudio")}</span>
 		</label>
+
+		<button type="button" class="advanced-toggle" onclick={() => (advancedOpen = !advancedOpen)}>
+			<ChevronDown size={14} strokeWidth={2.5} class={advancedOpen ? "chev open" : "chev"} />
+			{t("screenShare.advanced")}
+		</button>
+
+		{#if advancedOpen}
+			<div class="advanced">
+				<div class="field">
+					<span class="field-label">{t("screenShare.resolution")}</span>
+					<div class="segments">
+						{#each RES as r, i (r.label)}
+							<button type="button" class="seg" class:active={resIndex === i} onclick={() => (resIndex = i)}>
+								{r.label}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<div class="field">
+					<span class="field-label">{t("screenShare.frameRate")}</span>
+					<div class="segments">
+						{#each FPS as f (f)}
+							<button type="button" class="seg" class:active={fps === f} onclick={() => (fps = f)}>{f}</button>
+						{/each}
+					</div>
+				</div>
+
+				<div class="field">
+					<span class="field-label">{t("screenShare.contentType")}</span>
+					<div class="segments wide">
+						<button type="button" class="seg" class:active={contentHint === "motion"} onclick={() => (contentHint = "motion")}>
+							{t("screenShare.smoothness")}
+						</button>
+						<button type="button" class="seg" class:active={contentHint === "detail"} onclick={() => (contentHint = "detail")}>
+							{t("screenShare.clarity")}
+						</button>
+					</div>
+					<p class="hint">
+						{contentHint === "detail" ? t("screenShare.clarityHint") : t("screenShare.smoothnessHint")}
+					</p>
+				</div>
+			</div>
+		{/if}
+
+		<p class="browser-note">{t("screenShare.browserAsks")}</p>
 
 		<div class="actions">
 			<button type="button" class="ghost" onclick={onCancel}>{t("common.cancel")}</button>
@@ -85,7 +132,49 @@
 	.picker {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: 14px;
+	}
+
+	.sources {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 8px;
+	}
+
+	.source {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		padding: 14px 8px 12px;
+		border-radius: 10px;
+		background: var(--active);
+		color: var(--ink-dim);
+		border: 1.5px solid transparent;
+		text-align: center;
+		transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+	}
+
+	.source:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+
+	.source.active {
+		border-color: var(--accent-fill);
+		background: color-mix(in srgb, var(--accent-fill) 14%, var(--active));
+		color: var(--ink);
+	}
+
+	.source-label {
+		font-size: 13px;
+		font-weight: 700;
+	}
+
+	.source-hint {
+		font-size: 11px;
+		color: var(--ink-faint);
+		line-height: 1.25;
 	}
 
 	.field {
@@ -135,6 +224,43 @@
 	.hint {
 		margin: 0;
 		font-size: 12px;
+		color: var(--ink-faint);
+	}
+
+	.advanced-toggle {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		align-self: flex-start;
+		padding: 4px 2px;
+		font-size: 12px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--ink-faint);
+	}
+
+	.advanced-toggle:hover {
+		color: var(--ink-dim);
+	}
+
+	.advanced-toggle :global(.chev) {
+		transition: transform 0.12s ease;
+	}
+
+	.advanced-toggle :global(.chev.open) {
+		transform: rotate(180deg);
+	}
+
+	.advanced {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.browser-note {
+		margin: 0;
+		font-size: 11px;
 		color: var(--ink-faint);
 	}
 

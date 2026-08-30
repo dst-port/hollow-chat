@@ -83,6 +83,9 @@ export type ScreenShareOpts = {
 	frameRate?: number;
 	contentHint?: "motion" | "detail";
 	audio?: boolean;
+	/** Which surface kind our picker pre-selected; maps to a displaySurface
+	 *  hint so the browser's chooser opens on the right tab. */
+	surface?: "tab" | "window" | "screen";
 };
 
 type ServerMsg =
@@ -667,14 +670,29 @@ class CallStore {
 		}
 
 		try {
-			const video: MediaTrackConstraints = {};
+			const video: MediaTrackConstraints & { displaySurface?: string } = {};
 			if (opts?.width) video.width = { ideal: opts.width };
 			if (opts?.height) video.height = { ideal: opts.height };
 			if (opts?.frameRate) video.frameRate = { ideal: opts.frameRate };
-			const screenStream = await navigator.mediaDevices.getDisplayMedia({
+			if (opts?.surface === "tab") video.displaySurface = "browser";
+			else if (opts?.surface === "window") video.displaySurface = "window";
+			else if (opts?.surface === "screen") video.displaySurface = "monitor";
+
+			// Everything the web lets us pre-shape about the native chooser:
+			// drop our own tab from the list, let the user hot-swap the
+			// source mid-share from the browser bar, and offer system audio
+			// for screen/window grabs.
+			const displayOpts: DisplayMediaStreamOptions & Record<string, unknown> = {
 				video: Object.keys(video).length ? video : true,
-				audio: opts?.audio ?? false
-			});
+				audio: opts?.audio ?? false,
+				selfBrowserSurface: "exclude",
+				surfaceSwitching: "include",
+				monitorTypeSurfaces: "include"
+			};
+			if (opts?.audio && opts?.surface !== "tab") {
+				displayOpts.systemAudio = "include";
+			}
+			const screenStream = await navigator.mediaDevices.getDisplayMedia(displayOpts);
 			const track = screenStream.getVideoTracks()[0];
 			if (opts?.contentHint) track.contentHint = opts.contentHint;
 			if (opts && (opts.width || opts.frameRate)) {
