@@ -344,6 +344,7 @@
 		flex-direction: column;
 		min-height: 0;
 		min-width: 0;
+		overflow: hidden;
 		background: var(--void);
 	}
 
@@ -415,12 +416,12 @@
 		color: var(--danger);
 	}
 
-	/* One uniform gallery. Explicit viewport-relative height (not flex-grow:
-	   the stage's ancestor chain doesn't reliably hand down a definite
-	   height, so a flex row would collapse). Tiles wrap and centre. */
+	/* One uniform gallery: fills whatever the stage gives it (near
+	   full-height in a server voice channel, a ~300px strip in an inline DM
+	   call) and wraps its equal cards. */
 	.tiles {
-		flex: 0 0 auto;
-		height: clamp(240px, 64vh, 760px);
+		flex: 1 1 auto;
+		min-height: 120px;
 		display: flex;
 		flex-wrap: wrap;
 		gap: 12px;
@@ -429,10 +430,6 @@
 		align-items: center;
 		justify-content: center;
 		overflow-y: auto;
-	}
-
-	.stage.fullscreen .tiles {
-		height: clamp(240px, 82vh, 1400px);
 	}
 
 	.tile {
