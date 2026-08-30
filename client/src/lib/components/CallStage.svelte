@@ -15,7 +15,8 @@
 	import SignalHigh from "@lucide/svelte/icons/signal-high";
 	import SignalMedium from "@lucide/svelte/icons/signal-medium";
 	import SignalLow from "@lucide/svelte/icons/signal-low";
-	import { call, SELF_KEY } from "$lib/webrtc/call.svelte";
+	import { call, SELF_KEY, type ScreenShareOpts } from "$lib/webrtc/call.svelte";
+	import ScreenSharePicker from "$lib/components/ScreenSharePicker.svelte";
 	import {
 		attachRemoteStream,
 		attachLocalStream,
@@ -36,6 +37,17 @@
 
 	const joined = $derived(call.roomId === channel.id);
 	let fullscreen = $state(false);
+	let sharePickerOpen = $state(false);
+
+	function onScreenShareClick() {
+		if (call.screenSharing) call.toggleScreenShare();
+		else sharePickerOpen = true;
+	}
+
+	function goLive(opts: ScreenShareOpts) {
+		sharePickerOpen = false;
+		call.toggleScreenShare(opts);
+	}
 
 	function qualityIcon(userId: string) {
 		const level = call.connectionQuality[userId];
@@ -216,7 +228,7 @@
 			<button class="ctrl" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")} onclick={() => call.toggleCamera()}>
 				{#if call.cameraEnabled}<Video size={18} strokeWidth={2} />{:else}<VideoOff size={18} strokeWidth={2} />{/if}
 			</button>
-			<button class="ctrl" class:active={call.screenSharing} aria-label={call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")} onclick={() => call.toggleScreenShare()}>
+			<button class="ctrl" class:active={call.screenSharing} aria-label={call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")} onclick={onScreenShareClick}>
 				{#if call.screenSharing}<ScreenShareOff size={18} strokeWidth={2} />{:else}<ScreenShare size={18} strokeWidth={2} />{/if}
 			</button>
 			<button class="ctrl leave" aria-label={t("call.disconnect")} onclick={() => call.leave()}>
@@ -228,6 +240,10 @@
 			<audio use:attachRemoteStream={participant.userId} autoplay muted={call.deafened}></audio>
 		{/each}
 	</div>
+{/if}
+
+{#if sharePickerOpen}
+	<ScreenSharePicker onCancel={() => (sharePickerOpen = false)} onGoLive={goLive} />
 {/if}
 
 <style>

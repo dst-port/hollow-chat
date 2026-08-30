@@ -8,7 +8,8 @@
 	import ScreenShareOff from "@lucide/svelte/icons/screen-share-off";
 	import PhoneOff from "@lucide/svelte/icons/phone-off";
 	import Users from "@lucide/svelte/icons/users";
-	import { call } from "$lib/webrtc/call.svelte";
+	import { call, type ScreenShareOpts } from "$lib/webrtc/call.svelte";
+	import ScreenSharePicker from "$lib/components/ScreenSharePicker.svelte";
 	import {
 		attachRemoteStream,
 		attachLocalStream,
@@ -45,6 +46,17 @@
 	});
 
 	let showParticipants = $state(false);
+	let sharePickerOpen = $state(false);
+
+	function onScreenShareClick() {
+		if (call.screenSharing) call.toggleScreenShare();
+		else sharePickerOpen = true;
+	}
+
+	function goLive(opts: ScreenShareOpts) {
+		sharePickerOpen = false;
+		call.toggleScreenShare(opts);
+	}
 </script>
 
 {#if call.status !== "idle"}
@@ -70,7 +82,7 @@
 				{#if call.cameraEnabled}<Video size={14} strokeWidth={2} />{:else}<VideoOff size={14} strokeWidth={2} />{/if}
 				<span class="tooltip">{call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")}</span>
 			</button>
-			<button class="feature-btn" class:active={call.screenSharing} aria-label={call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")} onclick={() => call.toggleScreenShare()}>
+			<button class="feature-btn" class:active={call.screenSharing} aria-label={call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")} onclick={onScreenShareClick}>
 				{#if call.screenSharing}<ScreenShareOff size={14} strokeWidth={2} />{:else}<ScreenShare size={14} strokeWidth={2} />{/if}
 				<span class="tooltip">{call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")}</span>
 			</button>
@@ -160,6 +172,10 @@
 			<audio use:attachRemoteStream={participant.userId} autoplay muted={call.deafened}></audio>
 		{/each}
 	</div>
+{/if}
+
+{#if sharePickerOpen}
+	<ScreenSharePicker onCancel={() => (sharePickerOpen = false)} onGoLive={goLive} />
 {/if}
 
 <style>

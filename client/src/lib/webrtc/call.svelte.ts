@@ -10,6 +10,14 @@ import {
 
 type Participant = { userId: string; username: string };
 
+export type ScreenShareOpts = {
+	width?: number;
+	height?: number;
+	frameRate?: number;
+	contentHint?: "motion" | "detail";
+	audio?: boolean;
+};
+
 type ServerMsg =
 	| { type: "room-state"; members: { user_id: string; username: string }[] }
 	| { type: "peer-joined"; user_id: string; username: string }
@@ -454,15 +462,26 @@ class CallStore {
 		}
 	}
 
-	async toggleScreenShare(): Promise<void> {
+	async toggleScreenShare(opts?: ScreenShareOpts): Promise<void> {
 		if (this.screenSharing) {
 			this.stopScreenShareInternal();
 			return;
 		}
 
 		try {
-			const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+			const video: MediaTrackConstraints = {};
+			if (opts?.width) video.width = { ideal: opts.width };
+			if (opts?.height) video.height = { ideal: opts.height };
+			if (opts?.frameRate) video.frameRate = { ideal: opts.frameRate };
+			const screenStream = await navigator.mediaDevices.getDisplayMedia({
+				video: Object.keys(video).length ? video : true,
+				audio: opts?.audio ?? false
+			});
 			const track = screenStream.getVideoTracks()[0];
+			if (opts?.contentHint) track.contentHint = opts.contentHint;
+			if (opts && (opts.width || opts.frameRate)) {
+				track.applyConstraints(video).catch(() => {});
+			}
 			this.localScreenStream = screenStream;
 			track.onended = () => this.stopScreenShareInternal();
 
