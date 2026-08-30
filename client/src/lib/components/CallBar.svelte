@@ -378,6 +378,7 @@
 		position: relative;
 		width: 100%;
 		aspect-ratio: 16 / 9;
+		max-height: 40vh;
 		border-radius: 8px;
 		overflow: hidden;
 		background: var(--void);

@@ -414,13 +414,18 @@
 	}
 
 	.spotlight-row {
-		flex-shrink: 0;
+		/* Shrinks to whatever the stage gives it - the stage is near
+		   full-height for a server voice channel but only ~300px for an
+		   inline DM call, and a fixed height here used to overflow the DM
+		   box downward and shove the controls off-screen. */
+		flex: 3 1 0;
+		min-height: 0;
+		max-height: min(46vh, 420px);
 		display: flex;
 		gap: 10px;
 		padding: 16px 20px 0;
 		flex-wrap: wrap;
 		justify-content: center;
-		height: min(46vh, 420px);
 		overflow: hidden;
 	}
 
@@ -449,6 +454,14 @@
 
 	.spotlight-tile.screen {
 		background: black;
+		/* Drop the forced 16:9 - a shared screen can be any ratio, and the
+		   <video>'s object-fit: contain letterboxes it inside whatever
+		   height the row has. Fill the row instead of dictating a size. */
+		aspect-ratio: auto;
+		flex: 1 1 auto;
+		min-width: 0;
+		max-width: 100%;
+		height: 100%;
 	}
 
 	.spotlight-tile.screen video {
