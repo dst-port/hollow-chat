@@ -174,6 +174,11 @@
 		position: relative;
 		width: 48px;
 		height: 48px;
+		/* <button> keeps its UA padding (~1px 6px) even after the global
+		   reset - with box-sizing: border-box that shrinks the content box,
+		   so the icon inside rendered ~36px wide in a 48px circle and the
+		   sidebar colour showed as a gap on either side. */
+		padding: 0;
 		border-radius: 24px;
 		background: var(--sidebar);
 		color: var(--ink-dim);
@@ -195,6 +200,8 @@
 		justify-content: center;
 		background-position: center;
 		background-size: cover;
+		background-repeat: no-repeat;
+		border-radius: inherit;
 	}
 
 	.server:hover {
