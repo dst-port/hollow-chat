@@ -301,7 +301,16 @@ fn clean(value: Option<String>, max_len: usize) -> Result<Option<String>, AppErr
 /// Allow-list of nameplate font ids. Kept in sync with the client's
 /// PRESET_FONT_IDS; anything else is rejected so the value can be dropped
 /// straight into a `font-family` on other users' screens.
-const NAME_FONTS: &[&str] = &["inter", "poppins", "comfortaa", "jetbrains-mono", "merriweather"];
+const NAME_FONTS: &[&str] = &[
+    "cinzel",
+    "orbitron",
+    "unifraktur",
+    "pacifico",
+    "silkscreen",
+    "monoton",
+    "rubik-mono",
+    "caveat",
+];
 
 fn clean_name_font(value: Option<String>) -> Result<Option<String>, AppError> {
     let Some(value) = value else { return Ok(None) };

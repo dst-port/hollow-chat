@@ -17,7 +17,7 @@
 	import Gamepad2 from "@lucide/svelte/icons/gamepad-2";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
 	import Dropdown from "$lib/components/Dropdown.svelte";
-	import { PRESET_FONT_IDS, FONT_LABELS, nameFontStack } from "$lib/stores/font.svelte";
+	import { NAME_FONT_IDS, NAME_FONT_LABELS, nameFontStack } from "$lib/stores/font.svelte";
 	import Badges from "$lib/components/Badges.svelte";
 	import BrandIcon from "$lib/components/BrandIcon.svelte";
 	import { BRAND_ICONS } from "$lib/data/brandIcons";
@@ -451,7 +451,7 @@
 					value={nameFontDraft}
 					options={[
 						{ value: "default", label: t("profile.edit.nameFontDefault") },
-						...PRESET_FONT_IDS.map((id) => ({ value: id, label: FONT_LABELS[id] }))
+						...NAME_FONT_IDS.map((id) => ({ value: id, label: NAME_FONT_LABELS[id] }))
 					]}
 					onChange={(v) => (nameFontDraft = v)}
 				/>

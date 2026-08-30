@@ -25,13 +25,60 @@ export const FONT_LABELS: Record<FontId, string> = {
 export const PRESET_FONT_IDS: FontId[] = ["inter", "poppins", "comfortaa", "jetbrains-mono", "merriweather"];
 
 /**
+ * Distinctive display faces offered only for the nameplate (not the UI
+ * font) — the point is a name that stands out, not another sans-serif.
+ */
+export type NameFontId =
+	| "cinzel"
+	| "orbitron"
+	| "unifraktur"
+	| "pacifico"
+	| "silkscreen"
+	| "monoton"
+	| "rubik-mono"
+	| "caveat";
+
+export const NAME_FONT_STACKS: Record<NameFontId, string> = {
+	cinzel: '"Cinzel", Georgia, serif',
+	orbitron: '"Orbitron", "Segoe UI", sans-serif',
+	unifraktur: '"UnifrakturMaguntia", Georgia, serif',
+	pacifico: '"Pacifico", cursive',
+	silkscreen: '"Silkscreen", "Courier New", monospace',
+	monoton: '"Monoton", cursive',
+	"rubik-mono": '"Rubik Mono One", "Arial Black", sans-serif',
+	caveat: '"Caveat", cursive'
+};
+
+export const NAME_FONT_LABELS: Record<NameFontId, string> = {
+	cinzel: "Cinzel",
+	orbitron: "Orbitron",
+	unifraktur: "Gothic",
+	pacifico: "Pacifico",
+	silkscreen: "Pixel",
+	monoton: "Monoton",
+	"rubik-mono": "Heavy",
+	caveat: "Handwritten"
+};
+
+export const NAME_FONT_IDS: NameFontId[] = [
+	"cinzel",
+	"orbitron",
+	"unifraktur",
+	"pacifico",
+	"silkscreen",
+	"monoton",
+	"rubik-mono",
+	"caveat"
+];
+
+/**
  * Font stack for a profile's chosen nameplate font, or undefined when unset
  * / invalid (falls back to the surrounding element's font). Safe to drop
  * straight into `style:font-family` on any display-name element.
  */
 export function nameFontStack(font: string | null | undefined): string | undefined {
-	if (!font || font === "default" || !(font in FONT_STACKS)) return undefined;
-	return FONT_STACKS[font as FontId];
+	if (!font || font === "default") return undefined;
+	return NAME_FONT_STACKS[font as NameFontId];
 }
 
 type FontSettings = {
