@@ -60,6 +60,7 @@
 		const token = session.token;
 		if (!token) return;
 		profileStore.load(token, session.username ?? "");
+		if (!server && channel.name) profileStore.load(token, channel.name);
 		for (const participant of call.participants) {
 			profileStore.load(token, participant.username);
 		}
@@ -122,6 +123,17 @@
 	function initials(name: string) {
 		return name.slice(0, 2).toUpperCase();
 	}
+
+	// Outgoing DM call, waiting for the other side: show my avatar + the
+	// callee's dimmed avatar with Discord-style ripple rings.
+	const ringing = $derived(joined && !server && !hasSpotlight && call.participants.length === 0);
+	const calleeProfile = $derived(!server ? profileStore.forUser(channel.name) : null);
+	const selfAvatarUrl = $derived(
+		ownProfile?.avatar_url ? api.resolveUrl(ownProfile.avatar_url, session.token) : undefined
+	);
+	const calleeAvatarUrl = $derived(
+		calleeProfile?.avatar_url ? api.resolveUrl(calleeProfile.avatar_url, session.token) : undefined
+	);
 </script>
 
 {#if !joined}
@@ -189,7 +201,28 @@
 			</div>
 		{/if}
 
-		{#if quietParticipants.length > 0}
+		{#if ringing}
+			<div class="ringing">
+				<div
+					class="ring-avatar"
+					style:background-image={selfAvatarUrl ? `url(${selfAvatarUrl})` : undefined}
+				>
+					{#if !selfAvatarUrl}<span>{initials(ownProfile?.display_name || session.username || "")}</span>{/if}
+				</div>
+				<div class="ring-avatar callee">
+					<span class="wave"></span>
+					<span class="wave"></span>
+					<span class="wave"></span>
+					<div
+						class="ring-face"
+						style:background-image={calleeAvatarUrl ? `url(${calleeAvatarUrl})` : undefined}
+					>
+						{#if !calleeAvatarUrl}<span>{initials(calleeProfile?.display_name || channel.name)}</span>{/if}
+					</div>
+					<span class="ring-name">{calleeProfile?.display_name || channel.name}</span>
+				</div>
+			</div>
+		{:else if quietParticipants.length > 0}
 			<div
 				class="grid"
 				style:grid-template-columns={`repeat(${gridCols}, 1fr)`}
@@ -443,6 +476,89 @@
 		overflow: hidden;
 		justify-content: center;
 		align-content: center;
+	}
+
+	.ringing {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: clamp(40px, 12vw, 120px);
+		padding: 24px;
+	}
+
+	.ring-avatar {
+		position: relative;
+		width: clamp(80px, 12vw, 128px);
+		aspect-ratio: 1;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+		background-color: var(--accent-fill);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-mono);
+		font-weight: 700;
+		font-size: 26px;
+		color: var(--accent-fill-ink);
+		flex-shrink: 0;
+	}
+
+	.ring-avatar.callee {
+		background: none;
+	}
+
+	.ring-face {
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+		background-color: var(--sidebar);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		filter: grayscale(0.7) brightness(0.8);
+	}
+
+	.wave {
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		border: 2px solid var(--ink-faint);
+		opacity: 0;
+		animation: call-wave 2.4s ease-out infinite;
+	}
+
+	.wave:nth-child(2) {
+		animation-delay: 0.8s;
+	}
+
+	.wave:nth-child(3) {
+		animation-delay: 1.6s;
+	}
+
+	@keyframes call-wave {
+		0% {
+			transform: scale(1);
+			opacity: 0.55;
+		}
+		100% {
+			transform: scale(2.1);
+			opacity: 0;
+		}
+	}
+
+	.ring-name {
+		position: absolute;
+		top: calc(100% + 12px);
+		left: 50%;
+		transform: translateX(-50%);
+		white-space: nowrap;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink-dim);
 	}
 
 	.cell {
