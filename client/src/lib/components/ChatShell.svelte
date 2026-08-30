@@ -15,7 +15,7 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { initRichPresenceBridge } from "$lib/stores/richPresence.svelte";
-	import { initGatewayBridge } from "$lib/stores/gateway.svelte";
+	import { initGatewayBridge, onSync } from "$lib/stores/gateway.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import { call } from "$lib/webrtc/call.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
@@ -83,32 +83,69 @@
 	let createServerOpen = $state(false);
 	let memberList = $state<Member[]>([]);
 
-	$effect(() => {
+	// Signature of the last server list we applied - lets a sync-triggered
+	// refetch bail out when nothing actually changed, so an unrelated event
+	// (e.g. a boost on another server) doesn't rebuild the tree and blip the
+	// open conversation.
+	let serversSig = "";
+
+	function applyServers(servers: api.ApiServer[], isInitialLoad: boolean) {
+		const mapped = servers.map(toServerEntry);
+		const sig = JSON.stringify(mapped);
+		if (sig === serversSig && !isInitialLoad) return;
+		serversSig = sig;
+		serverList = mapped;
+
+		if (isInitialLoad) {
+			const last = readLastView();
+			const lastServer = last && serverList.find((s) => s.id === last.serverId);
+			if (lastServer) {
+				activeServerId = lastServer.id;
+				activeChannelId =
+					lastServer.channels.find((c) => c.id === last!.channelId)?.id ??
+					defaultChannelId(lastServer) ??
+					null;
+			} else if (last === null && serverList.length > 0) {
+				// no saved view at all → first server; a saved DM/home view leaves us here
+				activeServerId = serverList[0].id;
+				activeChannelId = defaultChannelId(serverList[0]) ?? null;
+			}
+			return;
+		}
+
+		// A live change: keep the user where they are, but recover if the
+		// server/channel they were viewing just disappeared (kicked, banned,
+		// deleted, channel removed elsewhere).
+		if (activeServerId && !serverList.some((s) => s.id === activeServerId)) {
+			activeServerId = serverList[0]?.id ?? null;
+			activeChannelId = activeServerId ? (defaultChannelId(serverList[0]) ?? null) : null;
+		} else {
+			const current = serverList.find((s) => s.id === activeServerId);
+			if (current && activeChannelId && !current.channels.some((c) => c.id === activeChannelId)) {
+				activeChannelId = defaultChannelId(current) ?? null;
+			}
+		}
+	}
+
+	function refreshServers(isInitialLoad = false) {
 		const token = session.token;
 		if (!token) return;
 		api
 			.listServers(token)
 			.then((servers) => {
-				serverList = servers.map(toServerEntry);
-				const last = readLastView();
-				const lastServer = last && serverList.find((s) => s.id === last.serverId);
-				if (lastServer) {
-					activeServerId = lastServer.id;
-					activeChannelId =
-						lastServer.channels.find((c) => c.id === last!.channelId)?.id ??
-						defaultChannelId(lastServer) ??
-						null;
-				} else if (last === null && serverList.length > 0) {
-					// no saved view at all → first server; a saved DM/home view leaves us here
-					activeServerId = serverList[0].id;
-					activeChannelId = defaultChannelId(serverList[0]) ?? null;
-				}
+				applyServers(servers, isInitialLoad);
 				loaded = true;
 			})
 			.catch(() => {
 				loaded = true;
-				toast.push(t("toast.serverLoadFailed"));
+				if (isInitialLoad) toast.push(t("toast.serverLoadFailed"));
 			});
+	}
+
+	$effect(() => {
+		if (!session.token) return;
+		refreshServers(true);
+		return onSync("servers", () => refreshServers(false));
 	});
 
 	$effect(() => {
@@ -118,18 +155,23 @@
 			memberList = [];
 			return;
 		}
-		api
-			.listMembers(token, serverId)
-			.then((rows) => {
-				memberList = rows.map((m) => ({
-					id: m.id,
-					name: m.username,
-					color: colorForName(m.username)
-				}));
-			})
-			.catch(() => {
-				memberList = [];
-			});
+		const load = () => {
+			api
+				.listMembers(token, serverId)
+				.then((rows) => {
+					memberList = rows.map((m) => ({
+						id: m.id,
+						name: m.username,
+						color: colorForName(m.username)
+					}));
+				})
+				.catch(() => {
+					memberList = [];
+				});
+		};
+		load();
+		// someone joined / was kicked / banned anywhere → member list refresh
+		return onSync("servers", load);
 	});
 
 	const activeServer = $derived(serverList.find((s) => s.id === activeServerId) ?? null);

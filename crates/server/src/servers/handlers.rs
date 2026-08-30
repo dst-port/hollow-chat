@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::gateway::{notify_sync, server_member_ids};
 use crate::permissions::{require_permission, BAN_MEMBERS, KICK_MEMBERS, MANAGE_CHANNELS, MANAGE_SERVER};
 use crate::roles::handlers::{load_member_roles, RoleDto};
 use crate::state::AppState;
@@ -198,6 +199,9 @@ pub async fn create_server(
 
     let channels = load_channels(&state.pool, server.id).await?;
 
+    // Creator's other devices pick up the new server.
+    notify_sync(&state, &[session.user_id], "servers");
+
     Ok(Json(ServerWithChannels { server, channels }))
 }
 
@@ -251,6 +255,8 @@ pub async fn rename_server(
 
     let server = load_server_dto(&state.pool, id).await?;
 
+    notify_sync(&state, &server_member_ids(&state.pool, id).await, "servers");
+
     Ok(Json(server))
 }
 
@@ -274,6 +280,8 @@ pub async fn set_server_icon(
         .execute(&state.pool)
         .await?;
 
+    notify_sync(&state, &server_member_ids(&state.pool, id).await, "servers");
+
     Ok(Json(load_server_dto(&state.pool, id).await?))
 }
 
@@ -289,6 +297,8 @@ pub async fn clear_server_icon(
         .execute(&state.pool)
         .await?;
 
+    notify_sync(&state, &server_member_ids(&state.pool, id).await, "servers");
+
     Ok(Json(load_server_dto(&state.pool, id).await?))
 }
 
@@ -303,6 +313,10 @@ pub async fn leave_server(
         .bind(id)
         .fetch_optional(&state.pool)
         .await?;
+
+    // Everyone who can currently see this server in their list - captured
+    // before the delete so a full server teardown still reaches all of them.
+    let affected = server_member_ids(&state.pool, id).await;
 
     match owner {
         Some((owner_id,)) if owner_id == session.user_id => {
@@ -320,6 +334,8 @@ pub async fn leave_server(
         }
         None => return Err(AppError::NotFound),
     }
+
+    notify_sync(&state, &affected, "servers");
 
     Ok(())
 }
@@ -364,6 +380,8 @@ pub async fn create_channel(
     .fetch_one(&state.pool)
     .await?;
 
+    notify_sync(&state, &server_member_ids(&state.pool, id).await, "servers");
+
     Ok(Json(channel))
 }
 
@@ -391,6 +409,8 @@ pub async fn set_slowmode(
     .fetch_optional(&state.pool)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    notify_sync(&state, &server_member_ids(&state.pool, server_id).await, "servers");
 
     Ok(Json(channel))
 }
@@ -462,6 +482,11 @@ pub async fn kick_member(
         return Err(AppError::Unauthorized);
     }
 
+    let mut affected = server_member_ids(&state.pool, server_id).await;
+    if !affected.contains(&user_id) {
+        affected.push(user_id);
+    }
+
     let mut tx = state.pool.begin().await?;
 
     sqlx::query("DELETE FROM server_member_roles WHERE server_id = $1 AND user_id = $2")
@@ -477,6 +502,8 @@ pub async fn kick_member(
         .await?;
 
     tx.commit().await?;
+
+    notify_sync(&state, &affected, "servers");
 
     Ok(())
 }
@@ -530,6 +557,11 @@ pub async fn ban_member(
         return Err(AppError::Unauthorized);
     }
 
+    let mut affected = server_member_ids(&state.pool, server_id).await;
+    if !affected.contains(&user_id) {
+        affected.push(user_id);
+    }
+
     let mut tx = state.pool.begin().await?;
 
     sqlx::query(
@@ -556,6 +588,8 @@ pub async fn ban_member(
         .await?;
 
     tx.commit().await?;
+
+    notify_sync(&state, &affected, "servers");
 
     Ok(())
 }
@@ -721,6 +755,9 @@ pub async fn join_server(
 
     let channels = load_channels(&state.pool, server.id).await?;
 
+    // Joiner's other devices + everyone already in the server (member list).
+    notify_sync(&state, &server_member_ids(&state.pool, server_id).await, "servers");
+
     Ok(Json(ServerWithChannels { server, channels }))
 }
 
@@ -799,6 +836,8 @@ pub async fn add_boost(
         .execute(&state.pool)
         .await?;
 
+    notify_sync(&state, &server_member_ids(&state.pool, id).await, "servers");
+
     get_boosts(State(state), session, Path(id)).await
 }
 
@@ -821,6 +860,8 @@ pub async fn remove_boost(
     .bind(id)
     .execute(&state.pool)
     .await?;
+
+    notify_sync(&state, &server_member_ids(&state.pool, id).await, "servers");
 
     get_boosts(State(state), session, Path(id)).await
 }

@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::gateway::notify_sync;
 use crate::social::ordered_pair;
 use crate::state::AppState;
 
@@ -69,6 +70,11 @@ pub async fn block_user(
     .await?;
 
     tx.commit().await?;
+
+    // Blocking tears down any friendship and pending requests both ways, and
+    // hides DMs - both sides refetch.
+    notify_sync(&state, &[session.user_id, user_id], "friends");
+    notify_sync(&state, &[session.user_id, user_id], "dms");
 
     Ok(())
 }

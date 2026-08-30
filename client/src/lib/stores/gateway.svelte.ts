@@ -64,8 +64,41 @@ if (typeof window !== "undefined") {
 	setInterval(() => (typingStore.tick = (typingStore.tick + 1) % 1_000_000), 1500);
 }
 
+// --- account-wide sync -------------------------------------------------
+// The server sends { type: "sync", scope } whenever something in a scope
+// changed for this user (on any of their devices). We keep the DB as the
+// source of truth and just refetch that list. Also replayed for every
+// scope right after the socket reconnects, so a client that was offline
+// while things changed catches up.
+
+export type SyncScope = "servers" | "friends" | "dms";
+const SYNC_SCOPES: SyncScope[] = ["servers", "friends", "dms"];
+
+type SyncHandler = () => void;
+const syncHandlers = new Set<{ scope: SyncScope; fn: SyncHandler }>();
+
+/** Register a refetch to run when `scope` changes. Returns an unsubscribe. */
+export function onSync(scope: SyncScope, fn: SyncHandler): () => void {
+	const entry = { scope, fn };
+	syncHandlers.add(entry);
+	return () => syncHandlers.delete(entry);
+}
+
+function emitSync(scope: string) {
+	for (const h of syncHandlers) {
+		if (h.scope === scope) {
+			try {
+				h.fn();
+			} catch {
+				/* a bad handler shouldn't stop the others */
+			}
+		}
+	}
+}
+
 let socket: WebSocket | null = null;
 let started = false;
+let hasConnectedOnce = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let lastTypingSent = 0;
 
@@ -85,8 +118,18 @@ function connect(token: string) {
 	const ws = new WebSocket(`${WS_BASE_URL}/gateway?token=${encodeURIComponent(token)}`);
 	socket = ws;
 
+	ws.onopen = () => {
+		// On a *re*connect, everything may have moved while we were away -
+		// refetch every scope. The first connect is covered by each view's
+		// own initial load, so skip it to avoid a redundant double-fetch.
+		if (hasConnectedOnce) {
+			for (const scope of SYNC_SCOPES) emitSync(scope);
+		}
+		hasConnectedOnce = true;
+	};
+
 	ws.onmessage = (event) => {
-		let data: { type?: string } & Partial<PresenceEvent>;
+		let data: { type?: string; scope?: string } & Partial<PresenceEvent>;
 		try {
 			data = JSON.parse(event.data);
 		} catch {
@@ -96,6 +139,8 @@ function connect(token: string) {
 			presenceStore.apply(data as PresenceEvent);
 		} else if (data.type === "typing" && (data as unknown as TypingEvent).username) {
 			typingStore.apply(data as unknown as TypingEvent);
+		} else if (data.type === "sync" && data.scope) {
+			emitSync(data.scope);
 		}
 	};
 
@@ -113,6 +158,7 @@ export function initGatewayBridge(token: string) {
 
 export function stopGatewayBridge() {
 	started = false;
+	hasConnectedOnce = false;
 	if (reconnectTimer) clearTimeout(reconnectTimer);
 	socket?.close();
 	socket = null;

@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::gateway::notify_sync;
 use crate::social::{are_blocked, are_friends, friend_ids, ordered_pair, user_id_by_username};
 use crate::state::AppState;
 
@@ -49,6 +50,7 @@ pub async fn remove_friend(
         .bind(user_b)
         .execute(&state.pool)
         .await?;
+    notify_sync(&state, &[session.user_id, user_id], "friends");
     Ok(())
 }
 
@@ -167,6 +169,7 @@ pub async fn send_request(
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;
+        notify_sync(&state, &[session.user_id, target_id], "friends");
         return Ok(Json(SendRequestResponse::Accepted));
     }
 
@@ -187,6 +190,10 @@ pub async fn send_request(
     };
 
     let id: Uuid = sqlx::Row::try_get(&row, "id")?;
+
+    // Recipient sees a new incoming request; sender's other devices see the
+    // new outgoing one.
+    notify_sync(&state, &[session.user_id, target_id], "friends");
 
     Ok(Json(SendRequestResponse::Sent { id }))
 }
@@ -226,6 +233,8 @@ pub async fn accept_request(
         .await?;
     tx.commit().await?;
 
+    notify_sync(&state, &[sender_id, recipient_id], "friends");
+
     Ok(())
 }
 
@@ -243,6 +252,8 @@ pub async fn decline_request(
         .bind(id)
         .execute(&state.pool)
         .await?;
+
+    notify_sync(&state, &[sender_id, recipient_id], "friends");
 
     Ok(())
 }

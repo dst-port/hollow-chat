@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
+use crate::gateway::{dm_member_ids, notify_sync};
 use crate::social::{are_blocked, are_friends, ordered_pair, user_id_by_username};
 use crate::state::AppState;
 
@@ -226,6 +227,9 @@ pub async fn open_dm(
     .execute(&state.pool)
     .await?;
 
+    // The peer's client shows the new conversation without a reload.
+    notify_sync(&state, &[user_a, user_b], "dms");
+
     let dm = load_dm_dto(&state.pool, dm_id.0, session.user_id).await?;
     Ok(Json(dm))
 }
@@ -307,6 +311,10 @@ pub async fn create_group(
 
     tx.commit().await?;
 
+    let mut everyone = member_ids.clone();
+    everyone.push(session.user_id);
+    notify_sync(&state, &everyone, "dms");
+
     let dm = load_dm_dto(&state.pool, dm_id.0, session.user_id).await?;
     Ok(Json(dm))
 }
@@ -363,6 +371,8 @@ pub async fn add_member(
     .execute(&state.pool)
     .await?;
 
+    notify_sync(&state, &dm_member_ids(&state.pool, dm_id).await, "dms");
+
     let dm = load_dm_dto(&state.pool, dm_id, session.user_id).await?;
     Ok(Json(dm))
 }
@@ -374,6 +384,9 @@ pub async fn leave_group(
 ) -> Result<(), AppError> {
     require_participant(&state.pool, dm_id, session.user_id).await?;
     require_group(&state.pool, dm_id).await?;
+
+    // Captured before the delete so the leaver's own other devices are told too.
+    let affected = dm_member_ids(&state.pool, dm_id).await;
 
     sqlx::query("DELETE FROM dm_channel_members WHERE dm_channel_id = $1 AND user_id = $2")
         .bind(dm_id)
@@ -411,6 +424,8 @@ pub async fn leave_group(
         }
     }
 
+    notify_sync(&state, &affected, "dms");
+
     Ok(())
 }
 
@@ -440,6 +455,8 @@ pub async fn rename_group(
         .bind(dm_id)
         .execute(&state.pool)
         .await?;
+
+    notify_sync(&state, &dm_member_ids(&state.pool, dm_id).await, "dms");
 
     let dm = load_dm_dto(&state.pool, dm_id, session.user_id).await?;
     Ok(Json(dm))

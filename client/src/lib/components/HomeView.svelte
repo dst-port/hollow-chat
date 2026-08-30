@@ -25,7 +25,7 @@
 	import { colorForName } from "$lib/utils/color";
 	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
-	import { presenceStore } from "$lib/stores/gateway.svelte";
+	import { presenceStore, onSync } from "$lib/stores/gateway.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
 	import { base } from "$app/paths";
 
@@ -107,7 +107,10 @@
 			.catch(() => {});
 	}
 
-	const HOME_POLL_INTERVAL_MS = 5000;
+	// Friends/requests/DMs update live off gateway "sync" pushes (see
+	// gateway.svelte.ts). The slow interval is only a safety net in case a
+	// push is ever missed - not the primary path anymore.
+	const HOME_SAFETY_POLL_MS = 60000;
 
 	$effect(() => {
 		if (!session.token) return;
@@ -115,16 +118,22 @@
 		refreshRequests();
 		refreshDms();
 
-		// Incoming friend requests and new DM conversations don't have a
-		// gateway push yet (unlike presence), so this is the only way they
-		// show up without a manual reload.
+		const offFriends = onSync("friends", () => {
+			refreshFriends();
+			refreshRequests();
+		});
+		const offDms = onSync("dms", refreshDms);
 		const interval = setInterval(() => {
 			refreshFriends();
 			refreshRequests();
 			refreshDms();
-		}, HOME_POLL_INTERVAL_MS);
+		}, HOME_SAFETY_POLL_MS);
 
-		return () => clearInterval(interval);
+		return () => {
+			offFriends();
+			offDms();
+			clearInterval(interval);
+		};
 	});
 
 	function dmDisplayName(dm: api.ApiDmChannel): string {
