@@ -13,6 +13,19 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebKitGTK's web process is sandboxed and can't reach PipeWire's native
+    // socket, so `pipewiresink`/`pipewiresrc` hang for seconds ("Unable to
+    // open pipewire remote: Timeout") and call audio never plays. Rank those
+    // GStreamer elements to zero so autoaudiosink/autoaudiosrc use the
+    // PulseAudio-compat path (via pipewire-pulse), which the sandbox allows.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("GST_PLUGIN_FEATURE_RANK").is_none() {
+        std::env::set_var(
+            "GST_PLUGIN_FEATURE_RANK",
+            "pipewiresink:0,pipewiresrc:0,pipewiredeviceprovider:0",
+        );
+    }
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
