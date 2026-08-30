@@ -20,6 +20,7 @@
 	import { t, tp } from "$lib/i18n/index.svelte";
 	import { session } from "$lib/stores/session.svelte";
 	import Dropdown from "$lib/components/Dropdown.svelte";
+	import ImageCropModal from "$lib/components/ImageCropModal.svelte";
 	import {
 		renameServer,
 		setServerIcon,
@@ -177,11 +178,21 @@
 
 	let iconInput: HTMLInputElement | undefined;
 	let iconUploading = $state(false);
+	let iconCrop = $state<{ src: string; filename: string } | null>(null);
 
-	async function onIconChosen(event: Event) {
+	function onIconChosen(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = "";
+		if (!file) return;
+		iconCrop = { src: URL.createObjectURL(file), filename: file.name };
+	}
+
+	async function uploadCroppedIcon(file: File) {
 		const token = session.token;
-		const file = (event.target as HTMLInputElement).files?.[0];
-		if (!token || !file) return;
+		if (iconCrop) URL.revokeObjectURL(iconCrop.src);
+		iconCrop = null;
+		if (!token) return;
 		iconUploading = true;
 		try {
 			const attachment = await uploadFile(token, file);
@@ -191,7 +202,6 @@
 			toast.push(t("serverSettings.overview.iconUpdateFailed"));
 		} finally {
 			iconUploading = false;
-			if (iconInput) iconInput.value = "";
 		}
 	}
 
@@ -755,6 +765,19 @@
 
 {#if inviteOpen}
 	<InviteModal serverName={server.name} serverId={server.id} onClose={() => (inviteOpen = false)} />
+{/if}
+
+{#if iconCrop}
+	<ImageCropModal
+		src={iconCrop.src}
+		filename={iconCrop.filename}
+		round
+		onCancel={() => {
+			if (iconCrop) URL.revokeObjectURL(iconCrop.src);
+			iconCrop = null;
+		}}
+		onConfirm={uploadCroppedIcon}
+	/>
 {/if}
 
 {#if confirmDelete}

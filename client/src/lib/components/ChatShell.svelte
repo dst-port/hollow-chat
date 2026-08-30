@@ -325,6 +325,12 @@
 		position: relative;
 	}
 
+	.member-list-wrap {
+		display: flex;
+		flex-shrink: 0;
+		min-height: 0;
+	}
+
 	.mobile-back {
 		display: none;
 	}
