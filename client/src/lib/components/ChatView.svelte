@@ -253,22 +253,24 @@
 		return content?.trimStart().startsWith(CALL_EVENT_SENTINEL) ?? false;
 	}
 
-	let postedCallStartFor = "";
 	$effect(() => {
-		const inThisCall = call.roomId === channel.id && call.createdRoom;
-		if (call.roomId !== channel.id) postedCallStartFor = "";
-		if (!inThisCall || postedCallStartFor === channel.id) return;
-		postedCallStartFor = channel.id;
+		if (call.roomId !== channel.id || !call.createdRoom || call.announcedStart) return;
+		call.announcedStart = true;
 		const token = session.token;
 		const myUsername = session.username;
 		if (!token || !myUsername) return;
 		(async () => {
 			try {
 				const packed = packPayload(CALL_EVENT_SENTINEL, undefined);
+				await bootstrapChannelKeys(token, myUsername);
 				const payload = await encryptOutgoing(myUsername, token, packed);
-				await postMessage(token, channel.id, payload, undefined, undefined);
+				const apiMsg = await postMessage(token, channel.id, payload, undefined, undefined);
+				// cache our own plaintext so it renders without a round-trip decrypt
+				rememberDecrypted(apiMsg.id, packed);
+				messages.push(await toMessage(apiMsg));
+				lastId = apiMsg.id;
 			} catch {
-				/* best-effort call log line */
+				call.announcedStart = false; // let a retry happen
 			}
 		})();
 	});

@@ -126,9 +126,9 @@ class CallStore {
 	// once, by whoever opened the room, when it ends.
 	private joinedAt = 0;
 	createdRoom = $state(false);
-	/** Set for one tick after a call ends: the room, its duration, and
-	 *  whether this client opened it. Consumed by ChatView. */
-	lastEnded = $state<{ roomId: string; durationSec: number; wasCreator: boolean } | null>(null);
+	/** Guards the "started a call" chat line to one post per call, even
+	 *  across multiple ChatView instances. */
+	announcedStart = $state(false);
 
 	onStreamsChanged(callback: () => void): () => void {
 		this.listeners.add(callback);
@@ -358,6 +358,7 @@ class CallStore {
 		this.status = "connecting";
 		this.joinedAt = Date.now();
 		this.createdRoom = false;
+		this.announcedStart = false;
 		// Start the ringback here, synchronously, while this call still has the
 		// click's user activation. Doing it after the getUserMedia await (which
 		// pops a permission prompt) means autoplay policy silently blocks it.
@@ -809,15 +810,9 @@ class CallStore {
 			clearTimeout(this.aloneTimer);
 			this.aloneTimer = null;
 		}
-		if (this.roomId && this.joinedAt) {
-			this.lastEnded = {
-				roomId: this.roomId,
-				durationSec: Math.round((Date.now() - this.joinedAt) / 1000),
-				wasCreator: this.createdRoom
-			};
-		}
 		this.joinedAt = 0;
 		this.createdRoom = false;
+		this.announcedStart = false;
 		for (const pc of this.pcs.values()) pc.close();
 		this.pcs.clear();
 		this.remoteStreams.clear();
