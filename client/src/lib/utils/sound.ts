@@ -5,7 +5,7 @@ const cache = new Map<string, HTMLAudioElement>();
 function load(name: string): HTMLAudioElement {
 	let audio = cache.get(name);
 	if (!audio) {
-		audio = new Audio(`${base}/sounds/${name}.ogg`);
+		audio = new Audio(`${base}/sounds/${name}.mp3`);
 		cache.set(name, audio);
 	}
 	return audio;
@@ -40,7 +40,7 @@ let ring: HTMLAudioElement | null = null;
 export function startCallRing() {
 	if (ring) return;
 	try {
-		ring = new Audio(`${base}/sounds/call.ogg`);
+		ring = new Audio(`${base}/sounds/call.mp3`);
 		ring.loop = true;
 		void ring.play().catch(() => {});
 	} catch {
