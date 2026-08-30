@@ -2,7 +2,7 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
-## v0.2.8 — 2026-08-30
+## v0.2.9 — 2026-08-30
 
 ### Fixes
 - **Screen share in a DM call now fits the call panel** instead of stretching
