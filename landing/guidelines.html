@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HollowChat — Community Guidelines</title>
+<meta name="description" content="The rules for using the official HollowChat service — what's allowed in public server communities, and the limited set of things that are never allowed even in private, end-to-end encrypted chats." />
+<link rel="icon" type="image/png" href="/favicon.png" />
+<meta name="robots" content="index,follow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+	:root {
+		--void: #100e0d;
+		--panel: #191513;
+		--panel-raised: #211c19;
+		--hairline: rgba(243, 239, 233, 0.1);
+		--hairline-strong: rgba(243, 239, 233, 0.18);
+		--ink: #f3efe9;
+		--ink-dim: #ada39b;
+		--ink-faint: #756b63;
+		--accent: #e8ded2;
+		--accent-ink: #1c1815;
+		--online: #3ba55d;
+		--warn: #d98b4a;
+		--font-display: "Comfortaa", sans-serif;
+		--font-mono: "IBM Plex Mono", ui-monospace, monospace;
+		--font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	}
+
+	* { box-sizing: border-box; }
+	html { scroll-behavior: smooth; }
+
+	body {
+		margin: 0;
+		background: var(--void);
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 16px;
+		line-height: 1.65;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+	a:hover { color: var(--accent); }
+
+	.wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+	header {
+		border-bottom: 1px solid var(--hairline);
+		padding: 22px 0;
+	}
+
+	header .wrap {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
+
+	.brand {
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 18px;
+		text-decoration: none;
+		color: var(--ink);
+	}
+
+	header nav a {
+		font-family: var(--font-mono);
+		font-size: 13px;
+		color: var(--ink-dim);
+		text-decoration: none;
+	}
+	header nav a:hover { color: var(--ink); }
+
+	main { padding: 56px 0 40px; }
+
+	h1 {
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 34px;
+		line-height: 1.15;
+		margin: 0 0 10px;
+	}
+
+	.updated {
+		font-family: var(--font-mono);
+		font-size: 12px;
+		color: var(--ink-faint);
+		margin: 0 0 36px;
+	}
+
+	.lede {
+		font-size: 17px;
+		color: var(--ink-dim);
+		margin: 0 0 40px;
+	}
+
+	section { margin: 0 0 40px; }
+
+	h2 {
+		font-family: var(--font-display);
+		font-weight: 600;
+		font-size: 20px;
+		margin: 0 0 8px;
+	}
+
+	.scope {
+		font-family: var(--font-mono);
+		font-size: 12px;
+		color: var(--ink-faint);
+		margin: 0 0 14px;
+	}
+
+	p { margin: 0 0 14px; color: var(--ink-dim); }
+	p strong, li strong { color: var(--ink); font-weight: 600; }
+
+	ul { margin: 0 0 14px; padding-left: 22px; color: var(--ink-dim); }
+	li { margin: 0 0 8px; }
+
+	.card {
+		background: var(--panel);
+		border: 1px solid var(--hairline);
+		border-radius: 12px;
+		padding: 20px 22px;
+	}
+
+	.card.warn { border-color: rgba(217, 139, 74, 0.4); }
+
+	.card h2 { margin-top: 0; }
+
+	code {
+		font-family: var(--font-mono);
+		font-size: 0.88em;
+		background: var(--panel-raised);
+		padding: 1px 6px;
+		border-radius: 5px;
+	}
+
+	footer {
+		border-top: 1px solid var(--hairline);
+		padding: 28px 0;
+		font-size: 13px;
+		color: var(--ink-faint);
+	}
+
+	footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center; }
+	footer a { color: var(--ink-dim); text-decoration: none; }
+	footer a:hover { color: var(--ink); }
+	.foot-note { flex-basis: 100%; margin-top: 8px; font-size: 11px; opacity: 0.75; line-height: 1.5; }
+
+	@media (max-width: 640px) {
+		h1 { font-size: 27px; }
+		main { padding: 40px 0 32px; }
+	}
+</style>
+</head>
+<body>
+
+<header>
+	<div class="wrap">
+		<a class="brand" href="/">HollowChat</a>
+		<nav><a href="/#faq">FAQ</a></nav>
+	</div>
+</header>
+
+<main class="wrap">
+	<h1>Community Guidelines</h1>
+	<p class="updated">Last updated 30 August 2026 · applies to the official service at hollowchat.org</p>
+
+	<p class="lede">
+		HollowChat is end-to-end encrypted. We cannot read your servers, your channels, or your
+		direct messages, and we don't want to. That shapes how these rules work: what happens in a
+		<strong>shared community</strong> — where other members can see it and report it — is held to a
+		fuller standard than a <strong>private conversation</strong>, where the only thing we ever see
+		is what a participant chooses to send us in a report.
+	</p>
+
+	<section>
+		<h2>1 · Server communities</h2>
+		<p class="scope">Servers, channels, and any space shared with people beyond a one-to-one or small private group.</p>
+		<p>Communities on HollowChat are spaces you invite others into. Server owners and moderators are responsible for their community, and the following are not allowed anywhere in a server:</p>
+		<ul>
+			<li><strong>Hate and harassment</strong> — attacking, demeaning, or promoting hatred against people based on race, ethnicity, national origin, religion, caste, sexual orientation, gender, gender identity, disability, or serious disease. Slurs, hateful imagery, and dehumanising "jokes" included.</li>
+			<li><strong>Targeted abuse and bullying</strong> — coordinated pile-ons, sustained insults, or following someone across channels to harass them.</li>
+			<li><strong>Violent threats and violent extremism</strong> — threatening, encouraging, or glorifying violence, or organising / promoting a violent extremist or terrorist group.</li>
+			<li><strong>Doxxing</strong> — posting someone's private or identifying information (real name, address, workplace, phone, documents) without their consent.</li>
+			<li><strong>Sexual content involving minors</strong> — see section 3. Zero tolerance, no context makes it acceptable.</li>
+			<li><strong>Non-consensual intimate imagery</strong>, and sexual content in spaces not clearly marked and gated as adult.</li>
+			<li><strong>Spam, scams, phishing, and malware</strong> — mass unsolicited messaging, deceptive links, token/crypto scams, malicious files.</li>
+			<li><strong>Illegal goods and services</strong> — trading drugs, weapons, stolen accounts or data, forged documents, and similar.</li>
+			<li><strong>Impersonation</strong> of a person or organisation in a way meant to deceive.</li>
+			<li><strong>Ban evasion</strong> — returning to a community, or to the service, after being removed.</li>
+		</ul>
+	</section>
+
+	<section>
+		<h2>2 · Direct messages &amp; private groups</h2>
+		<p class="scope">One-to-one DMs and small invite-only groups. End-to-end encrypted; we never see the contents.</p>
+		<p>
+			We do not moderate the substance of private conversations — opinions, arguments, dark
+			humour, and things one person finds distasteful are between the people in the chat. But a
+			private channel is not a shield for using another person as a target. The following are
+			<strong>always prohibited</strong> and can be acted on when reported:
+		</p>
+		<ul>
+			<li><strong>Threats</strong> of violence or serious harm to a person or their family.</li>
+			<li><strong>Doxxing</strong> — collecting or threatening to expose someone's private information to intimidate or coerce them.</li>
+			<li><strong>Blackmail, sextortion, and coercion</strong> — demanding money, images, or actions under threat.</li>
+			<li><strong>Sexual content involving minors</strong> — see section 3.</li>
+			<li><strong>Sharing intimate images of someone without their consent.</strong></li>
+			<li>
+				<strong>Harassment after a clear "stop".</strong> If someone tells you to stop
+				contacting them, or blocks you, and you keep messaging them — including sending slurs,
+				racist or hateful abuse, or persistent unwanted messages by other means — that is
+				harassment, and we will act on it even though the messages were private. "It was a DM"
+				is not a defence once the other person has asked you to stop.
+			</li>
+		</ul>
+	</section>
+
+	<section>
+		<div class="card warn">
+			<h2>3 · Never, anywhere</h2>
+			<p>
+				Regardless of where it happens or who can see it, HollowChat has no tolerance for
+				<strong>child sexual abuse material (CSAM)</strong> or the sexualisation of minors in any
+				form. Accounts involved are terminated immediately and reports are escalated to the
+				relevant authorities. The same applies to content that directly furthers a terrorist
+				attack or mass-casualty violence.
+			</p>
+		</div>
+	</section>
+
+	<section>
+		<h2>4 · Reporting</h2>
+		<p>
+			Report a message from its context menu → <em>Report Message</em>. The report — the reason
+			you write, the messages you attach, and any screenshot — is sealed with encryption to an
+			offline moderator key. Our server stores only who reported whom and when; it cannot read
+			the report itself. A moderator decrypts it on a separate machine, reviews it, and follows
+			up.
+		</p>
+		<p>For threats to someone's safety, or anything involving a minor, also contact your local law enforcement — we can act on the account but we are not an emergency service.</p>
+	</section>
+
+	<section>
+		<h2>5 · Enforcement</h2>
+		<p>Depending on severity and history, action may be any of:</p>
+		<ul>
+			<li>a warning;</li>
+			<li>removal of the offending content or channel;</li>
+			<li>removal from a specific community;</li>
+			<li>temporary suspension of the account;</li>
+			<li>permanent termination of the account.</li>
+		</ul>
+		<p>CSAM and credible threats of mass violence go straight to termination plus a report to authorities, with no prior warning.</p>
+	</section>
+
+	<section>
+		<h2>6 · Self-hosted instances</h2>
+		<p>
+			HollowChat's server is open source and anyone can run their own. These guidelines govern
+			the instance we operate at <code>hollowchat.org</code>. An independent instance sets and
+			enforces its own rules; we have no visibility into or control over it.
+		</p>
+	</section>
+
+	<section>
+		<h2>7 · Changes</h2>
+		<p>
+			We'll update these guidelines as the service grows and post the date of the latest change
+			at the top. Continuing to use HollowChat after a change means you accept the current
+			version.
+		</p>
+	</section>
+</main>
+
+<footer>
+	<div class="wrap">
+		<span>© HollowChat · AGPLv3</span>
+		<a href="/">Home</a>
+		<a href="/#faq">FAQ</a>
+		<a href="https://github.com/dst-port/hollow-chat">GitHub</a>
+		<div class="foot-note">
+			Independent open-source project. Not affiliated with or endorsed by Discord Inc.; "Discord" is a trademark of its respective owner.
+		</div>
+	</div>
+</footer>
+
+</body>
+</html>
