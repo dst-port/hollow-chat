@@ -556,6 +556,12 @@
 		min-height: 0;
 	}
 
+	.dm-profile-wrap {
+		display: flex;
+		flex-shrink: 0;
+		min-height: 0;
+	}
+
 	.dm-call {
 		flex-shrink: 0;
 		height: min(38vh, 300px);
