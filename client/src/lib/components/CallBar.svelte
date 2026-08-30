@@ -142,7 +142,10 @@
 		{#each call.participants as participant (participant.userId)}
 			{#if sharingUserIds.has(participant.userId)}
 				<div class="screen-tile">
-					<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline></video>
+					<!-- muted so the autoplay policy doesn't blackhole it; screen
+					     audio plays through the <audio> tag below. -->
+					<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline muted></video>
+					<audio use:attachRemoteScreenStream={participant.userId} autoplay muted={call.deafened}></audio>
 					<span class="tile-name">{participant.username}'s screen</span>
 				</div>
 			{/if}

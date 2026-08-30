@@ -6,9 +6,46 @@ function load(name: string): HTMLAudioElement {
 	let audio = cache.get(name);
 	if (!audio) {
 		audio = new Audio(`${base}/sounds/${name}.mp3`);
+		audio.preload = "auto";
 		cache.set(name, audio);
 	}
 	return audio;
+}
+
+// WKWebView / WebKitGTK (the Tauri webview on macOS/Linux) gate the FIRST
+// programmatic play() behind a real user gesture, and a `new Audio()` created
+// and play()ed later - e.g. when a call starts - often doesn't count even
+// though a click happened earlier. Unlock every sound element once, inside
+// the first pointer/key gesture on the document, by play()/pause()-ing it
+// muted; after that the ringback's own play() is treated as a resume.
+let unlocked = false;
+export function installAudioUnlock() {
+	if (unlocked || typeof document === "undefined") return;
+	const unlock = () => {
+		if (unlocked) return;
+		unlocked = true;
+		for (const name of ["call", "notification"]) {
+			const el = load(name);
+			const prevMuted = el.muted;
+			el.muted = true;
+			el.load();
+			void el
+				.play()
+				.then(() => {
+					el.pause();
+					el.currentTime = 0;
+					el.muted = prevMuted;
+				})
+				.catch(() => {
+					el.muted = prevMuted;
+				});
+		}
+		primeRing();
+		document.removeEventListener("pointerdown", unlock, true);
+		document.removeEventListener("keydown", unlock, true);
+	};
+	document.addEventListener("pointerdown", unlock, true);
+	document.addEventListener("keydown", unlock, true);
 }
 
 function play(name: string) {
@@ -33,48 +70,90 @@ export function playCallSound() {
 }
 
 // Looping ringback while you're alone in a call waiting for someone to join.
-// Uses its own element (not the shared cache) so the one-shot join blip
-// and the loop don't fight over one <audio>.
-let ring: HTMLAudioElement | null = null;
+// One persistent element, reused across calls, so installAudioUnlock() can
+// prime this exact node - a fresh `new Audio()` per call would be a
+// different, still-locked element in the Tauri webview.
+let ringEl: HTMLAudioElement | null = null;
+let ringing = false;
 let ringPlay: Promise<void> | null = null;
 
-function killRing(el: HTMLAudioElement) {
-	try {
-		el.loop = false;
-		el.pause();
-		el.currentTime = 0;
-		// Detach the source so nothing can resume it, then reset the element.
-		el.removeAttribute("src");
-		el.load();
-	} catch {
-		/* no-op */
+function getRingEl(): HTMLAudioElement {
+	if (!ringEl) {
+		ringEl = new Audio(`${base}/sounds/call.mp3`);
+		ringEl.loop = true;
+		ringEl.preload = "auto";
 	}
+	return ringEl;
+}
+
+// Keep the ring element in the set that the first-gesture unlock primes.
+function primeRing() {
+	const el = getRingEl();
+	el.muted = true;
+	el.loop = false;
+	void el
+		.play()
+		.then(() => {
+			el.pause();
+			el.currentTime = 0;
+			el.muted = false;
+			el.loop = true;
+		})
+		.catch(() => {
+			el.muted = false;
+			el.loop = true;
+		});
 }
 
 export function startCallRing() {
-	if (ring) return;
+	if (ringing) return;
+	ringing = true;
 	try {
-		const el = new Audio(`${base}/sounds/call.mp3`);
+		const el = getRingEl();
 		el.loop = true;
-		ring = el;
-		// play() resolves late on mobile; a pause() issued before it settles
-		// is silently ignored, so always re-kill once it settles.
+		el.currentTime = 0;
 		ringPlay = el
 			.play()
 			.then(() => {
-				if (ring !== el) killRing(el);
+				// Got stopped between the call and play() settling.
+				if (!ringing) {
+					el.pause();
+					el.currentTime = 0;
+				}
 			})
-			.catch(() => {});
+			.catch(() => {
+				// Locked webview: retry once on the next user gesture.
+				if (typeof document !== "undefined") {
+					const retry = () => {
+						document.removeEventListener("pointerdown", retry, true);
+						document.removeEventListener("keydown", retry, true);
+						if (ringing) el.play().catch(() => {});
+					};
+					document.addEventListener("pointerdown", retry, true);
+					document.addEventListener("keydown", retry, true);
+				}
+			});
 	} catch {
-		ring = null;
+		ringing = false;
 	}
 }
 
 export function stopCallRing() {
-	const el = ring;
-	ring = null;
+	if (!ringing && !ringPlay) return;
+	ringing = false;
+	const el = ringEl;
 	if (!el) return;
-	killRing(el);
-	ringPlay?.finally(() => killRing(el));
+	const kill = () => {
+		try {
+			el.pause();
+			el.currentTime = 0;
+		} catch {
+			/* no-op */
+		}
+	};
+	kill();
+	// play() can still be resolving; pause() issued before it settles is
+	// ignored on mobile, so kill again once it does.
+	ringPlay?.finally(kill);
 	ringPlay = null;
 }

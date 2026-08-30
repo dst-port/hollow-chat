@@ -10,6 +10,7 @@
 	import { viewport } from "$lib/stores/viewport.svelte";
 	import { initAutoUpdateCheck } from "$lib/stores/updater.svelte";
 	import { isTauri } from "$lib/utils/isTauri";
+	import { installAudioUnlock } from "$lib/utils/sound";
 
 	let { children } = $props();
 
@@ -19,6 +20,7 @@
 	themeStore.init();
 	fontStore.init();
 	viewport.init();
+	installAudioUnlock();
 	if (inTauri) initAutoUpdateCheck();
 
 	function blockNativeContextMenu(event: MouseEvent) {

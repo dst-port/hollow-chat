@@ -169,7 +169,11 @@
 				{#each call.participants as participant (participant.userId)}
 					{#if sharingUserIds.has(participant.userId)}
 						<div class="spotlight-tile screen">
-							<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline></video>
+							<!-- muted: an unmuted autoplay <video> is blocked by the
+							     autoplay policy and just renders black. Screen-share
+							     audio rides on the separate <audio> below. -->
+							<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline muted></video>
+							<audio use:attachRemoteScreenStream={participant.userId} autoplay muted={call.deafened}></audio>
 							<span class="tile-name">{participant.username}'s screen</span>
 						</div>
 					{/if}
