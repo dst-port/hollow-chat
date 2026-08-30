@@ -16,6 +16,7 @@
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { initRichPresenceBridge } from "$lib/stores/richPresence.svelte";
 	import { initGatewayBridge, onSync } from "$lib/stores/gateway.svelte";
+	import { unreads } from "$lib/stores/unreads.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import { call } from "$lib/webrtc/call.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
@@ -25,7 +26,17 @@
 	initRichPresenceBridge();
 
 	$effect(() => {
-		if (session.token) initGatewayBridge(session.token);
+		if (session.token) {
+			initGatewayBridge(session.token);
+			unreads.init(session.token);
+		}
+	});
+
+	// Tab title reflects unread DMs so a backgrounded tab still nags.
+	$effect(() => {
+		if (typeof document === "undefined") return;
+		const n = unreads.totalDm;
+		document.title = n > 0 ? `(${n}) HollowChat` : "HollowChat";
 	});
 
 	function toServerEntry(server: api.ApiServer): ServerEntry {

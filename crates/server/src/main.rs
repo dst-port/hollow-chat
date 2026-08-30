@@ -20,6 +20,7 @@ mod password;
 mod permissions;
 mod profile;
 mod rate_limit;
+mod read_state;
 mod reports;
 mod roles;
 mod secret_box;
@@ -197,6 +198,7 @@ async fn main() {
         .nest("/devicelink", devicelink::router(state.clone()))
         .nest("/link-preview", link_preview::router(state.clone()))
         .nest("/gateway", gateway::router(state.clone()))
+        .merge(read_state::router(state.clone()))
         .nest("/reports", reports::router(state.clone()))
         .with_state(state)
         .layer(cors);

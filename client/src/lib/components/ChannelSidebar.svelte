@@ -16,6 +16,7 @@
 	import { call } from "$lib/webrtc/call.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
+	import { unreads } from "$lib/stores/unreads.svelte";
 	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 	import type { Channel, ChannelType, ServerEntry } from "$lib/data/mock";
@@ -143,6 +144,8 @@
 				{#if !collapsedCategories[category.name]}
 					<div transition:slide={{ duration: 160 }}>
 						{#each category.channels as channel (channel.id)}
+							{@const unread =
+								channel.id === activeChannelId ? 0 : unreads.channelUnread(channel.id)}
 							<button
 								class="channel"
 								class:active={channel.id === activeChannelId}
@@ -153,8 +156,8 @@
 								{:else}
 									<Volume2 size={16} strokeWidth={2} class="channel-icon" />
 								{/if}
-								<span class="name" class:unread={channel.unread}>{channel.name}</span>
-								{#if channel.unread}<span class="unread-dot"></span>{/if}
+								<span class="name" class:unread={unread > 0}>{channel.name}</span>
+								{#if unread > 0}<span class="unread-badge">{unread > 99 ? "99+" : unread}</span>{/if}
 							</button>
 							{#if channel.type === "voice" && call.roomId === channel.id}
 								{@const ownProfile = profileStore.forUser(username)}
@@ -365,12 +368,20 @@
 		font-weight: 700;
 	}
 
-	.unread-dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: var(--ink);
+	.unread-badge {
 		margin-left: auto;
+		min-width: 16px;
+		height: 16px;
+		padding: 0 5px;
+		border-radius: 8px;
+		background: var(--danger);
+		color: #fff;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.voice-participants {

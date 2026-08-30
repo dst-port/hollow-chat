@@ -41,6 +41,7 @@
 	import { playNotificationSound } from "$lib/utils/sound";
 	import { session } from "$lib/stores/session.svelte";
 	import { sendTyping, typingStore, onGatewayEvent } from "$lib/stores/gateway.svelte";
+	import { unreads } from "$lib/stores/unreads.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { nameFontStack } from "$lib/stores/font.svelte";
 	import { customEmojiStore } from "$lib/stores/customEmoji.svelte";
@@ -466,6 +467,7 @@
 		async function ingestNew(rows: ApiMessage[]) {
 			if (cancelled || rows.length === 0) return;
 			const known = new Set(messages.map((m) => m.id));
+			let appended = false;
 			for (const row of rows) {
 				if (cancelled) return;
 				if (known.has(row.id)) continue;
@@ -473,9 +475,12 @@
 				if (cancelled) return;
 				messages.push(built);
 				maybeNotifyMention(built, myUsername!);
+				appended = true;
 			}
 			const newest = rows.at(-1)?.id;
 			if (newest) lastId = newest;
+			// You're looking at this conversation, so it stays read.
+			if (appended && newest) unreads.markRead(scope, channelId, newest);
 		}
 
 		const loadInitial = () =>
@@ -492,6 +497,7 @@
 				.catch(() => {});
 
 		enqueue(loadInitial);
+		unreads.setActive(scope, channelId);
 
 		const inThisChannel = (data: Record<string, unknown>) =>
 			data.context === scope && data.channel_id === channelId;
@@ -555,6 +561,7 @@
 			offDeleted();
 			offReconnect();
 			clearInterval(interval);
+			unreads.setActive(null, null);
 		};
 	});
 

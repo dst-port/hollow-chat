@@ -26,6 +26,7 @@
 	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
 	import { presenceStore, onSync } from "$lib/stores/gateway.svelte";
+	import { unreads } from "$lib/stores/unreads.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
 	import { base } from "$app/paths";
 
@@ -330,6 +331,7 @@
 			<p class="dm-empty">{t("home.noConversations")}</p>
 		{:else}
 			{#each dmChannels as dm (dm.id)}
+				{@const dmUnread = activeDmId === dm.id ? 0 : unreads.dmUnread(dm.id)}
 				<button class="nav-item dm-item" class:active={activeDmId === dm.id} onclick={() => selectDm(dm.id)}>
 					{#if dm.is_group}
 						<div class="dm-avatar group">
@@ -340,7 +342,8 @@
 							{(dm.peer_username ?? "?").slice(0, 2).toUpperCase()}
 						</div>
 					{/if}
-					{dmDisplayName(dm)}
+					<span class="dm-name" class:unread={dmUnread > 0}>{dmDisplayName(dm)}</span>
+					{#if dmUnread > 0}<span class="dm-unread">{dmUnread > 99 ? "99+" : dmUnread}</span>{/if}
 				</button>
 			{/each}
 		{/if}
@@ -673,9 +676,35 @@
 
 	.dm-item {
 		font-weight: 500;
+	}
+
+	.dm-name {
+		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	.dm-name.unread {
+		color: var(--ink);
+		font-weight: 700;
+	}
+
+	.dm-unread {
+		flex-shrink: 0;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 9px;
+		background: var(--danger);
+		color: #fff;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.dm-avatar {

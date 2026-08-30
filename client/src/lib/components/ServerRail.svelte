@@ -5,6 +5,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { resolveUrl } from "$lib/api/client";
 	import { t } from "$lib/i18n/index.svelte";
+	import { unreads } from "$lib/stores/unreads.svelte";
 	import type { ServerEntry } from "$lib/data/mock";
 
 	let { servers, activeId, onSelect, onSelectHome, onAddServer }: {
@@ -16,6 +17,10 @@
 	} = $props();
 
 	let hovered = $state<{ label: string; anchor: HTMLElement } | null>(null);
+
+	function serverUnread(server: ServerEntry): boolean {
+		return server.channels.some((c) => unreads.channelUnread(c.id) > 0);
+	}
 
 	function show(label: string) {
 		return (event: MouseEvent | FocusEvent) => {
@@ -52,6 +57,9 @@
 	>
 		<span class="pill" class:active={activeId === null}></span>
 		<Logo size={56} />
+		{#if unreads.totalDm > 0 && activeId !== null}
+			<span class="badge">{unreads.totalDm > 99 ? "99+" : unreads.totalDm}</span>
+		{/if}
 	</button>
 	<div class="divider"></div>
 
@@ -84,7 +92,7 @@
 					<span
 						class="pill"
 						class:active={server.id === activeId}
-						class:unread={!!server.unread && server.id !== activeId}
+						class:unread={server.id !== activeId && serverUnread(server)}
 					></span>
 					{#if server.iconUrl}
 						<img class="icon-img" src={resolveUrl(server.iconUrl, session.token)} alt="" />

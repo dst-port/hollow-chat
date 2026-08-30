@@ -549,6 +549,25 @@ function messagesBase(scope: MessageScope, id: string): string {
 	return scope === "channel" ? `/channels/${id}` : `/dms/${id}`;
 }
 
+export type ApiUnreads = {
+	channels: { channel_id: string; unread: number }[];
+	dms: { dm_channel_id: string; unread: number }[];
+};
+
+export function getUnreads(token: string) {
+	return request<ApiUnreads>("/unreads", {
+		headers: { authorization: `Bearer ${token}` }
+	});
+}
+
+export function markRead(token: string, scope: MessageScope, id: string, messageId?: string) {
+	return request<void>(`${messagesBase(scope, id)}/read`, {
+		method: "PUT",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify(messageId ? { message_id: messageId } : {})
+	});
+}
+
 /** Fetch one message (used to reconcile edits/reactions/pins pushed over the gateway). */
 export function getMessage(token: string, scope: MessageScope, id: string, messageId: string) {
 	return request<ApiMessage>(`${messagesBase(scope, id)}/messages/${messageId}`, {

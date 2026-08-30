@@ -2,6 +2,7 @@ import { me } from "$lib/api/client";
 import { ensureIdentity, hasLocalIdentity } from "$lib/crypto/identity";
 import { deviceSync, hasSyncKey } from "$lib/devicelink/sync";
 import { stopGatewayBridge } from "$lib/stores/gateway.svelte";
+import { unreads } from "$lib/stores/unreads.svelte";
 
 const STORAGE_KEY = "hollowchat_session";
 
@@ -78,6 +79,7 @@ class SessionStore {
 		this.needsDeviceSetup = false;
 		deviceSync.disconnect();
 		stopGatewayBridge();
+		unreads.reset();
 		localStorage.removeItem(STORAGE_KEY);
 	}
 
