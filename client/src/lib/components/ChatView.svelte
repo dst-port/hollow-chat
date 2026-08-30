@@ -245,6 +245,40 @@
 		return profileStore.forUser(username)?.display_name || username;
 	}
 
+	// A call-event line is just a normal (encrypted) message whose text is a
+	// sentinel; the room opener posts one when the call ends.
+	const CALL_EVENT_PREFIX = "​hc:call:";
+	function parseCallEvent(content: string | null): number | null {
+		if (!content || !content.startsWith(CALL_EVENT_PREFIX)) return null;
+		const n = Number(content.slice(CALL_EVENT_PREFIX.length));
+		return Number.isFinite(n) ? n : null;
+	}
+	function formatCallDuration(sec: number): string {
+		if (sec < 10) return t("chat.callDurationFew");
+		if (sec < 60) return t("chat.callDurationSec", { s: sec });
+		const m = Math.floor(sec / 60);
+		const s = sec % 60;
+		return s ? t("chat.callDurationMinSec", { m, s }) : t("chat.callDurationMin", { m });
+	}
+
+	$effect(() => {
+		const ended = call.lastEnded;
+		if (!ended || ended.roomId !== channel.id || !ended.wasCreator) return;
+		call.lastEnded = null; // consume it so it fires once
+		const token = session.token;
+		const myUsername = session.username;
+		if (!token || !myUsername) return;
+		(async () => {
+			try {
+				const packed = packPayload(CALL_EVENT_PREFIX + ended.durationSec, undefined);
+				const payload = await encryptOutgoing(myUsername, token, packed);
+				await postMessage(token, channel.id, payload, undefined, undefined);
+			} catch {
+				/* best-effort call log line */
+			}
+		})();
+	});
+
 	function colorFor(username: string): string {
 		return profileStore.forUser(username)?.accent_color || colorForName(username);
 	}
@@ -1216,6 +1250,14 @@
 			</div>
 		{/if}
 			{#each messages as message, index (message.id)}
+				{@const callSec = parseCallEvent(message.content)}
+				{#if callSec !== null}
+					<div class="call-system" in:fly={{ y: 6, duration: 180 }}>
+						<Phone size={13} strokeWidth={2.5} />
+						<span><strong>{displayNameFor(message.author)}</strong> {t("chat.callEvent", { duration: formatCallDuration(callSec) })}</span>
+						<span class="call-system-time">{formatMessageTime(message)}</span>
+					</div>
+				{:else}
 				<div class="message" class:grouped={isGrouped(index)} class:mentioned={message.mentionsMe} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
 					{#if !isGrouped(index)}
 						{@const authorAvatarUrl = profileStore.forUser(message.author)?.avatar_url}
@@ -1437,6 +1479,7 @@
 						</div>
 					</div>
 				</div>
+				{/if}
 			{/each}
 	</div>
 	{/key}
@@ -1915,6 +1958,30 @@
 		margin: 0;
 		color: var(--ink-dim);
 		font-size: 14px;
+	}
+
+	.call-system {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		padding: 4px 16px;
+		font-size: 12px;
+		color: var(--ink-dim);
+	}
+
+	.call-system :global(svg) {
+		color: var(--online);
+		flex-shrink: 0;
+	}
+
+	.call-system strong {
+		color: var(--ink);
+		font-weight: 600;
+	}
+
+	.call-system-time {
+		color: var(--ink-faint);
+		font-size: 11px;
 	}
 
 	.message {
