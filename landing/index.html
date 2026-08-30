@@ -562,6 +562,52 @@
 	.selfhost p { margin: 0; color: var(--ink-dim); font-size: 14px; }
 	.selfhost strong { color: var(--ink); }
 
+	/* ---------- about ---------- */
+	.about-lead {
+		max-width: 640px;
+		color: var(--ink-dim);
+		font-size: 16px;
+		margin: 0 0 16px;
+	}
+
+	.support-grid {
+		margin-top: 24px;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 16px;
+	}
+
+	.support-card {
+		padding: 22px 24px;
+		border-radius: 14px;
+		border: 1px solid var(--hairline);
+		background: var(--panel);
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.support-card .name {
+		margin: 0;
+		font-family: var(--font-display);
+		font-weight: 600;
+		font-size: 17px;
+		color: var(--ink);
+	}
+
+	.support-card .note {
+		margin: 0;
+		flex: 1;
+		font-size: 14px;
+		color: var(--ink-dim);
+	}
+
+	.support-card .btn { align-self: flex-start; margin-top: 4px; }
+
+	@media (max-width: 640px) {
+		.support-grid { grid-template-columns: 1fr; }
+	}
+
 	/* ---------- faq ---------- */
 
 	.faq-list {
@@ -846,6 +892,38 @@
 
 <hr class="divider" />
 
+<section id="about">
+	<div class="wrap">
+		<div class="section-head">
+			<p class="eyebrow">about the project</p>
+			<h2>Built and funded by one person.</h2>
+		</div>
+		<p class="about-lead">
+			There's no company behind HollowChat — no investors, no ads, no data to sell. One
+			developer writes it, runs it, and pays the server bills. That's exactly why it can make
+			the promises it makes: there's no one to answer to who'd want it any other way.
+		</p>
+		<p class="about-lead">
+			It also means the project runs on whatever time and money are left over. Two kinds of help
+			genuinely keep it going:
+		</p>
+		<div class="support-grid">
+			<div class="support-card">
+				<p class="name">Report what's broken</p>
+				<p class="note">Hit a bug or something that feels off? A clear report with steps is worth more than a star.</p>
+				<a class="btn btn-ghost" href="https://github.com/dst-port/hollow-chat/issues">Open an issue</a>
+			</div>
+			<div class="support-card">
+				<p class="name">Chip in for hosting</p>
+				<p class="note">If HollowChat is useful to you and you can spare a little toward the bills, it helps keep it free for everyone. Completely optional — nothing here is paywalled.</p>
+				<a class="btn btn-ghost" href="https://github.com/sponsors/dst-port">Support the project</a>
+			</div>
+		</div>
+	</div>
+</section>
+
+<hr class="divider" />
+
 <section id="faq">
 	<div class="wrap">
 		<div class="section-head">
@@ -898,6 +976,7 @@
 	<div class="wrap foot-row">
 		<span>© HollowChat · AGPLv3</span>
 		<div class="foot-links">
+			<a href="#about">About</a>
 			<a href="/guidelines.html">Guidelines</a>
 			<a href="https://github.com/dst-port/hollow-chat">GitHub</a>
 			<a href="https://github.com/dst-port/hollow-chat/tree/main/deploy">Self-hosting</a>
