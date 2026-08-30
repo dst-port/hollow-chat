@@ -1,5 +1,5 @@
 import { WS_BASE_URL, fetchIceServers } from "$lib/api/client";
-import { playCallSound } from "$lib/utils/sound";
+import { startCallRing, stopCallRing } from "$lib/utils/sound";
 import {
 	nativeOutputRoutingAvailable,
 	listNativeAudioSinks,
@@ -108,6 +108,11 @@ class CallStore {
 	private localScreenStream: MediaStream | null = null;
 	private iceServers: RTCIceServer[] = FALLBACK_ICE_SERVERS;
 	private listeners = new Set<() => void>();
+
+	// Auto-leave an empty call after this long alone, to stop holding a
+	// mic + socket (and, with screen share, an encoder) for nobody.
+	private static readonly ALONE_TIMEOUT_MS = 120_000;
+	private aloneTimer: ReturnType<typeof setTimeout> | null = null;
 
 	onStreamsChanged(callback: () => void): () => void {
 		this.listeners.add(callback);
@@ -363,7 +368,7 @@ class CallStore {
 		this.applyMuted();
 		this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
 		this.refreshNoiseSuppressionActive();
-		playCallSound();
+		this.syncAlone(); // starts the ringback loop + the alone-timeout
 		this.notify();
 
 		const ws = new WebSocket(`${WS_BASE_URL}/calls/${roomId}?token=${encodeURIComponent(token)}`);
@@ -547,6 +552,30 @@ class CallStore {
 		if (!this.participants.some((p) => p.userId === userId)) {
 			this.participants = [...this.participants, { userId, username }];
 		}
+		this.syncAlone();
+	}
+
+	/**
+	 * Ring while alone waiting for someone; auto-leave after ALONE_TIMEOUT_MS
+	 * so an unanswered call doesn't keep the mic/socket open indefinitely.
+	 */
+	private syncAlone() {
+		const alone = this.status !== "idle" && this.roomId !== null && this.participants.length === 0;
+		if (alone) {
+			startCallRing();
+			if (!this.aloneTimer) {
+				this.aloneTimer = setTimeout(() => {
+					this.aloneTimer = null;
+					if (this.status !== "idle" && this.participants.length === 0) void this.leave();
+				}, CallStore.ALONE_TIMEOUT_MS);
+			}
+		} else {
+			stopCallRing();
+			if (this.aloneTimer) {
+				clearTimeout(this.aloneTimer);
+				this.aloneTimer = null;
+			}
+		}
 	}
 
 	private removePeer(userId: string) {
@@ -562,6 +591,7 @@ class CallStore {
 			this.speakingUserIds = next;
 		}
 		this.participants = this.participants.filter((p) => p.userId !== userId);
+		this.syncAlone();
 		this.notify();
 	}
 
@@ -737,6 +767,11 @@ class CallStore {
 	}
 
 	private teardown() {
+		stopCallRing();
+		if (this.aloneTimer) {
+			clearTimeout(this.aloneTimer);
+			this.aloneTimer = null;
+		}
 		for (const pc of this.pcs.values()) pc.close();
 		this.pcs.clear();
 		this.remoteStreams.clear();

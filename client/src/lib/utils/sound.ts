@@ -31,3 +31,31 @@ export function playNotificationSound() {
 export function playCallSound() {
 	play("call");
 }
+
+// Looping ringback while you're alone in a call waiting for someone to join.
+// Uses its own element (not the shared cache) so the one-shot join blip
+// and the loop don't fight over one <audio>.
+let ring: HTMLAudioElement | null = null;
+
+export function startCallRing() {
+	if (ring) return;
+	try {
+		ring = new Audio(`${base}/sounds/call.ogg`);
+		ring.loop = true;
+		void ring.play().catch(() => {});
+	} catch {
+		ring = null;
+	}
+}
+
+export function stopCallRing() {
+	if (!ring) return;
+	try {
+		ring.pause();
+		ring.loop = false;
+		ring.currentTime = 0;
+	} catch {
+		/* no-op */
+	}
+	ring = null;
+}
