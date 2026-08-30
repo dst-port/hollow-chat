@@ -125,6 +125,8 @@ class CallStore {
 	// Call-event bookkeeping so a chat "started a call" line can be posted
 	// once, by whoever opened the room, when it ends.
 	private joinedAt = 0;
+	/** true while the current room is a DM call, not a server voice channel. */
+	isDmCall = $state(false);
 	createdRoom = $state(false);
 	/** Guards the "started a call" chat line to one post per call, even
 	 *  across multiple ChatView instances. */
@@ -355,21 +357,27 @@ class CallStore {
 		this.applyMuted();
 	}
 
-	async join(token: string, roomId: string, label: string): Promise<void> {
+	/**
+	 * @param dmCall true for a 1:1/group DM call (an actual outgoing call —
+	 *   rings while you wait, auto-leaves if unanswered, posts a chat line).
+	 *   false for a server voice channel, which people just hop in and out of.
+	 */
+	async join(token: string, roomId: string, label: string, dmCall = false): Promise<void> {
 		if (this.roomId === roomId) return;
 		if (this.roomId) await this.leave();
 
 		this.roomId = roomId;
 		this.label = label;
 		this.status = "connecting";
+		this.isDmCall = dmCall;
 		this.joinedAt = Date.now();
 		this.createdRoom = false;
 		this.announcedStart = false;
 		this.announcedMessageId = null;
-		// Start the ringback here, synchronously, while this call still has the
-		// click's user activation. Doing it after the getUserMedia await (which
-		// pops a permission prompt) means autoplay policy silently blocks it.
-		startCallRing();
+		// Ring only for DM calls, and start it here synchronously while the
+		// click's user activation is still valid (autoplay policy otherwise
+		// blocks the play() that happens after the getUserMedia await).
+		if (dmCall) startCallRing();
 
 		try {
 			const servers = await fetchIceServers(token);
@@ -603,7 +611,13 @@ class CallStore {
 	 * so an unanswered call doesn't keep the mic/socket open indefinitely.
 	 */
 	private syncAlone() {
-		const alone = this.status !== "idle" && this.roomId !== null && this.participants.length === 0;
+		// Ringing + auto-leave only apply to DM calls. A server voice channel
+		// you're alone in is normal — people drop in and out.
+		const alone =
+			this.isDmCall &&
+			this.status !== "idle" &&
+			this.roomId !== null &&
+			this.participants.length === 0;
 		if (alone) {
 			startCallRing();
 			if (!this.aloneTimer) {
@@ -825,6 +839,7 @@ class CallStore {
 			};
 		}
 		this.joinedAt = 0;
+		this.isDmCall = false;
 		this.createdRoom = false;
 		this.announcedStart = false;
 		this.announcedMessageId = null;

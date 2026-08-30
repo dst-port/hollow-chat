@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Modal from "$lib/components/Modal.svelte";
+	import Check from "@lucide/svelte/icons/check";
 	import { t } from "$lib/i18n/index.svelte";
 	import type { ScreenShareOpts } from "$lib/webrtc/call.svelte";
 
@@ -67,6 +68,9 @@
 
 		<label class="audio-row">
 			<input type="checkbox" bind:checked={shareAudio} />
+			<span class="box" aria-hidden="true">
+				{#if shareAudio}<Check size={12} strokeWidth={3} />{/if}
+			</span>
 			<span>{t("screenShare.shareAudio")}</span>
 		</label>
 
@@ -137,10 +141,42 @@
 	.audio-row {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: 9px;
 		font-size: 13px;
 		color: var(--ink-dim);
 		cursor: pointer;
+		user-select: none;
+	}
+
+	.audio-row input {
+		position: absolute;
+		opacity: 0;
+		width: 0;
+		height: 0;
+	}
+
+	.audio-row .box {
+		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
+		border-radius: 5px;
+		border: 1.5px solid var(--hairline, var(--ink-faint));
+		background: var(--active);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--accent-fill-ink);
+		transition: background-color 0.12s ease, border-color 0.12s ease;
+	}
+
+	.audio-row input:checked + .box {
+		background: var(--accent-fill);
+		border-color: var(--accent-fill);
+	}
+
+	.audio-row input:focus-visible + .box {
+		outline: 2px solid var(--accent, #8ea1ff);
+		outline-offset: 2px;
 	}
 
 	.actions {

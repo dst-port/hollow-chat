@@ -270,7 +270,7 @@
 
 	// The opener posts the "started a call" line when the room opens…
 	$effect(() => {
-		if (call.roomId !== channel.id || !call.createdRoom || call.announcedStart) return;
+		if (call.roomId !== channel.id || !call.isDmCall || !call.createdRoom || call.announcedStart) return;
 		call.announcedStart = true;
 		const token = session.token;
 		if (!token) return;
@@ -1052,7 +1052,7 @@
 		const token = session.token;
 		if (!token) return;
 		try {
-			await call.join(token, channel.id, channel.name);
+			await call.join(token, channel.id, channel.name, true);
 		} catch {
 			toast.push(t("toast.callStartFailed"));
 		}

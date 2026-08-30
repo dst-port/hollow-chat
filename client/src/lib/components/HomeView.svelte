@@ -143,7 +143,7 @@
 		const dm = activeDm;
 		if (!token || !dm) return;
 		try {
-			await call.join(token, dm.id, dmDisplayName(dm));
+			await call.join(token, dm.id, dmDisplayName(dm), true);
 		} catch {
 			toast.push(t("toast.callStartFailed"));
 		}
