@@ -604,6 +604,15 @@
 
 	.support-card .btn { align-self: flex-start; margin-top: 4px; }
 
+	.support-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 4px;
+	}
+
+	.support-actions .btn { margin-top: 0; }
+
 	@media (max-width: 640px) {
 		.support-grid { grid-template-columns: 1fr; }
 	}
@@ -915,8 +924,11 @@
 			</div>
 			<div class="support-card">
 				<p class="name">Chip in for hosting</p>
-				<p class="note">If HollowChat is useful to you and you can spare a little toward the bills, it helps keep it free for everyone. Completely optional — nothing here is paywalled.</p>
-				<a class="btn btn-ghost" href="https://github.com/sponsors/dst-port">Support the project</a>
+				<p class="note">If HollowChat is useful to you and you can spare a little toward the bills, it helps keep it free for everyone. Completely optional — nothing here is paywalled. <strong>HollowChatter</strong> is the paid tier: 2&nbsp;GB uploads, more linked devices, a supporter badge, server boosts, and a custom nameplate font.</p>
+				<div class="support-actions">
+					<a class="btn btn-primary" href="https://app.lava.top/products/286222a6-45fc-4b54-9884-fb36bab0e553/a5a588c0-83ce-4daf-9125-479d05633d5a">Get HollowChatter</a>
+					<a class="btn btn-ghost" href="https://github.com/sponsors/dst-port">One-off donation</a>
+				</div>
 			</div>
 		</div>
 	</div>
