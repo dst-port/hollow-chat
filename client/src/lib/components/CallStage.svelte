@@ -464,11 +464,21 @@
 		object-fit: cover;
 	}
 
+	/* A screen tile hugs its video: full row height, width follows the
+	   source's own ratio - no dead letterbox space around it. */
 	.tile.screen {
 		background: black;
+		flex: 0 1 auto;
+		width: auto;
+		aspect-ratio: auto;
+		height: 100%;
+		max-width: 100%;
 	}
 
 	.tile.screen video {
+		width: auto;
+		max-width: 100%;
+		height: 100%;
 		object-fit: contain;
 	}
 
