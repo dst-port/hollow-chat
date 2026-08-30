@@ -246,6 +246,16 @@
 		openDmWith(target);
 	});
 
+	// Notification deep-link points at a DM channel by id.
+	$effect(() => {
+		const id = pendingDm.dmId;
+		if (!id) return;
+		pendingDm.consumeId();
+		activeDmId = id;
+		if (viewport.isMobile) mobileDetailOpen = true;
+		refreshDms();
+	});
+
 	function selectDm(id: string) {
 		activeDmId = id;
 		if (viewport.isMobile) mobileDetailOpen = true;

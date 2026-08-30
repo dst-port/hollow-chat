@@ -14,8 +14,12 @@ All notable changes to HollowChat are listed here. Dates are in UTC+3.
   count for messages you haven't seen, kept in sync across devices, with the
   DM total mirrored in the browser tab title.
 - **Push notifications (web).** Opt in from Settings → Notifications to get an
-  OS notification for a DM or an @mention while HollowChat is closed. Content
-  stays end-to-end encrypted — the notification just says who and where.
+  OS notification for a DM or an @mention while HollowChat is closed. The
+  notification says nothing but "You have a new message" — no sender, no
+  channel, no content — so nothing leaks on a lock screen. Clicking it opens
+  straight to that conversation.
+- **Installable web app.** HollowChat at /app can now be installed as a
+  standalone app (its own window, dock/home-screen icon) from the browser.
 
 ## v0.2.10 — 2026-08-30
 

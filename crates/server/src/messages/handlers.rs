@@ -537,14 +537,8 @@ pub async fn send_message(
     let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
     let dto = messages.remove(0);
     broadcast_created(&state, channel_id, &dto).await;
-    push_mention_notifications(
-        &state,
-        channel_id,
-        session.user_id,
-        &session.username,
-        &payload.mentioned_user_ids,
-    )
-    .await;
+    push_mention_notifications(&state, channel_id, session.user_id, &payload.mentioned_user_ids)
+        .await;
     Ok(Json(dto))
 }
 
@@ -554,7 +548,6 @@ async fn push_mention_notifications(
     state: &AppState,
     channel_id: Uuid,
     author_id: Uuid,
-    author_username: &str,
     mentioned: &[Uuid],
 ) {
     if mentioned.is_empty() {
@@ -569,33 +562,27 @@ async fn push_mention_notifications(
     if recipients.is_empty() {
         return;
     }
-    let meta: Option<(String, String)> = sqlx::query_as(
-        "SELECT channels.name, servers.name \
-         FROM channels JOIN servers ON servers.id = channels.server_id \
-         WHERE channels.id = $1",
-    )
-    .bind(channel_id)
-    .fetch_optional(&state.pool)
-    .await
-    .ok()
-    .flatten();
-    let (title, body) = match meta {
-        Some((channel_name, server_name)) => (
-            format!("#{channel_name} · {server_name}"),
-            format!("{author_username} mentioned you"),
-        ),
-        None => (
-            "New mention".to_string(),
-            format!("{author_username} mentioned you"),
-        ),
+    // Generic text only - no author, no channel, no server name. The
+    // server id is just for the deep-link, which travels inside the
+    // encrypted payload.
+    let server_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT server_id FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.pool)
+            .await
+            .ok()
+            .flatten();
+    let url = match server_id {
+        Some(sid) => format!("/app/?goto=channel:{sid}:{channel_id}"),
+        None => "/app/".to_string(),
     };
     crate::push::notify_offline(
         state,
         &recipients,
         crate::push::PushPayload {
-            title,
-            body,
-            url: "/app/".to_string(),
+            title: "HollowChat".to_string(),
+            body: "You were mentioned".to_string(),
+            url,
             tag: format!("mention-{channel_id}"),
         },
     );

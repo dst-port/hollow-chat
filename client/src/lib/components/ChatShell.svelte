@@ -18,6 +18,7 @@
 	import { initGatewayBridge, onSync } from "$lib/stores/gateway.svelte";
 	import { unreads } from "$lib/stores/unreads.svelte";
 	import { refreshPush } from "$lib/push/push";
+	import { deepLink } from "$lib/stores/deepLink.svelte";
 	import { colorForName } from "$lib/utils/color";
 	import { call } from "$lib/webrtc/call.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
@@ -31,6 +32,7 @@
 			initGatewayBridge(session.token);
 			unreads.init(session.token);
 			void refreshPush(session.token);
+			deepLink.init();
 		}
 	});
 
@@ -219,6 +221,29 @@
 	$effect(() => {
 		if (!loaded) return;
 		writeLastView(activeServerId ? { serverId: activeServerId, channelId: activeChannelId } : null);
+	});
+
+	// Notification deep-link: jump to the DM / channel it points at.
+	$effect(() => {
+		const target = deepLink.target;
+		if (!target) return;
+		if (target.kind === "dm") {
+			deepLink.consume();
+			activeServerId = null;
+			pendingDm.requestId(target.dmId);
+			if (viewport.isMobile) mobileNavOpen = false;
+			return;
+		}
+		if (!loaded) return; // channel: wait until the server tree is known
+		deepLink.consume();
+		const server = serverList.find((s) => s.id === target.serverId);
+		if (!server) return;
+		activeServerId = server.id;
+		activeChannelId =
+			server.channels.find((c) => c.id === target.channelId)?.id ??
+			defaultChannelId(server) ??
+			null;
+		if (viewport.isMobile) mobileNavOpen = false;
 	});
 
 	function selectChannel(id: string) {

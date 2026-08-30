@@ -46,6 +46,9 @@ sw.addEventListener("notificationclick", (event) => {
 			for (const client of clients) {
 				if ("focus" in client) {
 					void client.focus();
+					// Already-open tab: hand it the deep-link so it can switch
+					// view without a reload.
+					client.postMessage({ type: "hollowchat:goto", url: target });
 					return;
 				}
 			}
