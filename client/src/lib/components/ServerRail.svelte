@@ -199,7 +199,8 @@
 		align-items: center;
 		justify-content: center;
 		background-position: center;
-		background-size: cover;
+		/* stretch to fill the circle edge-to-edge, no cropping */
+		background-size: 100% 100%;
 		background-repeat: no-repeat;
 		border-radius: inherit;
 	}

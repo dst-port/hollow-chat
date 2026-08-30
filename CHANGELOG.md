@@ -2,6 +2,13 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
+## v0.2.10 — 2026-08-30
+
+### Fixes
+- **Server icons now fill the whole circle.** The rail button kept a bit of
+  default padding, so an icon sat inset with a sliver of sidebar colour
+  showing around it instead of reaching the edge.
+
 ## v0.2.9 — 2026-08-30
 
 ### Fixes
