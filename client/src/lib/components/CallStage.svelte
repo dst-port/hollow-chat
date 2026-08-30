@@ -434,10 +434,11 @@
 
 	.tile {
 		position: relative;
-		/* Lone tile grows toward the cap; more tiles shrink past the basis
-		   and wrap. aspect-ratio keeps every card the same shape. */
-		flex: 1 1 340px;
-		max-width: min(900px, 100%);
+		/* People are compact fixed-size cards - they don't grow to eat the
+		   row, so there's always room for the next person to drop in. */
+		flex: 0 1 auto;
+		width: clamp(180px, 22vw, 300px);
+		max-width: 100%;
 		max-height: 100%;
 		aspect-ratio: 16 / 10;
 		border-radius: 14px;
@@ -456,6 +457,10 @@
 
 	.tile.speaking {
 		box-shadow: inset 0 0 0 2px var(--online);
+	}
+
+	.stage.fullscreen .tile {
+		width: clamp(220px, 26vw, 420px);
 	}
 
 	.tile video {
