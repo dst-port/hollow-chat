@@ -245,34 +245,65 @@
 		return profileStore.forUser(username)?.display_name || username;
 	}
 
-	// A call-event line is a normal (encrypted) message whose text is a
-	// sentinel. The person who opens the call posts it right when the call
-	// starts. "§call" is printable and can't start a real trimmed message.
+	// Call-event lines are posted as a plaintext sentinel (not ciphertext)
+	// so they render on every device. "§call" for a live call, "§call:d<sec>"
+	// once it ends. "§" can't start a real trimmed message.
 	const CALL_EVENT_SENTINEL = "§call";
 	function isCallEvent(content: string | null): boolean {
-		return content?.trimStart().startsWith(CALL_EVENT_SENTINEL) ?? false;
+		return content?.startsWith(CALL_EVENT_SENTINEL) ?? false;
+	}
+	function callDurationSec(content: string): number | null {
+		const m = content.match(/^§call:d(\d+)$/);
+		return m ? Number(m[1]) : null;
+	}
+	function humanizeCallDuration(sec: number): string {
+		if (sec < 60) return t("chat.callDurationFew");
+		if (sec < 3600) return t("chat.callDurationMin", { n: Math.max(1, Math.round(sec / 60)) });
+		return t("chat.callDurationHour", { n: Math.max(1, Math.round(sec / 3600)) });
+	}
+	function callEventText(content: string): string {
+		const sec = callDurationSec(content);
+		return sec === null
+			? t("chat.callStarted")
+			: t("chat.callStartedLasted", { duration: humanizeCallDuration(sec) });
 	}
 
+	// The opener posts the "started a call" line when the room opens…
 	$effect(() => {
 		if (call.roomId !== channel.id || !call.createdRoom || call.announcedStart) return;
 		call.announcedStart = true;
 		const token = session.token;
-		const myUsername = session.username;
-		if (!token || !myUsername) return;
+		if (!token) return;
 		(async () => {
 			try {
-				const packed = packPayload(CALL_EVENT_SENTINEL, undefined);
-				await bootstrapChannelKeys(token, myUsername);
-				const payload = await encryptOutgoing(myUsername, token, packed);
-				const apiMsg = await postMessage(token, channel.id, payload, undefined, undefined);
-				// cache our own plaintext so it renders without a round-trip decrypt
-				rememberDecrypted(apiMsg.id, packed);
+				const apiMsg = await postMessage(token, channel.id, CALL_EVENT_SENTINEL, undefined, undefined);
+				call.announcedMessageId = apiMsg.id;
 				messages.push(await toMessage(apiMsg));
 				lastId = apiMsg.id;
 			} catch {
-				call.announcedStart = false; // let a retry happen
+				call.announcedStart = false;
 			}
 		})();
+	});
+
+	// …and edits it with the duration when the call ends.
+	$effect(() => {
+		const e = call.callEndEdit;
+		if (!e || e.roomId !== channel.id) return;
+		call.callEndEdit = null;
+		const token = session.token;
+		if (!token) return;
+		const ended = `${CALL_EVENT_SENTINEL}:d${e.durationSec}`;
+		apiEditMessage(token, scope, channel.id, e.messageId, ended)
+			.then(() => {
+				const m = messages.find((x) => x.id === e.messageId);
+				if (m) {
+					m.content = ended;
+					messages = messages;
+				}
+				decryptedContentCache.delete(e.messageId);
+			})
+			.catch(() => {});
 	});
 
 	function colorFor(username: string): string {
@@ -300,6 +331,25 @@
 	}
 
 	async function toMessage(apiMsg: ApiMessage): Promise<Message> {
+		// Call-event lines are plaintext sentinels, not ciphertext — render
+		// them verbatim on every device without touching the crypto path.
+		if (apiMsg.content && apiMsg.content.startsWith(CALL_EVENT_SENTINEL)) {
+			ensureProfileLoaded(apiMsg.author);
+			return {
+				id: apiMsg.id,
+				author: apiMsg.author,
+				color: colorForName(apiMsg.author),
+				content: apiMsg.content,
+				attachment: undefined,
+				reactions: [],
+				pinned: false,
+				replyTo: undefined,
+				edited: !!apiMsg.edited_at,
+				time: new Date(apiMsg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+				timestampMs: new Date(apiMsg.timestamp).getTime(),
+				mentionsMe: false
+			};
+		}
 		const decrypted = apiMsg.content
 			? await decryptStoredContent(apiMsg.author, apiMsg.id, apiMsg.content)
 			: "";
@@ -1249,7 +1299,7 @@
 				{#if isCallEvent(message.content)}
 					<div class="call-system" in:fly={{ y: 6, duration: 180 }}>
 						<Phone size={13} strokeWidth={2.5} />
-						<span><strong>{displayNameFor(message.author)}</strong> {t("chat.callStarted")}</span>
+						<span><strong>{displayNameFor(message.author)}</strong> {callEventText(message.content ?? "")}</span>
 						<span class="call-system-time">{formatMessageTime(message)}</span>
 					</div>
 				{:else}

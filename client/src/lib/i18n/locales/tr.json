@@ -790,6 +790,8 @@
 	"chat.callDurationMin": "{m} min",
 	"chat.callDurationMinSec": "{m} min {s} s",
 	"chat.callStarted": "started a call",
+	"chat.callStartedLasted": "started a call that lasted {duration}",
+	"chat.callDurationHour": "{n} hours",
 	"members.count.one": "{count} üye",
 	"members.count.other": "{count} üye",
 	"online.count.one": "{count} çevrimiçi",

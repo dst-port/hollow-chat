@@ -129,6 +129,12 @@ class CallStore {
 	/** Guards the "started a call" chat line to one post per call, even
 	 *  across multiple ChatView instances. */
 	announcedStart = $state(false);
+	/** id of the "started a call" message we posted, so we can edit in the
+	 *  duration when the call ends. */
+	announcedMessageId = $state<string | null>(null);
+	/** Set on teardown for the opener: which message to edit and with what
+	 *  duration. ChatView consumes and clears it. */
+	callEndEdit = $state<{ roomId: string; messageId: string; durationSec: number } | null>(null);
 
 	onStreamsChanged(callback: () => void): () => void {
 		this.listeners.add(callback);
@@ -359,6 +365,7 @@ class CallStore {
 		this.joinedAt = Date.now();
 		this.createdRoom = false;
 		this.announcedStart = false;
+		this.announcedMessageId = null;
 		// Start the ringback here, synchronously, while this call still has the
 		// click's user activation. Doing it after the getUserMedia await (which
 		// pops a permission prompt) means autoplay policy silently blocks it.
@@ -810,9 +817,17 @@ class CallStore {
 			clearTimeout(this.aloneTimer);
 			this.aloneTimer = null;
 		}
+		if (this.roomId && this.createdRoom && this.announcedMessageId && this.joinedAt) {
+			this.callEndEdit = {
+				roomId: this.roomId,
+				messageId: this.announcedMessageId,
+				durationSec: Math.max(1, Math.round((Date.now() - this.joinedAt) / 1000))
+			};
+		}
 		this.joinedAt = 0;
 		this.createdRoom = false;
 		this.announcedStart = false;
+		this.announcedMessageId = null;
 		for (const pc of this.pcs.values()) pc.close();
 		this.pcs.clear();
 		this.remoteStreams.clear();
