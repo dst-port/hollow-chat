@@ -667,6 +667,15 @@
 		gap: 22px;
 	}
 
+	.foot-note {
+		margin-top: 14px;
+		font-size: 11px;
+		line-height: 1.5;
+		color: var(--ink-faint);
+		opacity: 0.75;
+		max-width: 640px;
+	}
+
 	/* ---------- responsive ---------- */
 
 	@media (max-width: 820px) {
@@ -868,6 +877,10 @@
 				<summary>What if I want to run my own server?<span class="plus">+</span></summary>
 				<p class="a">It's the exact same server we run, packaged with Docker Compose — see the <a href="https://github.com/dst-port/hollow-chat/tree/main/deploy">self-hosting guide</a>. Point your client at your own domain and it's yours end to end.</p>
 			</details>
+			<details class="faq-item">
+				<summary>Is HollowChat made by Discord?<span class="plus">+</span></summary>
+				<p class="a">No. HollowChat is an independent, open-source project and is not affiliated with, endorsed by, or connected to Discord Inc. in any way. "Discord" is a trademark of Discord Inc.; we mention it only to describe the kind of app this is. All code, artwork, and sounds here are our own or used under a free licence.</p>
+			</details>
 		</div>
 	</div>
 </section>
@@ -885,6 +898,9 @@
 			<a href="https://github.com/dst-port/hollow-chat/tree/main/deploy">Self-hosting</a>
 			<a href="#faq">FAQ</a>
 		</div>
+	</div>
+	<div class="wrap foot-note">
+		Independent open-source project. Not affiliated with or endorsed by Discord Inc.; "Discord" is a trademark of its respective owner.
 	</div>
 </footer>
 
