@@ -3,22 +3,18 @@ import { retryBlockedCallMedia } from "$lib/actions/attachStream";
 
 const cache = new Map<string, HTMLAudioElement>();
 
-// Fedora's WebKitGTK (the Tauri webview there) ships GStreamer with no MP3
-// decoder, and its canPlayType() lies about it - so instead of picking a
-// format up front we give the element both sources, Ogg first. The engine
-// plays the first it can actually decode: WebKitGTK/Chrome/Firefox take the
-// Ogg, Safari (no Ogg) falls through to the MP3.
+// Loud logging so a "no sound" report in the packaged webview is diagnosable
+// from a GST_DEBUG run: which URL, and the actual MediaError vs a blocked
+// play().
 function makeSound(name: string, loop: boolean): HTMLAudioElement {
-	const audio = new Audio();
+	const url = `${base}/sounds/${name}.mp3`;
+	const audio = new Audio(url);
 	audio.preload = "auto";
 	audio.loop = loop;
-	for (const type of ["audio/ogg", "audio/mpeg"] as const) {
-		const src = document.createElement("source");
-		src.src = `${base}/sounds/${name}.${type === "audio/ogg" ? "ogg" : "mp3"}`;
-		src.type = type;
-		audio.appendChild(src);
-	}
-	audio.load();
+	audio.addEventListener("error", () => {
+		const e = audio.error;
+		console.error(`[sound] ${name}: load failed`, e?.code, e?.message, "src=", audio.currentSrc || url);
+	});
 	return audio;
 }
 
@@ -133,13 +129,15 @@ export function startCallRing() {
 		ringPlay = el
 			.play()
 			.then(() => {
+				console.info("[sound] ring playing", el.currentSrc, "muted=", el.muted, "vol=", el.volume);
 				// Got stopped between the call and play() settling.
 				if (!ringing) {
 					el.pause();
 					el.currentTime = 0;
 				}
 			})
-			.catch(() => {
+			.catch((err) => {
+				console.warn("[sound] ring play() rejected:", err?.name, err?.message);
 				// Locked webview: retry once on the next user gesture.
 				if (typeof document !== "undefined") {
 					const retry = () => {
