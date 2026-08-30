@@ -49,6 +49,8 @@ pub enum AppError {
     LinkPreviewUnavailable,
     #[error("billing is not configured on this server")]
     BillingNotConfigured,
+    #[error("{0}")]
+    BadRequest(String),
     #[error("billing provider error")]
     BillingProvider,
     #[error("couldn't generate an invite code, try again")]
@@ -110,6 +112,7 @@ impl IntoResponse for AppError {
             AppError::LinkNotAllowed => StatusCode::BAD_REQUEST,
             AppError::LinkPreviewUnavailable => StatusCode::BAD_GATEWAY,
             AppError::BillingNotConfigured => StatusCode::SERVICE_UNAVAILABLE,
+            AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::BillingProvider => StatusCode::BAD_GATEWAY,
             AppError::InviteGenerationFailed => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::InvalidInviteCode => StatusCode::BAD_REQUEST,

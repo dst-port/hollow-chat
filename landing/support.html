@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HollowChat — Support the project</title>
+<meta name="description" content="Send a one-off amount toward HollowChat's hosting bills. Completely optional, nothing here is paywalled." />
+<link rel="icon" type="image/png" href="/favicon.png" />
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+	:root {
+		--void: #100e0d;
+		--panel: #191513;
+		--panel-raised: #211c19;
+		--hairline: rgba(243, 239, 233, 0.1);
+		--hairline-strong: rgba(243, 239, 233, 0.18);
+		--ink: #f3efe9;
+		--ink-dim: #ada39b;
+		--ink-faint: #756b63;
+		--accent: #e8ded2;
+		--accent-ink: #1c1815;
+		--online: #3ba55d;
+		--warn: #d98b4a;
+		--font-display: "Comfortaa", sans-serif;
+		--font-mono: "IBM Plex Mono", ui-monospace, monospace;
+		--font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	}
+
+	* { box-sizing: border-box; }
+
+	body {
+		margin: 0;
+		background: var(--void);
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 16px;
+		line-height: 1.65;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	a { color: var(--ink); text-underline-offset: 2px; }
+	a:hover { color: var(--accent); }
+
+	.wrap { max-width: 520px; margin: 0 auto; padding: 0 24px; }
+
+	header {
+		border-bottom: 1px solid var(--hairline);
+		padding: 22px 0;
+	}
+	header .wrap {
+		max-width: 760px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
+	.brand {
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 18px;
+		text-decoration: none;
+		color: var(--ink);
+	}
+	header nav a {
+		font-family: var(--font-mono);
+		font-size: 13px;
+		color: var(--ink-dim);
+		text-decoration: none;
+	}
+	header nav a:hover { color: var(--ink); }
+
+	main { padding: 56px 0 48px; }
+
+	h1 {
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 28px;
+		line-height: 1.2;
+		margin: 0 0 12px;
+	}
+	.lede {
+		font-size: 15px;
+		color: var(--ink-dim);
+		margin: 0 0 32px;
+	}
+
+	form { display: flex; flex-direction: column; gap: 18px; }
+
+	label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: var(--ink-dim); }
+
+	.amount-row { display: flex; gap: 10px; }
+	.amount-row .field-amount { flex: 1; }
+	.amount-row .field-currency { width: 110px; }
+
+	input, select {
+		width: 100%;
+		background: var(--panel);
+		border: 1px solid var(--hairline-strong);
+		border-radius: 10px;
+		padding: 12px 14px;
+		color: var(--ink);
+		font-family: var(--font-body);
+		font-size: 15px;
+	}
+	input:focus, select:focus { outline: none; border-color: var(--accent); }
+	select { appearance: none; cursor: pointer; }
+
+	.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+	.preset {
+		background: var(--panel);
+		border: 1px solid var(--hairline-strong);
+		border-radius: 999px;
+		padding: 7px 15px;
+		color: var(--ink-dim);
+		font-family: var(--font-mono);
+		font-size: 13px;
+		cursor: pointer;
+	}
+	.preset:hover { color: var(--ink); border-color: var(--accent); }
+	.preset.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid transparent;
+		border-radius: 10px;
+		padding: 14px 22px;
+		font-family: var(--font-body);
+		font-weight: 600;
+		font-size: 15px;
+		cursor: pointer;
+		background: var(--accent);
+		color: var(--accent-ink);
+	}
+	.btn:hover { filter: brightness(1.05); }
+	.btn:disabled { opacity: 0.55; cursor: default; }
+
+	.note { font-size: 12px; color: var(--ink-faint); margin: 4px 0 0; }
+	.msg { font-size: 13px; margin: 0; min-height: 18px; }
+	.msg.error { color: var(--warn); }
+	.msg.ok { color: var(--online); }
+
+	footer {
+		border-top: 1px solid var(--hairline);
+		padding: 24px 0;
+		font-size: 13px;
+		color: var(--ink-faint);
+	}
+	footer .wrap { max-width: 760px; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+	footer a { color: var(--ink-dim); text-decoration: none; }
+	footer a:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header>
+	<div class="wrap">
+		<a class="brand" href="/">HollowChat</a>
+		<nav><a href="/#about">About</a></nav>
+	</div>
+</header>
+
+<main class="wrap">
+	<h1>Support HollowChat</h1>
+	<p class="lede">
+		One developer writes HollowChat, runs it, and pays the server bills. If it's useful to you
+		and you can spare a little toward hosting, it helps keep it free for everyone. This is a
+		one-off payment for whatever amount you choose &mdash; nothing in the app is paywalled.
+	</p>
+
+	<form id="donate-form">
+		<div>
+			<div class="presets" id="presets"></div>
+		</div>
+
+		<div class="amount-row">
+			<label class="field-amount">
+				Amount
+				<input type="number" id="amount" min="5" max="10000" step="0.01" inputmode="decimal" required />
+			</label>
+			<label class="field-currency">
+				Currency
+				<select id="currency">
+					<option value="USD">USD</option>
+					<option value="EUR">EUR</option>
+					<option value="RUB">RUB</option>
+				</select>
+			</label>
+		</div>
+
+		<label>
+			Email <span style="color:var(--ink-faint)">&mdash; for the payment receipt</span>
+			<input type="email" id="email" autocomplete="email" required />
+		</label>
+
+		<button type="submit" class="btn" id="submit">Continue to payment</button>
+		<p class="msg" id="msg"></p>
+		<p class="note">
+			Payment is processed by lava.top. You'll be taken there to complete it. HollowChat never
+			sees your card details.
+		</p>
+	</form>
+</main>
+
+<footer>
+	<div class="wrap">
+		<span>&copy; HollowChat &middot; AGPLv3</span>
+		<a href="/">Home</a>
+		<a href="/#faq">FAQ</a>
+		<a href="https://github.com/dst-port/hollow-chat">GitHub</a>
+	</div>
+</footer>
+
+<script>
+	(function () {
+		var form = document.getElementById("donate-form");
+		var amount = document.getElementById("amount");
+		var currency = document.getElementById("currency");
+		var email = document.getElementById("email");
+		var submit = document.getElementById("submit");
+		var msg = document.getElementById("msg");
+		var presets = document.getElementById("presets");
+
+		var params = new URLSearchParams(location.search);
+		if (params.get("failed")) {
+			msg.textContent = "That payment didn't go through. You can try again.";
+			msg.className = "msg error";
+		} else if (params.get("ok")) {
+			msg.textContent = "Thank you — your support genuinely keeps this running.";
+			msg.className = "msg ok";
+		}
+
+		// lava.top enforces its own per-currency limits; these mirror them so
+		// the buttons never offer a value the provider will bounce.
+		var PRESETS = {
+			USD: { min: 5, max: 10000, values: [5, 10, 25, 50, 100] },
+			EUR: { min: 5, max: 10000, values: [5, 10, 25, 50, 100] },
+			RUB: { min: 100, max: 900000, values: [100, 300, 500, 1000, 2500] },
+		};
+
+		function renderPresets() {
+			var cfg = PRESETS[currency.value] || PRESETS.USD;
+			amount.min = cfg.min;
+			amount.max = cfg.max;
+			presets.innerHTML = "";
+			cfg.values.forEach(function (v) {
+				var b = document.createElement("button");
+				b.type = "button";
+				b.className = "preset";
+				b.dataset.amount = v;
+				b.textContent = v;
+				presets.appendChild(b);
+			});
+			syncPresets();
+		}
+
+		function syncPresets() {
+			var v = parseFloat(amount.value);
+			[].forEach.call(presets.children, function (b) {
+				b.classList.toggle("active", parseFloat(b.dataset.amount) === v);
+			});
+		}
+
+		presets.addEventListener("click", function (e) {
+			var b = e.target.closest(".preset");
+			if (!b) return;
+			amount.value = b.dataset.amount;
+			syncPresets();
+		});
+		amount.addEventListener("input", syncPresets);
+		currency.addEventListener("change", renderPresets);
+		renderPresets();
+
+		form.addEventListener("submit", async function (e) {
+			e.preventDefault();
+			var amt = parseFloat(amount.value);
+			var cfg = PRESETS[currency.value] || PRESETS.USD;
+			if (!(amt >= cfg.min && amt <= cfg.max)) {
+				msg.textContent =
+					"Enter an amount between " + cfg.min + " and " + cfg.max + " " + currency.value + ".";
+				msg.className = "msg error";
+				return;
+			}
+			submit.disabled = true;
+			msg.textContent = "Opening checkout…";
+			msg.className = "msg";
+			try {
+				var res = await fetch("/billing/donate", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						amount: amt,
+						currency: currency.value,
+						email: email.value.trim(),
+					}),
+				});
+				var data = await res.json().catch(function () { return {}; });
+				if (!res.ok || !data.url) {
+					throw new Error(data.error || "Couldn't start the payment. Try again later.");
+				}
+				window.location = data.url;
+			} catch (err) {
+				msg.textContent = err.message || "Something went wrong. Try again later.";
+				msg.className = "msg error";
+				submit.disabled = false;
+			}
+		});
+	})();
+</script>
+
+</body>
+</html>

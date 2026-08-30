@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -93,6 +93,105 @@ pub async fn create_checkout(
         .bind(session.user_id)
         .execute(&state.pool)
         .await?;
+
+    Ok(Json(CheckoutResponse { url }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DonationRequest {
+    pub amount: f64,
+    pub currency: String,
+    pub email: String,
+}
+
+/// One-off support payment with a buyer-chosen amount. Unauthenticated -
+/// this is reachable from the public landing page and isn't tied to a
+/// HollowChat account; it just opens a Lava checkout for whatever amount
+/// the person typed. Nothing is recorded against a user and the webhook
+/// no-ops for it (no billing_contracts row to resolve).
+pub async fn create_donation(
+    State(state): State<AppState>,
+    Json(req): Json<DonationRequest>,
+) -> Result<Json<CheckoutResponse>, AppError> {
+    let api_key = state
+        .billing
+        .lava_api_key
+        .as_ref()
+        .ok_or(AppError::BillingNotConfigured)?;
+    let offer_id = state
+        .billing
+        .lava_donate_offer_id
+        .as_ref()
+        .ok_or(AppError::BillingNotConfigured)?;
+
+    let currency = match req.currency.trim().to_uppercase().as_str() {
+        "USD" => "USD",
+        "EUR" => "EUR",
+        "RUB" => "RUB",
+        _ => return Err(AppError::BadRequest("unsupported currency".into())),
+    };
+
+    if !req.amount.is_finite() || req.amount < 1.0 || req.amount > 100_000.0 {
+        return Err(AppError::BadRequest("amount out of range".into()));
+    }
+    let amount = (req.amount * 100.0).round() / 100.0;
+
+    let email = req.email.trim();
+    if email.len() < 3 || email.len() > 254 || !email.contains('@') || !email.contains('.') {
+        return Err(AppError::BadRequest("enter a valid email".into()));
+    }
+
+    let landing = state
+        .billing
+        .app_base_url
+        .as_ref()
+        .trim_end_matches("/app")
+        .trim_end_matches('/');
+    let body = serde_json::json!({
+        "email": email,
+        "offerId": offer_id.as_ref(),
+        "currency": currency,
+        "amount": amount,
+        "periodicity": "ONE_TIME",
+        "successful_return_url": format!("{landing}/support.html?ok=1"),
+        "failure_return_url": format!("{landing}/support.html?failed=1"),
+        "cancel_return_url": format!("{landing}/support.html"),
+    });
+
+    let response = state
+        .http_client
+        .post(format!("{LAVA_API_BASE}/api/v3/invoice"))
+        .header("X-Api-Key", api_key.as_ref())
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| AppError::BillingProvider)?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        // Lava enforces its own per-currency min/max and returns a 400 with a
+        // human-readable "error" field ("Amount=3 not in allowed limits=(5,
+        // 10000) for USD"). Surface that to the buyer instead of a generic
+        // provider error; anything else is on us.
+        if status == reqwest::StatusCode::BAD_REQUEST {
+            let msg = serde_json::from_str::<Value>(&text)
+                .ok()
+                .and_then(|v| v.get("error").and_then(Value::as_str).map(str::to_owned))
+                .unwrap_or_else(|| "that amount was rejected by the payment provider".to_string());
+            return Err(AppError::BadRequest(msg));
+        }
+        tracing::error!("lava donation invoice failed: {status} {text}");
+        crate::telegram::notify(format!("Lava donation invoice failed: {status} {text}"));
+        return Err(AppError::BillingProvider);
+    }
+
+    let payload: Value = response.json().await.map_err(|_| AppError::BillingProvider)?;
+    let url = payload
+        .get("paymentUrl")
+        .and_then(Value::as_str)
+        .ok_or(AppError::BillingProvider)?
+        .to_string();
 
     Ok(Json(CheckoutResponse { url }))
 }

@@ -5,6 +5,7 @@ pub struct Config {
     pub attachments_dir: String,
     pub lava_api_key: Option<String>,
     pub lava_offer_id: Option<String>,
+    pub lava_donate_offer_id: Option<String>,
     pub lava_webhook_secret: Option<String>,
     pub lava_currency: Option<String>,
     pub app_base_url: String,
@@ -36,6 +37,7 @@ impl Config {
             std::env::var("ATTACHMENTS_DIR").unwrap_or_else(|_| "./data/attachments".to_string());
         let lava_api_key = std::env::var("LAVA_API_KEY").ok();
         let lava_offer_id = std::env::var("LAVA_OFFER_ID").ok();
+        let lava_donate_offer_id = std::env::var("LAVA_DONATE_OFFER_ID").ok();
         let lava_webhook_secret = std::env::var("LAVA_WEBHOOK_SECRET").ok();
         let lava_currency = std::env::var("LAVA_CURRENCY").ok();
         // Matches tauri.conf.json's devUrl exactly ("localhost", not
@@ -95,6 +97,7 @@ impl Config {
             attachments_dir,
             lava_api_key,
             lava_offer_id,
+            lava_donate_offer_id,
             lava_webhook_secret,
             lava_currency,
             app_base_url,

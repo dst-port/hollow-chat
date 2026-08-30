@@ -150,6 +150,9 @@ async fn main() {
         billing: BillingConfig {
             lava_api_key: config.lava_api_key.map(|s| Arc::from(s.into_boxed_str())),
             lava_offer_id: config.lava_offer_id.map(|s| Arc::from(s.into_boxed_str())),
+            lava_donate_offer_id: config
+                .lava_donate_offer_id
+                .map(|s| Arc::from(s.into_boxed_str())),
             lava_webhook_secret: config
                 .lava_webhook_secret
                 .map(|s| Arc::from(s.into_boxed_str())),
