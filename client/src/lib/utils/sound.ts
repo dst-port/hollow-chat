@@ -3,29 +3,29 @@ import { retryBlockedCallMedia } from "$lib/actions/attachStream";
 
 const cache = new Map<string, HTMLAudioElement>();
 
-// Fedora's WebKitGTK (the Tauri webview on that distro) ships GStreamer
-// without an MP3 decoder, so `new Audio(".../call.mp3")` fails with a
-// FormatError and the ring/notification are silent. Ogg Vorbis is always
-// available there; Chromium and Safari keep MP3.
-let soundExt: "mp3" | "ogg" | null = null;
-function ext(): "mp3" | "ogg" {
-	if (soundExt) return soundExt;
-	try {
-		soundExt = document.createElement("audio").canPlayType("audio/mpeg") ? "mp3" : "ogg";
-	} catch {
-		soundExt = "mp3";
+// Fedora's WebKitGTK (the Tauri webview there) ships GStreamer with no MP3
+// decoder, and its canPlayType() lies about it - so instead of picking a
+// format up front we give the element both sources, Ogg first. The engine
+// plays the first it can actually decode: WebKitGTK/Chrome/Firefox take the
+// Ogg, Safari (no Ogg) falls through to the MP3.
+function makeSound(name: string, loop: boolean): HTMLAudioElement {
+	const audio = new Audio();
+	audio.preload = "auto";
+	audio.loop = loop;
+	for (const type of ["audio/ogg", "audio/mpeg"] as const) {
+		const src = document.createElement("source");
+		src.src = `${base}/sounds/${name}.${type === "audio/ogg" ? "ogg" : "mp3"}`;
+		src.type = type;
+		audio.appendChild(src);
 	}
-	return soundExt;
-}
-function soundUrl(name: string): string {
-	return `${base}/sounds/${name}.${ext()}`;
+	audio.load();
+	return audio;
 }
 
 function load(name: string): HTMLAudioElement {
 	let audio = cache.get(name);
 	if (!audio) {
-		audio = new Audio(soundUrl(name));
-		audio.preload = "auto";
+		audio = makeSound(name, false);
 		cache.set(name, audio);
 	}
 	return audio;
@@ -99,9 +99,7 @@ let ringPlay: Promise<void> | null = null;
 
 function getRingEl(): HTMLAudioElement {
 	if (!ringEl) {
-		ringEl = new Audio(soundUrl("call"));
-		ringEl.loop = true;
-		ringEl.preload = "auto";
+		ringEl = makeSound("call", true);
 	}
 	return ringEl;
 }
