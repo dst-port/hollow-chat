@@ -509,16 +509,6 @@
 		background: none;
 	}
 
-	/* steady ring hugging the callee so there's always an outline */
-	.ring-avatar.callee::after {
-		content: "";
-		position: absolute;
-		inset: -4px;
-		border-radius: 50%;
-		border: 2px solid rgba(255, 255, 255, 0.35);
-		pointer-events: none;
-	}
-
 	.ring-face {
 		width: 100%;
 		height: 100%;
@@ -534,30 +524,31 @@
 
 	.wave {
 		position: absolute;
-		inset: -4px;
+		inset: -5px;
 		border-radius: 50%;
-		border: 2px solid rgba(255, 255, 255, 0.55);
-		opacity: 0;
+		border: 2px solid rgba(255, 255, 255, 0.5);
 		will-change: transform, opacity;
-		animation: call-wave 2s ease-out infinite;
+		animation: call-wave 2.6s ease-in-out infinite;
 	}
 
 	.wave:nth-child(2) {
-		animation-delay: 0.66s;
+		animation-delay: 0.55s;
 	}
 
 	.wave:nth-child(3) {
-		animation-delay: 1.33s;
+		animation-delay: 1.1s;
 	}
 
+	/* smoothly breathe out and back in, forever */
 	@keyframes call-wave {
-		0% {
-			transform: scale(1);
-			opacity: 0.7;
-		}
+		0%,
 		100% {
-			transform: scale(2.2);
-			opacity: 0;
+			transform: scale(1);
+			opacity: 0.15;
+		}
+		50% {
+			transform: scale(1.6);
+			opacity: 0.7;
 		}
 	}
 
