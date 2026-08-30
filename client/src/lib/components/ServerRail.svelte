@@ -87,13 +87,9 @@
 						class:unread={!!server.unread && server.id !== activeId}
 					></span>
 					{#if server.iconUrl}
-						<img
-							class="icon-img"
-							src={resolveUrl(server.iconUrl, session.token)}
-							alt={server.name}
-						/>
+						<img class="icon-img" src={resolveUrl(server.iconUrl, session.token)} alt="" />
 					{:else}
-						<span class="icon-text">{server.initials}</span>
+						{server.initials}
 					{/if}
 					{#if server.unread}
 						<span class="badge">{server.unread > 9 ? "9+" : server.unread}</span>
@@ -196,18 +192,13 @@
 	}
 
 	.server .icon-img {
+		position: absolute;
+		top: 0;
+		left: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 		display: block;
-	}
-
-	.server .icon-text {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100%;
-		height: 100%;
 	}
 
 	.server:hover {
