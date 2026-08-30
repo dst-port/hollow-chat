@@ -121,6 +121,7 @@ pub struct ProfileDto {
     pub accent_color: Option<String>,
     pub banner_color: Option<String>,
     pub banner_gradient_end: Option<String>,
+    pub name_font: Option<String>,
     #[sqlx(skip)]
     pub avatar_url: Option<String>,
     #[sqlx(skip)]
@@ -152,6 +153,7 @@ struct ProfileRow {
     accent_color: Option<String>,
     banner_color: Option<String>,
     banner_gradient_end: Option<String>,
+    name_font: Option<String>,
     member_since: DateTime<Utc>,
     avatar_attachment_id: Option<Uuid>,
     avatar_filename: Option<String>,
@@ -173,7 +175,7 @@ async fn load_profile(
                 users.activity_started_at, users.activity_party_size, users.activity_party_max, \
                 users.media_application, users.media_details, users.media_state, \
                 users.share_activity, \
-                users.accent_color, users.banner_color, users.banner_gradient_end, users.created_at AS member_since, \
+                users.accent_color, users.banner_color, users.banner_gradient_end, users.name_font, users.created_at AS member_since, \
                 users.avatar_attachment_id, avatar.filename AS avatar_filename, \
                 users.banner_attachment_id, banner.filename AS banner_filename \
          FROM users \
@@ -237,6 +239,7 @@ async fn load_profile(
         accent_color: row.accent_color,
         banner_color: row.banner_color,
         banner_gradient_end: row.banner_gradient_end,
+        name_font: row.name_font,
         avatar_url: row
             .avatar_attachment_id
             .zip(row.avatar_filename)
@@ -277,6 +280,8 @@ pub struct UpdateProfileRequest {
     #[serde(default)]
     pub banner_gradient_end: Option<String>,
     #[serde(default)]
+    pub name_font: Option<String>,
+    #[serde(default)]
     pub share_activity: Option<bool>,
 }
 
@@ -291,6 +296,23 @@ fn clean(value: Option<String>, max_len: usize) -> Result<Option<String>, AppErr
     } else {
         Some(trimmed.to_string())
     })
+}
+
+/// Allow-list of nameplate font ids. Kept in sync with the client's
+/// PRESET_FONT_IDS; anything else is rejected so the value can be dropped
+/// straight into a `font-family` on other users' screens.
+const NAME_FONTS: &[&str] = &["inter", "poppins", "comfortaa", "jetbrains-mono", "merriweather"];
+
+fn clean_name_font(value: Option<String>) -> Result<Option<String>, AppError> {
+    let Some(value) = value else { return Ok(None) };
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(Some(String::new()));
+    }
+    if !NAME_FONTS.contains(&trimmed) {
+        return Err(AppError::InvalidProfileField);
+    }
+    Ok(Some(trimmed.to_string()))
 }
 
 fn clean_color(value: Option<String>) -> Result<Option<String>, AppError> {
@@ -317,6 +339,7 @@ pub async fn update_profile(
     let accent_color = clean_color(payload.accent_color)?;
     let banner_color = clean_color(payload.banner_color)?;
     let banner_gradient_end = clean_color(payload.banner_gradient_end)?;
+    let name_font = clean_name_font(payload.name_font)?;
     let clear_minutes = payload.status_clear_minutes.filter(|m| *m >= 0);
 
     sqlx::query(
@@ -328,6 +351,7 @@ pub async fn update_profile(
             accent_color = CASE WHEN $5 IS NULL THEN accent_color WHEN $5 = '' THEN NULL ELSE $5 END, \
             banner_color = CASE WHEN $6 IS NULL THEN banner_color WHEN $6 = '' THEN NULL ELSE $6 END, \
             banner_gradient_end = CASE WHEN $10 IS NULL THEN banner_gradient_end WHEN $10 = '' THEN NULL ELSE $10 END, \
+            name_font = CASE WHEN $11 IS NULL THEN name_font WHEN $11 = '' THEN NULL ELSE $11 END, \
             share_activity = CASE WHEN $9::boolean IS NULL THEN share_activity ELSE $9::boolean END, \
             status_clear_at = CASE WHEN $8::bigint IS NULL THEN status_clear_at \
                                     WHEN $8::bigint = 0 THEN NULL \
@@ -344,6 +368,7 @@ pub async fn update_profile(
     .bind(clear_minutes)
     .bind(payload.share_activity)
     .bind(&banner_gradient_end)
+    .bind(&name_font)
     .execute(&state.pool)
     .await?;
 

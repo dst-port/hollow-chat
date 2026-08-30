@@ -16,6 +16,8 @@
 	import Pin from "@lucide/svelte/icons/pin";
 	import Gamepad2 from "@lucide/svelte/icons/gamepad-2";
 	import ColorPicker from "$lib/components/ColorPicker.svelte";
+	import Dropdown from "$lib/components/Dropdown.svelte";
+	import { PRESET_FONT_IDS, FONT_LABELS, nameFontStack } from "$lib/stores/font.svelte";
 	import Badges from "$lib/components/Badges.svelte";
 	import BrandIcon from "$lib/components/BrandIcon.svelte";
 	import { BRAND_ICONS } from "$lib/data/brandIcons";
@@ -51,6 +53,7 @@
 	let accentDraft = $state("#5b96c9");
 	let bannerColorDraft = $state("#5865f2");
 	let bannerGradientEndDraft = $state("#1c1815");
+	let nameFontDraft = $state("default");
 	let initialized = false;
 
 	$effect(() => {
@@ -59,6 +62,7 @@
 		accentDraft = p.accent_color ?? "#5b96c9";
 		bannerColorDraft = p.banner_color ?? "#5865f2";
 		bannerGradientEndDraft = p.banner_gradient_end ?? "#1c1815";
+		nameFontDraft = p.name_font ?? "default";
 		initialized = true;
 	});
 
@@ -66,6 +70,7 @@
 		accentDraft;
 		bannerColorDraft;
 		bannerGradientEndDraft;
+		nameFontDraft;
 		if (!initialized) return;
 		const token = session.token;
 		if (!token) return;
@@ -73,7 +78,8 @@
 			.updateProfile(token, {
 				accent_color: accentDraft,
 				banner_color: bannerColorDraft,
-				banner_gradient_end: bannerGradientEndDraft
+				banner_gradient_end: bannerGradientEndDraft,
+				name_font: nameFontDraft === "default" ? "" : nameFontDraft
 			})
 			.then((updated) => profileStore.set(updated))
 			.catch(() => toast.push(t("profile.edit.toast.colorsFailed")));
@@ -415,11 +421,22 @@
 
 		<section class="section">
 			<p class="section-label">{t("profile.edit.nameplate")}</p>
-			<div class="nameplate-row">
-				<div class="nameplate-preview" style:background={accentDraft}></div>
-				<button class="slot small" onclick={() => notAvailable(t("profile.edit.nameplatesUnavailable"))} title={t("profile.edit.nameplatesUnavailable")}>
-					<Plus size={14} strokeWidth={2.5} />
-				</button>
+			<div
+				class="nameplate-preview-text"
+				style:color={accentDraft}
+				style:font-family={nameFontStack(nameFontDraft)}
+			>
+				{profile?.display_name || username}
+			</div>
+			<div class="select-slot">
+				<Dropdown
+					value={nameFontDraft}
+					options={[
+						{ value: "default", label: t("profile.edit.nameFontDefault") },
+						...PRESET_FONT_IDS.map((id) => ({ value: id, label: FONT_LABELS[id] }))
+					]}
+					onChange={(v) => (nameFontDraft = v)}
+				/>
 			</div>
 		</section>
 
@@ -880,17 +897,13 @@
 		color: var(--ink);
 	}
 
-	.nameplate-row,
 	.slot-row {
 		display: flex;
 		gap: var(--gap-tight);
 	}
 
-	.nameplate-preview {
-		flex: 1;
-		height: 32px;
-		border-radius: var(--radius-sm);
-		opacity: 0.85;
+	.select-slot {
+		margin-top: 8px;
 	}
 
 	.color-way-row {

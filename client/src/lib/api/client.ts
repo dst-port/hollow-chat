@@ -1056,6 +1056,7 @@ export type ApiProfile = {
 	accent_color: string | null;
 	banner_color: string | null;
 	banner_gradient_end: string | null;
+	name_font: string | null;
 	avatar_url: string | null;
 	banner_url: string | null;
 	member_since: string;
@@ -1076,6 +1077,7 @@ export type UpdateProfileBody = {
 	accent_color?: string;
 	banner_color?: string;
 	banner_gradient_end?: string;
+	name_font?: string;
 	share_activity?: boolean;
 };
 

@@ -757,6 +757,7 @@
 	"imageCrop.title": "Crop image",
 	"imageCrop.zoom": "Zoom",
 	"imageCrop.hint": "Drag to reposition, scroll or use the slider to zoom.",
+	"profile.edit.nameFontDefault": "Default font",
 	"members.count.one": "{count} jäsen",
 	"members.count.other": "{count} jäsentä",
 	"online.count.one": "{count} paikalla",

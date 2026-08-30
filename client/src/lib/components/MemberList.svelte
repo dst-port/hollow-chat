@@ -4,6 +4,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { t } from "$lib/i18n/index.svelte";
+	import { nameFontStack } from "$lib/stores/font.svelte";
 	import * as api from "$lib/api/client";
 	import type { Member } from "$lib/data/mock";
 
@@ -69,6 +70,7 @@
 						<p
 							class="name"
 							style:color={presence !== "invisible" ? (profile?.accent_color || member.roles?.[0]?.color) : undefined}
+						style:font-family={nameFontStack(profile?.name_font)}
 						>
 							{profile?.display_name || member.name}
 						</p>

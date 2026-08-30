@@ -14,6 +14,7 @@
 	import ActivityCard from "$lib/components/ActivityCard.svelte";
 	import StatusModal from "$lib/components/StatusModal.svelte";
 	import { t } from "$lib/i18n/index.svelte";
+	import { nameFontStack } from "$lib/stores/font.svelte";
 	import * as api from "$lib/api/client";
 
 	let { username, anchor, onEditProfile, onClose }: {
@@ -157,7 +158,7 @@
 	</div>
 
 	<div class="body">
-		<p class="name" style:color={profile?.accent_color || "var(--default-accent)"}>{profile?.display_name || username}</p>
+		<p class="name" style:color={profile?.accent_color || "var(--default-accent)"} style:font-family={nameFontStack(profile?.name_font)}>{profile?.display_name || username}</p>
 		<p class="role-line">
 			<span>{username}</span>
 			{#if profile?.pronouns}<span class="role-dot">•</span><span>{profile.pronouns}</span>{/if}

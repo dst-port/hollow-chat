@@ -22,6 +22,7 @@
 	import { toast } from "$lib/stores/toast.svelte";
 	import * as api from "$lib/api/client";
 	import { t, tp } from "$lib/i18n/index.svelte";
+	import { nameFontStack } from "$lib/stores/font.svelte";
 	import type { Member } from "$lib/data/mock";
 
 	let { username, member, serverName, onClose, onMessage }: {
@@ -197,7 +198,7 @@
 				{/if}
 			</div>
 
-			<p class="name" style:color={accent}>{displayName}</p>
+			<p class="name" style:color={accent} style:font-family={nameFontStack(profile?.name_font)}>{displayName}</p>
 			<p class="handle">
 				<span>@{username}</span>
 				{#if profile?.pronouns}<span>· {profile.pronouns}</span>{/if}

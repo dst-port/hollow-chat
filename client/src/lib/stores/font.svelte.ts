@@ -24,6 +24,16 @@ export const FONT_LABELS: Record<FontId, string> = {
 
 export const PRESET_FONT_IDS: FontId[] = ["inter", "poppins", "comfortaa", "jetbrains-mono", "merriweather"];
 
+/**
+ * Font stack for a profile's chosen nameplate font, or undefined when unset
+ * / invalid (falls back to the surrounding element's font). Safe to drop
+ * straight into `style:font-family` on any display-name element.
+ */
+export function nameFontStack(font: string | null | undefined): string | undefined {
+	if (!font || font === "default" || !(font in FONT_STACKS)) return undefined;
+	return FONT_STACKS[font as FontId];
+}
+
 type FontSettings = {
 	mode: FontMode;
 	presetId: FontId;

@@ -41,6 +41,7 @@
 	import { playNotificationSound } from "$lib/utils/sound";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { nameFontStack } from "$lib/stores/font.svelte";
 	import { customEmojiStore } from "$lib/stores/customEmoji.svelte";
 	import UserRound from "@lucide/svelte/icons/user-round";
 	import {
@@ -1237,6 +1238,7 @@
 								<span
 									class="author clickable"
 									style:color={colorFor(message.author)}
+									style:font-family={nameFontStack(profileStore.forUser(message.author)?.name_font)}
 									onclick={() => openAuthorProfile(message.author)}
 									role="button"
 									tabindex="0"

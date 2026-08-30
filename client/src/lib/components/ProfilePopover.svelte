@@ -14,6 +14,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import * as api from "$lib/api/client";
 	import { t } from "$lib/i18n/index.svelte";
+	import { nameFontStack } from "$lib/stores/font.svelte";
 	import type { Member } from "$lib/data/mock";
 
 	let { member, serverName, anchor, onClose, onMessage, onViewFullProfile }: {
@@ -134,7 +135,7 @@
 
 	<div class="body">
 		<p class="name-row">
-			<span class="name" style:color={accent}>{displayName}</span>
+			<span class="name" style:color={accent} style:font-family={nameFontStack(profile?.name_font)}>{displayName}</span>
 		</p>
 		<p class="handle">
 			<span>{member.name}</span>
