@@ -3,10 +3,28 @@ import { retryBlockedCallMedia } from "$lib/actions/attachStream";
 
 const cache = new Map<string, HTMLAudioElement>();
 
+// Fedora's WebKitGTK (the Tauri webview on that distro) ships GStreamer
+// without an MP3 decoder, so `new Audio(".../call.mp3")` fails with a
+// FormatError and the ring/notification are silent. Ogg Vorbis is always
+// available there; Chromium and Safari keep MP3.
+let soundExt: "mp3" | "ogg" | null = null;
+function ext(): "mp3" | "ogg" {
+	if (soundExt) return soundExt;
+	try {
+		soundExt = document.createElement("audio").canPlayType("audio/mpeg") ? "mp3" : "ogg";
+	} catch {
+		soundExt = "mp3";
+	}
+	return soundExt;
+}
+function soundUrl(name: string): string {
+	return `${base}/sounds/${name}.${ext()}`;
+}
+
 function load(name: string): HTMLAudioElement {
 	let audio = cache.get(name);
 	if (!audio) {
-		audio = new Audio(`${base}/sounds/${name}.mp3`);
+		audio = new Audio(soundUrl(name));
 		audio.preload = "auto";
 		cache.set(name, audio);
 	}
@@ -81,7 +99,7 @@ let ringPlay: Promise<void> | null = null;
 
 function getRingEl(): HTMLAudioElement {
 	if (!ringEl) {
-		ringEl = new Audio(`${base}/sounds/call.mp3`);
+		ringEl = new Audio(soundUrl("call"));
 		ringEl.loop = true;
 		ringEl.preload = "auto";
 	}
