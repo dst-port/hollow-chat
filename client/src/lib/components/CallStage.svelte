@@ -49,6 +49,17 @@
 		call.toggleScreenShare(opts);
 	}
 
+	// Blow one screen-share tile up to real OS fullscreen. Falls back to the
+	// stage-level fullscreen toggle if the Fullscreen API is unavailable.
+	function expandTile(event: MouseEvent) {
+		const tile = (event.currentTarget as HTMLElement).closest(".spotlight-tile");
+		if (tile && "requestFullscreen" in tile) {
+			(tile as HTMLElement).requestFullscreen().catch(() => (fullscreen = true));
+		} else {
+			fullscreen = true;
+		}
+	}
+
 	function qualityIcon(userId: string) {
 		const level = call.connectionQuality[userId];
 		if (level === "poor") return SignalLow;
@@ -145,12 +156,7 @@
 	</div>
 {:else}
 	{@const HeaderQualityIcon = qualityIcon(SELF_KEY)}
-	<div
-		class="stage"
-		class:fullscreen
-		class:screen-hero={call.screenSharing || sharingUserIds.size > 0}
-		transition:fade={{ duration: 140 }}
-	>
+	<div class="stage" class:fullscreen transition:fade={{ duration: 140 }}>
 		<div class="stage-header">
 			<Volume2 size={16} strokeWidth={2.25} />
 			<span>{server ? `${server.name} / ${channel.name}` : channel.name}</span>
@@ -169,6 +175,14 @@
 					<div class="spotlight-tile screen">
 						<video use:attachLocalScreenStream autoplay playsinline muted></video>
 						<span class="tile-name">{t("call.yourScreen")}</span>
+						<button
+							class="tile-expand"
+							title={t("call.fullscreen")}
+							aria-label={t("call.fullscreen")}
+							onclick={expandTile}
+						>
+							<Maximize2 size={15} strokeWidth={2} />
+						</button>
 					</div>
 				{/if}
 				{#each call.participants as participant (participant.userId)}
@@ -180,6 +194,14 @@
 							<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline muted></video>
 							<audio use:attachRemoteScreenStream={participant.userId} autoplay muted={call.deafened}></audio>
 							<span class="tile-name">{participant.username}'s screen</span>
+							<button
+								class="tile-expand"
+								title={t("call.fullscreen")}
+								aria-label={t("call.fullscreen")}
+								onclick={expandTile}
+							>
+								<Maximize2 size={15} strokeWidth={2} />
+							</button>
 						</div>
 					{/if}
 				{/each}
@@ -419,26 +441,26 @@
 	}
 
 	.spotlight-row {
-		/* Shrinks to whatever the stage gives it - the stage is near
-		   full-height for a server voice channel but only ~300px for an
-		   inline DM call, and a fixed height here used to overflow the DM
-		   box downward and shove the controls off-screen. */
-		flex: 3 1 0;
-		min-height: 0;
-		max-height: min(46vh, 420px);
+		/* Self-sized tiles (each has its own aspect-ratio + max width), so the
+		   row just needs a real floor - it must never collapse to a sliver
+		   the way a flex-grow-against-an-undersized-stage layout could. */
+		flex: 0 0 auto;
+		min-height: 240px;
+		max-height: min(68vh, 680px);
 		display: flex;
 		gap: 10px;
 		padding: 16px 20px 0;
 		flex-wrap: wrap;
+		align-items: center;
 		justify-content: center;
-		overflow: hidden;
+		overflow-y: auto;
 	}
 
 	.spotlight-tile {
 		position: relative;
 		flex: 0 1 auto;
-		height: 100%;
-		max-width: 100%;
+		width: min(100%, 420px);
+		height: auto;
 		aspect-ratio: 16 / 9;
 		border-radius: 10px;
 		overflow: hidden;
@@ -457,40 +479,49 @@
 		object-fit: cover;
 	}
 
+	/* The shared screen is the big block between the faces: a 16:9 card up to
+	   ~900px wide, letterboxing whatever real ratio the source is. The
+	   expand button on it goes to true OS fullscreen. */
 	.spotlight-tile.screen {
 		background: black;
-		/* Drop the forced 16:9 - a shared screen can be any ratio, and the
-		   <video>'s object-fit: contain letterboxes it inside whatever
-		   height the row has. Fill the row instead of dictating a size. */
-		aspect-ratio: auto;
-		flex: 1 1 auto;
-		min-width: 0;
-		max-width: 100%;
-		height: 100%;
+		flex: 1 1 480px;
+		width: min(100%, 900px);
 	}
 
 	.spotlight-tile.screen video {
 		object-fit: contain;
 	}
 
-	/* When someone's sharing their screen it's the point of the call - let it
-	   take the whole stage (minus a thin strip of faces) instead of being
-	   boxed to <46vh like the camera-grid layout. */
-	.stage.screen-hero .spotlight-row {
-		flex: 1 1 auto;
-		max-height: none;
-		flex-wrap: nowrap;
+	.spotlight-tile.screen:fullscreen {
+		width: 100vw;
+		height: 100vh;
+		aspect-ratio: auto;
+		border-radius: 0;
 	}
 
-	.stage.screen-hero .spotlight-tile.screen {
-		flex: 1 1 100%;
-		width: 100%;
+	.tile-expand {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border-radius: 6px;
+		background: rgba(0, 0, 0, 0.55);
+		color: white;
+		opacity: 0;
+		transition: opacity 0.12s ease, background 0.12s ease;
 	}
 
-	.stage.screen-hero .grid {
-		flex: 0 0 auto;
-		max-height: 132px;
-		padding: 10px 24px;
+	.spotlight-tile.screen:hover .tile-expand,
+	.tile-expand:focus-visible {
+		opacity: 1;
+	}
+
+	.tile-expand:hover {
+		background: rgba(0, 0, 0, 0.8);
 	}
 
 	.spotlight-tile .tile-name {
