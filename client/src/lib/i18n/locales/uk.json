@@ -791,6 +791,7 @@
 	"chat.callDurationSec": "{s} seconds",
 	"chat.callDurationMin": "{m} min",
 	"chat.callDurationMinSec": "{m} min {s} s",
+	"chat.callStarted": "started a call",
 	"members.count.one": "{count} учасник",
 	"members.count.few": "{count} учасники",
 	"members.count.many": "{count} учасників",

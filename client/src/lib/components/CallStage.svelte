@@ -488,7 +488,7 @@
 
 	.ring-avatar {
 		position: relative;
-		width: 92px;
+		width: 80px;
 		aspect-ratio: 1;
 		border-radius: 50%;
 		background-size: cover;
@@ -544,10 +544,10 @@
 			opacity: 0.6;
 		}
 		80% {
-			opacity: 0.12;
+			opacity: 0.1;
 		}
 		100% {
-			transform: scale(2.4);
+			transform: scale(1.7);
 			opacity: 0;
 		}
 	}

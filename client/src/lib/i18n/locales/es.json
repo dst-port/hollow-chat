@@ -789,6 +789,7 @@
 	"chat.callDurationSec": "{s} seconds",
 	"chat.callDurationMin": "{m} min",
 	"chat.callDurationMinSec": "{m} min {s} s",
+	"chat.callStarted": "started a call",
 	"members.count.one": "{count} miembro",
 	"members.count.other": "{count} miembros",
 	"online.count.one": "{count} en línea",

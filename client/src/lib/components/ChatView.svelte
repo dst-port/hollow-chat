@@ -245,32 +245,26 @@
 		return profileStore.forUser(username)?.display_name || username;
 	}
 
-	// A call-event line is just a normal (encrypted) message whose text is a
-	// sentinel; the room opener posts one when the call ends.
-	const CALL_EVENT_PREFIX = "​hc:call:";
-	function parseCallEvent(content: string | null): number | null {
-		if (!content || !content.startsWith(CALL_EVENT_PREFIX)) return null;
-		const n = Number(content.slice(CALL_EVENT_PREFIX.length));
-		return Number.isFinite(n) ? n : null;
-	}
-	function formatCallDuration(sec: number): string {
-		if (sec < 10) return t("chat.callDurationFew");
-		if (sec < 60) return t("chat.callDurationSec", { s: sec });
-		const m = Math.floor(sec / 60);
-		const s = sec % 60;
-		return s ? t("chat.callDurationMinSec", { m, s }) : t("chat.callDurationMin", { m });
+	// A call-event line is a normal (encrypted) message whose text is a
+	// sentinel. The person who opens the call posts it right when the call
+	// starts. "§call" is printable and can't start a real trimmed message.
+	const CALL_EVENT_SENTINEL = "§call";
+	function isCallEvent(content: string | null): boolean {
+		return content?.trimStart().startsWith(CALL_EVENT_SENTINEL) ?? false;
 	}
 
+	let postedCallStartFor = "";
 	$effect(() => {
-		const ended = call.lastEnded;
-		if (!ended || ended.roomId !== channel.id || !ended.wasCreator) return;
-		call.lastEnded = null; // consume it so it fires once
+		const inThisCall = call.roomId === channel.id && call.createdRoom;
+		if (call.roomId !== channel.id) postedCallStartFor = "";
+		if (!inThisCall || postedCallStartFor === channel.id) return;
+		postedCallStartFor = channel.id;
 		const token = session.token;
 		const myUsername = session.username;
 		if (!token || !myUsername) return;
 		(async () => {
 			try {
-				const packed = packPayload(CALL_EVENT_PREFIX + ended.durationSec, undefined);
+				const packed = packPayload(CALL_EVENT_SENTINEL, undefined);
 				const payload = await encryptOutgoing(myUsername, token, packed);
 				await postMessage(token, channel.id, payload, undefined, undefined);
 			} catch {
@@ -1250,11 +1244,10 @@
 			</div>
 		{/if}
 			{#each messages as message, index (message.id)}
-				{@const callSec = parseCallEvent(message.content)}
-				{#if callSec !== null}
+				{#if isCallEvent(message.content)}
 					<div class="call-system" in:fly={{ y: 6, duration: 180 }}>
 						<Phone size={13} strokeWidth={2.5} />
-						<span><strong>{displayNameFor(message.author)}</strong> {t("chat.callEvent", { duration: formatCallDuration(callSec) })}</span>
+						<span><strong>{displayNameFor(message.author)}</strong> {t("chat.callStarted")}</span>
 						<span class="call-system-time">{formatMessageTime(message)}</span>
 					</div>
 				{:else}
