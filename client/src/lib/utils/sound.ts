@@ -36,26 +36,45 @@ export function playCallSound() {
 // Uses its own element (not the shared cache) so the one-shot join blip
 // and the loop don't fight over one <audio>.
 let ring: HTMLAudioElement | null = null;
+let ringPlay: Promise<void> | null = null;
+
+function killRing(el: HTMLAudioElement) {
+	try {
+		el.loop = false;
+		el.pause();
+		el.currentTime = 0;
+		// Detach the source so nothing can resume it, then reset the element.
+		el.removeAttribute("src");
+		el.load();
+	} catch {
+		/* no-op */
+	}
+}
 
 export function startCallRing() {
 	if (ring) return;
 	try {
-		ring = new Audio(`${base}/sounds/call.mp3`);
-		ring.loop = true;
-		void ring.play().catch(() => {});
+		const el = new Audio(`${base}/sounds/call.mp3`);
+		el.loop = true;
+		ring = el;
+		// play() resolves late on mobile; a pause() issued before it settles
+		// is silently ignored, so always re-kill once it settles.
+		ringPlay = el
+			.play()
+			.then(() => {
+				if (ring !== el) killRing(el);
+			})
+			.catch(() => {});
 	} catch {
 		ring = null;
 	}
 }
 
 export function stopCallRing() {
-	if (!ring) return;
-	try {
-		ring.pause();
-		ring.loop = false;
-		ring.currentTime = 0;
-	} catch {
-		/* no-op */
-	}
+	const el = ring;
 	ring = null;
+	if (!el) return;
+	killRing(el);
+	ringPlay?.finally(() => killRing(el));
+	ringPlay = null;
 }
