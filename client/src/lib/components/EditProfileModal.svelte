@@ -70,7 +70,6 @@
 		accentDraft;
 		bannerColorDraft;
 		bannerGradientEndDraft;
-		nameFontDraft;
 		if (!initialized) return;
 		const token = session.token;
 		if (!token) return;
@@ -78,11 +77,30 @@
 			.updateProfile(token, {
 				accent_color: accentDraft,
 				banner_color: bannerColorDraft,
-				banner_gradient_end: bannerGradientEndDraft,
-				name_font: nameFontDraft === "default" ? "" : nameFontDraft
+				banner_gradient_end: bannerGradientEndDraft
 			})
 			.then((updated) => profileStore.set(updated))
 			.catch(() => toast.push(t("profile.edit.toast.colorsFailed")));
+	});
+
+	// Nameplate font saves on its own so a NotPremium rejection doesn't
+	// also bounce a colour change made in the same tick.
+	$effect(() => {
+		const font = nameFontDraft;
+		if (!initialized) return;
+		const token = session.token;
+		if (!token || font === (profile?.name_font ?? "default")) return;
+		api
+			.updateProfile(token, { name_font: font === "default" ? "" : font })
+			.then((updated) => profileStore.set(updated))
+			.catch((err) => {
+				nameFontDraft = profile?.name_font ?? "default";
+				toast.push(
+					err instanceof api.ApiError && err.status === 403
+						? t("settings.billing.nameFontPremium")
+						: t("profile.edit.toast.colorsFailed")
+				);
+			});
 	});
 
 	async function onAvatarChosen(event: Event) {

@@ -340,6 +340,12 @@ pub async fn update_profile(
     let banner_color = clean_color(payload.banner_color)?;
     let banner_gradient_end = clean_color(payload.banner_gradient_end)?;
     let name_font = clean_name_font(payload.name_font)?;
+    // Custom nameplate fonts are a HollowChatter perk; free users may only clear it.
+    if name_font.as_deref().is_some_and(|f| !f.is_empty())
+        && !crate::billing::is_premium(&state.pool, session.user_id).await?
+    {
+        return Err(AppError::NotPremium);
+    }
     let clear_minutes = payload.status_clear_minutes.filter(|m| *m >= 0);
 
     sqlx::query(

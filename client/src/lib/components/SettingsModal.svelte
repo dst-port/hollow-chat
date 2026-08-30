@@ -248,6 +248,19 @@
 		}
 	}
 
+	// Free vs HollowChatter comparison. `free`/`pro` are either a short value
+	// string (i18n key) or true for a plain checkmark / false for a dash.
+	const PLAN_ROWS: { label: string; free: string | boolean; pro: string | boolean }[] = [
+		{ label: "settings.billing.cmp.uploads", free: "settings.billing.cmp.uploads.free", pro: "settings.billing.cmp.uploads.pro" },
+		{ label: "settings.billing.cmp.devices", free: "3", pro: "8" },
+		{ label: "settings.billing.cmp.boosts", free: false, pro: "settings.billing.cmp.boosts.pro" },
+		{ label: "settings.billing.cmp.vanity", free: false, pro: true },
+		{ label: "settings.billing.cmp.nameFont", free: false, pro: true },
+		{ label: "settings.billing.cmp.badge", free: false, pro: true },
+		{ label: "settings.billing.cmp.themeColors", free: true, pro: true },
+		{ label: "settings.billing.cmp.core", free: true, pro: true }
+	];
+
 	async function upgrade() {
 		const token = session.token;
 		if (!token) return;
@@ -1450,6 +1463,29 @@
 					{/if}
 				</div>
 
+				<div class="card compare-card">
+					<div class="compare-head">
+						<span></span>
+						<span>{t("settings.billing.freePlan")}</span>
+						<span class="pro-col">{t("settings.billing.planName")}</span>
+					</div>
+					{#each PLAN_ROWS as row (row.label)}
+						<div class="compare-row">
+							<span class="compare-label">{t(row.label)}</span>
+							<span class="compare-cell">
+								{#if typeof row.free === "string"}{t(row.free)}
+								{:else if row.free}<Check size={14} strokeWidth={2.5} class="cmp-yes" />
+								{:else}<span class="cmp-no">—</span>{/if}
+							</span>
+							<span class="compare-cell pro-col">
+								{#if typeof row.pro === "string"}{t(row.pro)}
+								{:else if row.pro}<Check size={14} strokeWidth={2.5} class="cmp-yes" />
+								{:else}<span class="cmp-no">—</span>{/if}
+							</span>
+						</div>
+					{/each}
+				</div>
+
 				{#if billing?.tier !== "premium"}
 					<div class="card">
 						<p class="row-label">{t("settings.billing.upgradeTitle")}</p>
@@ -2157,6 +2193,66 @@
 
 	.edit.danger-text {
 		color: var(--danger);
+	}
+
+	.compare-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+		padding: 4px 0;
+	}
+
+	.compare-head,
+	.compare-row {
+		display: grid;
+		grid-template-columns: 1fr 88px 110px;
+		align-items: center;
+		gap: 8px;
+		padding: 9px 16px;
+	}
+
+	.compare-row {
+		border-top: 1px solid var(--hairline);
+	}
+
+	.compare-head {
+		font-size: 11px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--ink-faint);
+	}
+
+	.compare-head .pro-col,
+	.compare-cell.pro-col {
+		color: var(--accent, #8ea1ff);
+	}
+
+	.compare-head span:not(:first-child),
+	.compare-cell {
+		text-align: center;
+	}
+
+	.compare-label {
+		font-size: 13px;
+		color: var(--ink-dim);
+	}
+
+	.compare-cell {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.compare-cell :global(.cmp-yes) {
+		color: var(--online);
+	}
+
+	.compare-cell .cmp-no {
+		color: var(--ink-faint);
 	}
 
 	.plan-card {
