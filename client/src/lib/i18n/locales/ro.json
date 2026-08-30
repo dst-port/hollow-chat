@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "E liniște deocamdată",
 	"home.activeQuietBody": "Când un prieten începe să vorbească pe un canal de voce, îl arătăm aici.",
 	"toast.callStartFailed": "Apelul nu a putut fi pornit — verifică permisiunile microfonului",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "暫時很安靜",
 	"home.activeQuietBody": "當好友開始在語音頻道說話時，會顯示在這裡。",
 	"toast.callStartFailed": "無法發起通話——請檢查麥克風權限",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

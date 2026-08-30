@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "지금은 조용합니다",
 	"home.activeQuietBody": "친구가 음성 채널에서 말하기 시작하면 여기에 표시됩니다.",
 	"toast.callStartFailed": "통화를 시작하지 못했습니다 — 마이크 권한을 확인하세요",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "अभी शांति है",
 	"home.activeQuietBody": "जब कोई दोस्त वॉइस चैनल में बात करना शुरू करेगा, हम इसे यहाँ दिखाएँगे।",
 	"toast.callStartFailed": "कॉल शुरू नहीं हो सकी — माइक्रोफ़ोन अनुमतियाँ जाँचें",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

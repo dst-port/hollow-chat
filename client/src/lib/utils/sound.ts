@@ -1,4 +1,5 @@
 import { base } from "$app/paths";
+import { retryBlockedCallMedia } from "$lib/actions/attachStream";
 
 const cache = new Map<string, HTMLAudioElement>();
 
@@ -41,6 +42,7 @@ export function installAudioUnlock() {
 				});
 		}
 		primeRing();
+		retryBlockedCallMedia();
 		document.removeEventListener("pointerdown", unlock, true);
 		document.removeEventListener("keydown", unlock, true);
 	};

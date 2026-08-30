@@ -140,6 +140,26 @@ function loadVoiceSettings(): VoiceSettings {
 	}
 }
 
+/// Maps a real getDisplayMedia/getUserMedia failure to a toast i18n key,
+/// falling back to the caller's context key ("toast.screenShareFailed" or
+/// "toast.cameraFailed") for anything not worth its own line. Mirrors
+/// micErrorKey. Cancelled-picker errors never reach here — toggleScreenShare /
+/// toggleCamera swallow those before they'd rethrow.
+export function shareErrorKey(err: unknown, fallbackKey: string): string {
+	if (err instanceof DOMException) {
+		switch (err.name) {
+			// Device/display exists but the OS or another app won't yield it,
+			// or the requested constraints can't be met — the generic
+			// "couldn't start" line covers all of these well enough.
+			case "NotReadableError":
+			case "NotFoundError":
+			case "OverconstrainedError":
+				return fallbackKey;
+		}
+	}
+	return fallbackKey;
+}
+
 class CallStore {
 	roomId = $state<string | null>(null);
 	label = $state("");
@@ -179,6 +199,10 @@ class CallStore {
 	private remoteScreenStreams = new Map<string, MediaStream>();
 	private screenMids = new Set<string>();
 	private pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
+	// Perfect-negotiation state per peer. `polite` decides who yields on glare:
+	// the side that made the PC from an incoming offer is polite, the existing
+	// member that offered into a "peer-joined" is impolite.
+	private negotiation = new Map<string, { polite: boolean; makingOffer: boolean; ignoreOffer: boolean }>();
 	private localStream: MediaStream | null = null;
 	private localScreenStream: MediaStream | null = null;
 	private iceServers: RTCIceServer[] = FALLBACK_ICE_SERVERS;
@@ -188,6 +212,20 @@ class CallStore {
 	// mic + socket (and, with screen share, an encoder) for nobody.
 	private static readonly ALONE_TIMEOUT_MS = 120_000;
 	private aloneTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Guards a hung WebSocket in join() (stuck CONNECTING) - fires teardown +
+	// throw so the mic doesn't stay live forever.
+	private static readonly CONNECT_TIMEOUT_MS = 10_000;
+	private connectTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Bumped on every join(); a superseded join bails after its awaits.
+	private joinGeneration = 0;
+
+	// A "failed" connectionState is often just a wifi blip - try one ICE
+	// restart and give it a grace window before dropping the peer for good.
+	private static readonly ICE_RESTART_GRACE_MS = 8_000;
+	private iceRestartTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private iceRestartAttempted = new Set<string>();
 
 	// Call-event bookkeeping so a chat "started a call" line can be posted
 	// once, by whoever opened the room, when it ends.
@@ -431,7 +469,9 @@ class CallStore {
 	 */
 	async join(token: string, roomId: string, label: string, dmCall = false): Promise<void> {
 		if (this.roomId === roomId) return;
+		const gen = ++this.joinGeneration;
 		if (this.roomId) await this.leave();
+		if (this.joinGeneration !== gen) return;
 
 		this.roomId = roomId;
 		this.label = label;
@@ -456,13 +496,21 @@ class CallStore {
 		} catch {
 			this.iceServers = FALLBACK_ICE_SERVERS;
 		}
+		if (this.joinGeneration !== gen) return;
 
+		let localStream: MediaStream;
 		try {
-			this.localStream = await acquireMic(this.noiseSuppression, this.inputDeviceId);
+			localStream = await acquireMic(this.noiseSuppression, this.inputDeviceId);
 		} catch (err) {
 			this.teardown();
 			throw asMicError(err);
 		}
+		// Superseded while acquiring the mic - drop the stream we just got.
+		if (this.joinGeneration !== gen) {
+			localStream.getTracks().forEach((t) => t.stop());
+			return;
+		}
+		this.localStream = localStream;
 		this.refreshDevices();
 		if (this.pushToTalk) {
 			this.muted = true;
@@ -478,9 +526,38 @@ class CallStore {
 
 		const ws = new WebSocket(`${WS_BASE_URL}/calls/${roomId}?token=${encodeURIComponent(token)}`);
 		this.ws = ws;
-		ws.onopen = () => {
-			this.status = "connected";
-		};
+
+		// If the socket hangs in CONNECTING (proxy/auth) it would otherwise
+		// leave status "connecting" and the mic live forever - bound the wait,
+		// then tear down and let the caller's catch surface it.
+		await new Promise<void>((resolve, reject) => {
+			this.connectTimer = setTimeout(() => {
+				this.connectTimer = null;
+				if (ws.readyState !== WebSocket.OPEN) {
+					ws.close();
+					this.teardown();
+					reject(new Error("Call server did not respond"));
+				}
+			}, CallStore.CONNECT_TIMEOUT_MS);
+			ws.onopen = () => {
+				if (this.connectTimer) {
+					clearTimeout(this.connectTimer);
+					this.connectTimer = null;
+				}
+				this.status = "connected";
+				resolve();
+			};
+			// Refused/dropped before it ever opened - resolve and let the
+			// post-await checks below tear down + surface it.
+			ws.onclose = () => resolve();
+		});
+		// Superseded by a newer join() while we were connecting.
+		if (this.joinGeneration !== gen) return;
+		if (ws.readyState !== WebSocket.OPEN) {
+			this.teardown();
+			throw new Error("Call server did not respond");
+		}
+
 		ws.onmessage = (event) => {
 			try {
 				this.handleServerMsg(JSON.parse(event.data as string) as ServerMsg);
@@ -525,6 +602,9 @@ class CallStore {
 		});
 	}
 
+	// Callers may now catch: a cancelled picker still resolves silently, but a
+	// real failure rethrows (after undoing partial state) so the UI can toast —
+	// map it with shareErrorKey(err, "toast.cameraFailed").
 	async toggleCamera(): Promise<void> {
 		if (this.cameraEnabled) {
 			const tracks = this.localStream?.getVideoTracks() ?? [];
@@ -541,9 +621,10 @@ class CallStore {
 			return;
 		}
 
+		let track: MediaStreamTrack | undefined;
 		try {
 			const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
-			const track = camStream.getVideoTracks()[0];
+			track = camStream.getVideoTracks()[0];
 			if (!this.localStream) this.localStream = new MediaStream();
 			this.localStream.addTrack(track);
 
@@ -554,11 +635,31 @@ class CallStore {
 
 			this.cameraEnabled = true;
 			this.notify();
-		} catch {
-			return;
+		} catch (err) {
+			// User denied permission / closed the picker → stay silent.
+			if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) {
+				return;
+			}
+			// Real failure mid-setup: undo the partial camera state, then
+			// rethrow so the caller can toast.
+			if (track) {
+				const dead = track;
+				dead.stop();
+				this.localStream?.removeTrack(dead);
+				for (const pc of this.pcs.values()) {
+					const sender = pc.getSenders().find((s) => s.track === dead);
+					if (sender) pc.removeTrack(sender);
+				}
+			}
+			this.cameraEnabled = false;
+			this.notify();
+			throw err;
 		}
 	}
 
+	// Callers may now catch: a cancelled picker still resolves silently, but a
+	// real failure rethrows (after tearing down half-state) so the UI can toast —
+	// map it with shareErrorKey(err, "toast.screenShareFailed").
 	async toggleScreenShare(opts?: ScreenShareOpts): Promise<void> {
 		if (this.screenSharing) {
 			this.stopScreenShareInternal();
@@ -584,21 +685,45 @@ class CallStore {
 
 			for (const [peerId, pc] of this.pcs.entries()) {
 				const sender = pc.addTrack(track, screenStream);
-				const offer = await pc.createOffer();
-				await pc.setLocalDescription(offer);
+				const neg = this.negotiation.get(peerId);
+				if (neg) neg.makingOffer = true;
+				try {
+					const offer = await pc.createOffer();
+					await pc.setLocalDescription(offer);
 
-				const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
-				if (transceiver?.mid) {
-					this.send({ type: "track-meta", to: peerId, mid: transceiver.mid, kind: "screen" });
+					const transceiver = pc.getTransceivers().find((t) => t.sender === sender);
+					if (transceiver?.mid) {
+						this.send({ type: "track-meta", to: peerId, mid: transceiver.mid, kind: "screen" });
+					}
+
+					this.send({ type: "offer", to: peerId, sdp: offer.sdp ?? "" });
+				} finally {
+					if (neg) neg.makingOffer = false;
 				}
-
-				this.send({ type: "offer", to: peerId, sdp: offer.sdp ?? "" });
 			}
 
 			this.screenSharing = true;
 			this.notify();
-		} catch {
-			return;
+		} catch (err) {
+			// User dismissed the "choose what to share" picker → stay silent.
+			if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) {
+				return;
+			}
+			// Threw mid-loop (addTrack/createOffer): the stream is already
+			// assigned and its track live. Tear the half-state down, then
+			// rethrow so the caller can toast.
+			const partial = this.localScreenStream?.getVideoTracks()[0];
+			if (partial) {
+				for (const pc of this.pcs.values()) {
+					const sender = pc.getSenders().find((s) => s.track === partial);
+					if (sender) pc.removeTrack(sender);
+				}
+			}
+			this.localScreenStream?.getTracks().forEach((t) => t.stop());
+			this.localScreenStream = null;
+			this.screenSharing = false;
+			this.notify();
+			throw err;
 		}
 	}
 
@@ -613,13 +738,21 @@ class CallStore {
 		}
 		this.localScreenStream = null;
 		this.screenSharing = false;
+		// Only the LOCAL share is stopping here — nothing peer-keyed to prune.
+		// Remote screenMids entries are pruned in removePeer() when a peer leaves.
 		this.notify();
 	}
 
 	private async renegotiate(peerId: string, pc: RTCPeerConnection) {
-		const offer = await pc.createOffer();
-		await pc.setLocalDescription(offer);
-		this.send({ type: "offer", to: peerId, sdp: offer.sdp ?? "" });
+		const neg = this.negotiation.get(peerId);
+		if (neg) neg.makingOffer = true;
+		try {
+			const offer = await pc.createOffer();
+			await pc.setLocalDescription(offer);
+			this.send({ type: "offer", to: peerId, sdp: offer.sdp ?? "" });
+		} finally {
+			if (neg) neg.makingOffer = false;
+		}
 	}
 
 	private send(msg: ClientMsg) {
@@ -628,7 +761,7 @@ class CallStore {
 		}
 	}
 
-	private createPeerConnection(userId: string): RTCPeerConnection {
+	private createPeerConnection(userId: string, polite: boolean): RTCPeerConnection {
 		const pc = new RTCPeerConnection({ iceServers: this.iceServers });
 
 		if (this.localStream) {
@@ -655,11 +788,45 @@ class CallStore {
 		};
 
 		pc.onconnectionstatechange = () => {
-			if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+			const state = pc.connectionState;
+			if (state === "closed") {
 				this.removePeer(userId);
+				return;
+			}
+			if (state === "connected") {
+				// Recovered - undo any pending drop for this peer.
+				const timer = this.iceRestartTimers.get(userId);
+				if (timer) {
+					clearTimeout(timer);
+					this.iceRestartTimers.delete(userId);
+				}
+				this.iceRestartAttempted.delete(userId);
+				return;
+			}
+			if (state === "failed") {
+				// "failed" is often a transient blip - try one ICE restart and
+				// give it a grace window before dropping the peer for good.
+				if (!this.iceRestartAttempted.has(userId)) {
+					this.iceRestartAttempted.add(userId);
+					try {
+						pc.restartIce();
+					} catch {
+						// no-op if unsupported - the grace timer still runs
+					}
+				}
+				if (!this.iceRestartTimers.has(userId)) {
+					this.iceRestartTimers.set(
+						userId,
+						setTimeout(() => {
+							this.iceRestartTimers.delete(userId);
+							if (pc.connectionState === "failed") this.removePeer(userId);
+						}, CallStore.ICE_RESTART_GRACE_MS)
+					);
+				}
 			}
 		};
 
+		this.negotiation.set(userId, { polite, makingOffer: false, ignoreOffer: false });
 		this.pcs.set(userId, pc);
 		return pc;
 	}
@@ -701,10 +868,22 @@ class CallStore {
 	}
 
 	private removePeer(userId: string) {
+		const iceTimer = this.iceRestartTimers.get(userId);
+		if (iceTimer) {
+			clearTimeout(iceTimer);
+			this.iceRestartTimers.delete(userId);
+		}
+		this.iceRestartAttempted.delete(userId);
 		this.pcs.get(userId)?.close();
 		this.pcs.delete(userId);
+		this.negotiation.delete(userId);
 		this.remoteStreams.delete(userId);
 		this.remoteScreenStreams.delete(userId);
+		// Drop this peer's screen-mid tags so a later transceiver-mid reuse
+		// (e.g. a camera track on the same mid) isn't misrouted as a screen.
+		for (const tag of this.screenMids) {
+			if (tag.startsWith(`${userId}::`)) this.screenMids.delete(tag);
+		}
 		this.pendingCandidates.delete(userId);
 		this.detachSpeakingAnalyser(userId);
 		if (this.speakingUserIds.has(userId)) {
@@ -735,7 +914,8 @@ class CallStore {
 				break;
 			case "peer-joined": {
 				this.addParticipant(msg.user_id, msg.username);
-				const pc = this.createPeerConnection(msg.user_id);
+				// existing member: we drive the first offer, so we're impolite
+				const pc = this.createPeerConnection(msg.user_id, false);
 				await this.renegotiate(msg.user_id, pc);
 				break;
 			}
@@ -744,7 +924,19 @@ class CallStore {
 				break;
 			case "offer": {
 				this.addParticipant(msg.from, msg.from_username);
-				const pc = this.pcs.get(msg.from) ?? this.createPeerConnection(msg.from);
+				// a PC we make here (newcomer answering, or first contact) is polite
+				const pc = this.pcs.get(msg.from) ?? this.createPeerConnection(msg.from, true);
+				const neg = this.negotiation.get(msg.from);
+				const collision = !!neg && (neg.makingOffer || pc.signalingState !== "stable");
+				if (neg) neg.ignoreOffer = !neg.polite && collision;
+				if (neg?.ignoreOffer) return; // impolite: keep our offer, drop theirs
+				// polite: roll our in-flight offer back, then take theirs.
+				// Rollback throws if we're not actually in have-local-offer
+				// (narrow race before our setLocalDescription lands) - modern
+				// browsers implicitly roll back on setRemoteDescription anyway.
+				if (collision && pc.signalingState === "have-local-offer") {
+					await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+				}
 				await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
 				await this.flushPendingCandidates(msg.from, pc);
 				const answer = await pc.createAnswer();
@@ -896,6 +1088,13 @@ class CallStore {
 			clearTimeout(this.aloneTimer);
 			this.aloneTimer = null;
 		}
+		if (this.connectTimer) {
+			clearTimeout(this.connectTimer);
+			this.connectTimer = null;
+		}
+		for (const timer of this.iceRestartTimers.values()) clearTimeout(timer);
+		this.iceRestartTimers.clear();
+		this.iceRestartAttempted.clear();
 		if (this.roomId && this.createdRoom && this.announcedMessageId && this.joinedAt) {
 			this.callEndEdit = {
 				roomId: this.roomId,
@@ -910,6 +1109,7 @@ class CallStore {
 		this.announcedMessageId = null;
 		for (const pc of this.pcs.values()) pc.close();
 		this.pcs.clear();
+		this.negotiation.clear();
 		this.remoteStreams.clear();
 		this.remoteScreenStreams.clear();
 		this.screenMids.clear();

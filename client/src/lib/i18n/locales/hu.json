@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "Most csend van",
 	"home.activeQuietBody": "Amikor egy barát beszélni kezd egy hangcsatornában, itt megmutatjuk.",
 	"toast.callStartFailed": "A hívás nem indítható — ellenőrizd a mikrofon engedélyeit",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

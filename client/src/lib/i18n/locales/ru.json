@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "Пока тихо",
 	"home.activeQuietBody": "Когда друг заговорит в голосовом канале, вы увидите это здесь.",
 	"toast.callStartFailed": "Не удалось начать звонок — проверьте доступ к микрофону",
+	"toast.screenShareFailed": "Не удалось начать демонстрацию экрана",
+	"toast.cameraFailed": "Не удалось включить камеру",
 	"toast.callMicBusy": "Микрофон занят другим приложением",
 	"toast.callMicNotFound": "Микрофон не найден — подключите его и попробуйте снова",
 	"toast.callMicUnavailable": "Не удалось получить доступ к микрофону на этом устройстве",

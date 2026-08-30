@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "Gerade ist es ruhig",
 	"home.activeQuietBody": "Wenn ein Freund in einem Sprachkanal zu reden anfängt, zeigen wir es hier.",
 	"toast.callStartFailed": "Anruf konnte nicht gestartet werden — prüfe die Mikrofonberechtigungen",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

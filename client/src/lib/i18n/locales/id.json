@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "Sedang sepi",
 	"home.activeQuietBody": "Saat teman mulai bicara di saluran suara, kami akan menampilkannya di sini.",
 	"toast.callStartFailed": "Tidak dapat memulai panggilan — periksa izin mikrofon",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

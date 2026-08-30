@@ -8,7 +8,8 @@
 	import ScreenShareOff from "@lucide/svelte/icons/screen-share-off";
 	import PhoneOff from "@lucide/svelte/icons/phone-off";
 	import Users from "@lucide/svelte/icons/users";
-	import { call, type ScreenShareOpts } from "$lib/webrtc/call.svelte";
+	import { call, shareErrorKey, type ScreenShareOpts } from "$lib/webrtc/call.svelte";
+	import { toast } from "$lib/stores/toast.svelte";
 	import ScreenSharePicker from "$lib/components/ScreenSharePicker.svelte";
 	import {
 		attachRemoteStream,
@@ -49,13 +50,20 @@
 	let sharePickerOpen = $state(false);
 
 	function onScreenShareClick() {
-		if (call.screenSharing) call.toggleScreenShare();
-		else sharePickerOpen = true;
+		if (call.screenSharing) {
+			call.toggleScreenShare().catch((err) => toast.push(t(shareErrorKey(err, "toast.screenShareFailed"))));
+		} else {
+			sharePickerOpen = true;
+		}
 	}
 
 	function goLive(opts: ScreenShareOpts) {
 		sharePickerOpen = false;
-		call.toggleScreenShare(opts);
+		call.toggleScreenShare(opts).catch((err) => toast.push(t(shareErrorKey(err, "toast.screenShareFailed"))));
+	}
+
+	function onCameraClick() {
+		call.toggleCamera().catch((err) => toast.push(t(shareErrorKey(err, "toast.cameraFailed"))));
 	}
 </script>
 
@@ -78,7 +86,7 @@
 		</div>
 
 		<div class="feature-row">
-			<button class="feature-btn" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")} onclick={() => call.toggleCamera()}>
+			<button class="feature-btn" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")} onclick={onCameraClick}>
 				{#if call.cameraEnabled}<Video size={14} strokeWidth={2} />{:else}<VideoOff size={14} strokeWidth={2} />{/if}
 				<span class="tooltip">{call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")}</span>
 			</button>

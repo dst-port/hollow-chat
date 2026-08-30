@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "Nyt on hiljaista",
 	"home.activeQuietBody": "Kun kaveri alkaa puhua äänikanavalla, näytämme sen täällä.",
 	"toast.callStartFailed": "Puhelua ei voitu aloittaa — tarkista mikrofonin käyttöoikeudet",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

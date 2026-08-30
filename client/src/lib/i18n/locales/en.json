@@ -183,6 +183,8 @@
 	"home.activeQuietTitle": "It's quiet for now",
 	"home.activeQuietBody": "When a friend starts talking in a voice channel, we'll show it here.",
 	"toast.callStartFailed": "Couldn't start the call — check microphone permissions",
+	"toast.screenShareFailed": "Couldn't start screen sharing",
+	"toast.cameraFailed": "Couldn't turn on the camera",
 	"toast.callMicBusy": "Your microphone is in use by another app",
 	"toast.callMicNotFound": "No microphone found — plug one in and try again",
 	"toast.callMicUnavailable": "Couldn't access the microphone on this device",

@@ -15,8 +15,9 @@
 	import SignalHigh from "@lucide/svelte/icons/signal-high";
 	import SignalMedium from "@lucide/svelte/icons/signal-medium";
 	import SignalLow from "@lucide/svelte/icons/signal-low";
-	import { call, SELF_KEY, type ScreenShareOpts } from "$lib/webrtc/call.svelte";
+	import { call, SELF_KEY, shareErrorKey, type ScreenShareOpts } from "$lib/webrtc/call.svelte";
 	import ScreenSharePicker from "$lib/components/ScreenSharePicker.svelte";
+	import { toast } from "$lib/stores/toast.svelte";
 	import {
 		attachRemoteStream,
 		attachLocalStream,
@@ -40,13 +41,20 @@
 	let sharePickerOpen = $state(false);
 
 	function onScreenShareClick() {
-		if (call.screenSharing) call.toggleScreenShare();
-		else sharePickerOpen = true;
+		if (call.screenSharing) {
+			call.toggleScreenShare().catch((err) => toast.push(t(shareErrorKey(err, "toast.screenShareFailed"))));
+		} else {
+			sharePickerOpen = true;
+		}
 	}
 
 	function goLive(opts: ScreenShareOpts) {
 		sharePickerOpen = false;
-		call.toggleScreenShare(opts);
+		call.toggleScreenShare(opts).catch((err) => toast.push(t(shareErrorKey(err, "toast.screenShareFailed"))));
+	}
+
+	function onCameraClick() {
+		call.toggleCamera().catch((err) => toast.push(t(shareErrorKey(err, "toast.cameraFailed"))));
 	}
 
 	// Blow one screen-share tile up to real OS fullscreen. Falls back to the
@@ -288,7 +296,7 @@
 			<button class="ctrl" class:active-danger={call.deafened} aria-label={call.deafened ? t("call.undeafen") : t("call.deafen")} onclick={() => call.toggleDeafen()}>
 				{#if call.deafened}<HeadphoneOff size={18} strokeWidth={2} />{:else}<Headphones size={18} strokeWidth={2} />{/if}
 			</button>
-			<button class="ctrl" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")} onclick={() => call.toggleCamera()}>
+			<button class="ctrl" class:active={call.cameraEnabled} aria-label={call.cameraEnabled ? t("call.cameraOff") : t("call.cameraOn")} onclick={onCameraClick}>
 				{#if call.cameraEnabled}<Video size={18} strokeWidth={2} />{:else}<VideoOff size={18} strokeWidth={2} />{/if}
 			</button>
 			<button class="ctrl" class:active={call.screenSharing} aria-label={call.screenSharing ? t("call.stopSharing") : t("call.shareScreen")} onclick={onScreenShareClick}>
