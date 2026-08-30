@@ -86,12 +86,15 @@
 						class:active={server.id === activeId}
 						class:unread={!!server.unread && server.id !== activeId}
 					></span>
-					<span
-						class="icon"
-						style:background-image={server.iconUrl ? `url(${resolveUrl(server.iconUrl, session.token)})` : undefined}
-					>
-						{#if !server.iconUrl}{server.initials}{/if}
-					</span>
+					{#if server.iconUrl}
+						<img
+							class="icon-img"
+							src={resolveUrl(server.iconUrl, session.token)}
+							alt={server.name}
+						/>
+					{:else}
+						<span class="icon-text">{server.initials}</span>
+					{/if}
 					{#if server.unread}
 						<span class="badge">{server.unread > 9 ? "9+" : server.unread}</span>
 					{/if}
@@ -192,17 +195,19 @@
 		transition: border-radius 0.15s ease, background 0.15s ease, color 0.15s ease;
 	}
 
-	.server .icon {
+	.server .icon-img {
 		width: 100%;
 		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.server .icon-text {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background-position: center;
-		/* stretch to fill the circle edge-to-edge, no cropping */
-		background-size: 100% 100%;
-		background-repeat: no-repeat;
-		border-radius: inherit;
+		width: 100%;
+		height: 100%;
 	}
 
 	.server:hover {
