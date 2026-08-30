@@ -60,7 +60,7 @@
 	// Blow one screen-share tile up to real OS fullscreen. Falls back to the
 	// stage-level fullscreen toggle if the Fullscreen API is unavailable.
 	function expandTile(event: MouseEvent) {
-		const tile = (event.currentTarget as HTMLElement).closest(".spotlight-tile");
+		const tile = (event.currentTarget as HTMLElement).closest(".tile");
 		if (tile && "requestFullscreen" in tile) {
 			(tile as HTMLElement).requestFullscreen().catch(() => (fullscreen = true));
 		} else {
@@ -105,40 +105,6 @@
 		call.screenSharing || sharingUserIds.size > 0 || call.cameraEnabled || camUserIds.size > 0
 	);
 
-	type QuietEntry = { key: string; name: string; avatarUrl?: string; speaking: boolean; isSelf: boolean };
-
-	const quietParticipants = $derived.by(() => {
-		const entries: QuietEntry[] = [];
-		if (!call.cameraEnabled) {
-			entries.push({
-				key: "self",
-				name: ownProfile?.display_name || session.username || "",
-				avatarUrl: ownProfile?.avatar_url ? api.resolveUrl(ownProfile.avatar_url, session.token) : undefined,
-				speaking: call.selfSpeaking && !call.muted,
-				isSelf: true
-			});
-		}
-		for (const participant of call.participants) {
-			if (camUserIds.has(participant.userId)) continue;
-			const remoteProfile = profileStore.forUser(participant.username);
-			entries.push({
-				key: participant.userId,
-				name: remoteProfile?.display_name || participant.username,
-				avatarUrl: remoteProfile?.avatar_url ? api.resolveUrl(remoteProfile.avatar_url, session.token) : undefined,
-				speaking: call.speakingUserIds.has(participant.userId),
-				isSelf: false
-			});
-		}
-		return entries;
-	});
-
-	const gridCols = $derived.by(() => {
-		const n = quietParticipants.length;
-		return n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
-	});
-
-	const gridRows = $derived(Math.max(1, Math.ceil(quietParticipants.length / gridCols)));
-
 	function initials(name: string) {
 		return name.slice(0, 2).toUpperCase();
 	}
@@ -177,69 +143,6 @@
 			</button>
 		</div>
 
-		{#if hasSpotlight}
-			<div class="spotlight-row">
-				{#if call.screenSharing}
-					<div class="spotlight-tile screen">
-						<video use:attachLocalScreenStream autoplay playsinline muted></video>
-						<span class="tile-name">{t("call.yourScreen")}</span>
-						<button
-							class="tile-expand"
-							title={t("call.fullscreen")}
-							aria-label={t("call.fullscreen")}
-							onclick={expandTile}
-						>
-							<Maximize2 size={15} strokeWidth={2} />
-						</button>
-					</div>
-				{/if}
-				{#each call.participants as participant (participant.userId)}
-					{#if sharingUserIds.has(participant.userId)}
-						<div class="spotlight-tile screen">
-							<!-- muted: an unmuted autoplay <video> is blocked by the
-							     autoplay policy and just renders black. Screen-share
-							     audio rides on the separate <audio> below. -->
-							<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline muted></video>
-							<audio use:attachRemoteScreenStream={participant.userId} autoplay muted={call.deafened}></audio>
-							<span class="tile-name">{participant.username}'s screen</span>
-							<button
-								class="tile-expand"
-								title={t("call.fullscreen")}
-								aria-label={t("call.fullscreen")}
-								onclick={expandTile}
-							>
-								<Maximize2 size={15} strokeWidth={2} />
-							</button>
-						</div>
-					{/if}
-				{/each}
-				{#if call.cameraEnabled}
-					{@const SelfIcon = qualityIcon(SELF_KEY)}
-					<div class="spotlight-tile" class:speaking={call.selfSpeaking && !call.muted}>
-						<video use:attachLocalStream autoplay playsinline muted></video>
-						<span class="tile-name">
-							{#if call.muted}<MicOff size={12} strokeWidth={2.25} />{:else}<Mic size={12} strokeWidth={2.25} />{/if}
-							{ownProfile?.display_name || session.username} (you)
-							<SelfIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[SELF_KEY] ?? 'good'}" />
-						</span>
-					</div>
-				{/if}
-				{#each call.participants as participant (participant.userId)}
-					{#if camUserIds.has(participant.userId)}
-						{@const remoteProfile = profileStore.forUser(participant.username)}
-						{@const PeerIcon = qualityIcon(participant.userId)}
-						<div class="spotlight-tile" class:speaking={call.speakingUserIds.has(participant.userId)}>
-							<video use:attachRemoteStream={participant.userId} autoplay playsinline muted></video>
-							<span class="tile-name">
-								{remoteProfile?.display_name || participant.username}
-								<PeerIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[participant.userId] ?? 'good'}" />
-							</span>
-						</div>
-					{/if}
-				{/each}
-			</div>
-		{/if}
-
 		{#if ringing}
 			<div class="ringing">
 				<div
@@ -260,30 +163,94 @@
 					<span class="ring-name">{calleeProfile?.display_name || channel.name}</span>
 				</div>
 			</div>
-		{:else if quietParticipants.length > 0}
-			<div
-				class="grid"
-				style:grid-template-columns={`repeat(${gridCols}, 1fr)`}
-				style:grid-template-rows={`repeat(${gridRows}, 1fr)`}
-			>
-				{#each quietParticipants as entry (entry.key)}
-					{@const qualityKey = entry.isSelf ? SELF_KEY : entry.key}
-					{@const CellQualityIcon = qualityIcon(qualityKey)}
-					<div class="cell" class:speaking={entry.speaking}>
-						<div
-							class="cell-avatar"
-							style:background={entry.avatarUrl ? undefined : "var(--accent-fill)"}
-							style:background-image={entry.avatarUrl ? `url(${entry.avatarUrl})` : undefined}
+		{:else}
+			{@const SelfIcon = qualityIcon(SELF_KEY)}
+			<!-- One uniform gallery: screen shares and people are all equal
+			     tiles that wrap. A lone tile grows to fill; more tiles shrink
+			     and wrap. Expand a screen tile for real fullscreen. -->
+			<div class="tiles">
+				{#if call.screenSharing}
+					<div class="tile screen">
+						<video use:attachLocalScreenStream autoplay playsinline muted></video>
+						<span class="badge-live">LIVE</span>
+						<button
+							class="tile-expand"
+							title={t("call.fullscreen")}
+							aria-label={t("call.fullscreen")}
+							onclick={expandTile}
 						>
-							{#if !entry.avatarUrl}<span>{initials(entry.name)}</span>{/if}
+							<Maximize2 size={14} strokeWidth={2} />
+						</button>
+						<span class="tile-name">
+							<ScreenShare size={12} strokeWidth={2.25} />
+							{ownProfile?.display_name || session.username}
+						</span>
+					</div>
+				{/if}
+				{#each call.participants as participant (participant.userId)}
+					{#if sharingUserIds.has(participant.userId)}
+						<div class="tile screen">
+							<!-- muted: an unmuted autoplay <video> is blocked by the
+							     autoplay policy and just renders black. Screen-share
+							     audio rides on the separate <audio> below. -->
+							<video use:attachRemoteScreenStream={participant.userId} autoplay playsinline muted></video>
+							<audio use:attachRemoteScreenStream={participant.userId} autoplay muted={call.deafened}></audio>
+							<button
+								class="tile-expand"
+								title={t("call.fullscreen")}
+								aria-label={t("call.fullscreen")}
+								onclick={expandTile}
+							>
+								<Maximize2 size={14} strokeWidth={2} />
+							</button>
+							<span class="tile-name">
+								<ScreenShare size={12} strokeWidth={2.25} />
+								{participant.username}
+							</span>
 						</div>
-						<div class="cell-tag">
-							{#if entry.isSelf}
-								{#if call.muted}<MicOff size={13} strokeWidth={2.25} />{:else}<Mic size={13} strokeWidth={2.25} />{/if}
-							{/if}
-							<span>{entry.name}{entry.isSelf ? " (you)" : ""}</span>
-							<CellQualityIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[qualityKey] ?? 'good'}" />
+					{/if}
+				{/each}
+
+				<div class="tile" class:speaking={call.selfSpeaking && !call.muted}>
+					{#if call.cameraEnabled}
+						<video use:attachLocalStream autoplay playsinline muted></video>
+					{:else}
+						<div
+							class="tile-avatar"
+							style:background={selfAvatarUrl ? undefined : "var(--accent-fill)"}
+							style:background-image={selfAvatarUrl ? `url(${selfAvatarUrl})` : undefined}
+						>
+							{#if !selfAvatarUrl}<span>{initials(ownProfile?.display_name || session.username || "")}</span>{/if}
 						</div>
+					{/if}
+					<span class="tile-name">
+						{#if call.muted}<MicOff size={12} strokeWidth={2.25} />{:else}<Mic size={12} strokeWidth={2.25} />{/if}
+						{ownProfile?.display_name || session.username} (you)
+						<SelfIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[SELF_KEY] ?? 'good'}" />
+					</span>
+				</div>
+				{#each call.participants as participant (participant.userId)}
+					{@const remoteProfile = profileStore.forUser(participant.username)}
+					{@const PeerIcon = qualityIcon(participant.userId)}
+					{@const avatarUrl = remoteProfile?.avatar_url
+						? api.resolveUrl(remoteProfile.avatar_url, session.token)
+						: undefined}
+					<div class="tile" class:speaking={call.speakingUserIds.has(participant.userId)}>
+						{#if camUserIds.has(participant.userId)}
+							<video use:attachRemoteStream={participant.userId} autoplay playsinline muted></video>
+						{:else}
+							<div
+								class="tile-avatar"
+								style:background={avatarUrl ? undefined : "var(--accent-fill)"}
+								style:background-image={avatarUrl ? `url(${avatarUrl})` : undefined}
+							>
+								{#if !avatarUrl}<span>{initials(remoteProfile?.display_name || participant.username)}</span>{/if}
+							</div>
+						{/if}
+						<span class="tile-name">
+							{remoteProfile?.display_name || participant.username}
+							<PeerIcon size={12} strokeWidth={2.25} class="quality-{call.connectionQuality[participant.userId] ?? 'good'}" />
+						</span>
 					</div>
 				{/each}
 			</div>
@@ -448,78 +415,110 @@
 		color: var(--danger);
 	}
 
-	.spotlight-row {
-		/* Explicit viewport-relative height, NOT flex-grow: the stage's
-		   ancestor chain doesn't always hand down a definite height, so a
-		   `flex: 3 1 0` row would collapse. vh always resolves. */
+	/* One uniform gallery. Explicit viewport-relative height (not flex-grow:
+	   the stage's ancestor chain doesn't reliably hand down a definite
+	   height, so a flex row would collapse). Tiles wrap and centre. */
+	.tiles {
 		flex: 0 0 auto;
-		height: clamp(240px, 62vh, 720px);
+		height: clamp(240px, 64vh, 760px);
 		display: flex;
-		gap: 10px;
-		padding: 16px 20px 0;
 		flex-wrap: wrap;
+		gap: 12px;
+		padding: 16px 20px;
+		align-content: center;
 		align-items: center;
 		justify-content: center;
-		overflow: hidden;
+		overflow-y: auto;
 	}
 
-	.stage.fullscreen .spotlight-row {
-		height: clamp(240px, 78vh, 1200px);
+	.stage.fullscreen .tiles {
+		height: clamp(240px, 82vh, 1400px);
 	}
 
-	.spotlight-tile {
+	.tile {
 		position: relative;
-		flex: 0 1 auto;
-		height: 100%;
-		max-width: 100%;
-		aspect-ratio: 16 / 9;
-		border-radius: 10px;
+		/* Lone tile grows toward the cap; more tiles shrink past the basis
+		   and wrap. aspect-ratio keeps every card the same shape. */
+		flex: 1 1 340px;
+		max-width: min(900px, 100%);
+		max-height: 100%;
+		aspect-ratio: 16 / 10;
+		border-radius: 14px;
 		overflow: hidden;
-		background: black;
-		box-shadow: 0 0 0 2px transparent;
-		transition: box-shadow 0.12s ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: radial-gradient(
+			120% 120% at 50% 0%,
+			color-mix(in srgb, var(--accent-fill) 12%, var(--sidebar)),
+			var(--sidebar)
+		);
+		box-shadow: inset 0 0 0 1px var(--hairline);
+		transition: box-shadow 0.15s ease;
 	}
 
-	.spotlight-tile.speaking {
-		box-shadow: 0 0 0 2px var(--online);
+	.tile.speaking {
+		box-shadow: inset 0 0 0 2px var(--online);
 	}
 
-	.spotlight-tile video {
+	.tile video {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 	}
 
-	/* The shared screen is the big block between the faces: a 16:9 card up to
-	   ~900px wide, letterboxing whatever real ratio the source is. The
-	   expand button on it goes to true OS fullscreen. */
-	.spotlight-tile.screen {
+	.tile.screen {
 		background: black;
-		/* Fill the row's full height and whatever width is left; the video's
-		   object-fit: contain letterboxes whatever ratio the source is. */
-		flex: 1 1 100%;
-		aspect-ratio: auto;
-		width: auto;
-		min-width: 0;
-		max-width: 100%;
-		height: 100%;
 	}
 
-	.spotlight-tile.screen video {
+	.tile.screen video {
 		object-fit: contain;
 	}
 
-	.spotlight-tile.screen:fullscreen {
+	.tile.screen:fullscreen {
+		max-width: none;
+		max-height: none;
+		aspect-ratio: auto;
 		width: 100vw;
 		height: 100vh;
-		aspect-ratio: auto;
 		border-radius: 0;
+		background: black;
+	}
+
+	.tile-avatar {
+		width: 40%;
+		aspect-ratio: 1;
+		max-width: 132px;
+		min-width: 52px;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-mono);
+		font-weight: 700;
+		font-size: 22px;
+		color: var(--accent-fill-ink);
+	}
+
+	.badge-live {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		padding: 2px 7px;
+		border-radius: 5px;
+		background: var(--danger);
+		color: white;
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.06em;
 	}
 
 	.tile-expand {
 		position: absolute;
 		top: 8px;
-		right: 8px;
+		left: 8px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -532,7 +531,7 @@
 		transition: opacity 0.12s ease, background 0.12s ease;
 	}
 
-	.spotlight-tile.screen:hover .tile-expand,
+	.tile.screen:hover .tile-expand,
 	.tile-expand:focus-visible {
 		opacity: 1;
 	}
@@ -541,30 +540,23 @@
 		background: rgba(0, 0, 0, 0.8);
 	}
 
-	.spotlight-tile .tile-name {
+	.tile .tile-name {
 		position: absolute;
 		left: 10px;
 		bottom: 8px;
 		display: flex;
 		align-items: center;
 		gap: 5px;
+		max-width: calc(100% - 20px);
 		padding: 3px 8px;
-		border-radius: 5px;
+		border-radius: 6px;
 		background: rgba(0, 0, 0, 0.55);
 		font-size: 12px;
 		font-weight: 600;
 		color: white;
-	}
-
-	.grid {
-		flex: 1;
-		min-height: 0;
-		display: grid;
-		gap: 14px;
-		padding: 24px;
+		white-space: nowrap;
 		overflow: hidden;
-		justify-content: center;
-		align-content: center;
+		text-overflow: ellipsis;
 	}
 
 	.ringing {
@@ -660,93 +652,6 @@
 		font-size: 12px;
 		font-weight: 600;
 		color: var(--ink-dim);
-	}
-
-	.cell {
-		position: relative;
-		min-height: 0;
-		width: 100%;
-		max-width: 360px;
-		max-height: 100%;
-		aspect-ratio: 4 / 3;
-		border-radius: 14px;
-		background:
-			radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--accent-fill) 12%, var(--sidebar)), var(--sidebar));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
-		box-shadow: inset 0 0 0 1px var(--hairline);
-		transition: box-shadow 0.15s ease;
-	}
-
-	.cell.speaking {
-		box-shadow: inset 0 0 0 2px var(--online);
-	}
-
-	.cell-avatar {
-		position: relative;
-		width: 42%;
-		aspect-ratio: 1;
-		max-width: 128px;
-		min-width: 56px;
-		border-radius: 50%;
-		background-size: cover;
-		background-position: center;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-family: var(--font-mono);
-		font-weight: 700;
-		font-size: 24px;
-		color: var(--accent-fill-ink);
-		background-color: var(--accent-fill);
-	}
-
-	.cell.speaking .cell-avatar::after {
-		content: "";
-		position: absolute;
-		inset: -6px;
-		border-radius: 50%;
-		border: 3px solid var(--online);
-		animation: speak-pulse 1.4s ease-out infinite;
-	}
-
-	@keyframes speak-pulse {
-		0% {
-			transform: scale(0.96);
-			opacity: 0.9;
-		}
-		70% {
-			transform: scale(1.12);
-			opacity: 0;
-		}
-		100% {
-			opacity: 0;
-		}
-	}
-
-	.cell-tag {
-		position: absolute;
-		left: 50%;
-		bottom: 12px;
-		transform: translateX(-50%);
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 4px 10px;
-		border-radius: 999px;
-		background: rgba(0, 0, 0, 0.6);
-		color: white;
-		font-size: 12px;
-		font-weight: 600;
-		max-width: calc(100% - 20px);
-	}
-
-	.cell-tag span {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.controls {
