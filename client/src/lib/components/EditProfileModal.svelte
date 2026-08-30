@@ -1611,35 +1611,50 @@
 	.connection-row {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		padding: 6px 10px;
-		border-radius: var(--radius-sm);
-		background: var(--panel);
-		border: 1px solid var(--hairline);
+		gap: 8px;
+		padding: 6px 8px;
+		border-radius: 7px;
 		color: var(--ink-dim);
+		transition: background-color 0.12s ease;
+	}
+
+	.connection-row:hover {
+		background: var(--hover);
 	}
 
 	.connection-label {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		font-size: 13px;
 		color: var(--ink);
 		font-weight: 600;
 	}
 
-	.connection-label:hover {
-		text-decoration: underline;
+	.connection-row :global(.connection-external) {
+		flex-shrink: 0;
+		color: var(--ink-faint);
 	}
 
 	.connection-remove {
-		margin-left: auto;
+		flex-shrink: 0;
 		padding: 4px;
-		border-radius: var(--radius-sm);
+		border-radius: 5px;
 		color: var(--ink-faint);
 		display: flex;
+		opacity: 0;
+		transition: opacity 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+	}
+
+	.connection-row:hover .connection-remove {
+		opacity: 1;
 	}
 
 	.connection-remove:hover {
 		color: var(--danger);
-		background: var(--hover);
+		background: var(--active);
 	}
 
 	.connection-form {

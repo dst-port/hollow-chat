@@ -261,19 +261,24 @@
 			{#if connections.length > 0}
 				<div class="info-block">
 					<p class="info-label">{t("profile.full.connections")}</p>
-					{#each connections as connection (connection.id)}
-						<div class="connection-row">
-							{#if BRAND_ICONS[connection.service]}
-								<BrandIcon service={connection.service} size={13} chip />
-							{:else}
-								<Globe size={14} strokeWidth={2} />
-							{/if}
-							<a href={connection.url} target="_blank" rel="noreferrer" class="connection-label">
-								{connectionLabel(connection)}
+					<div class="connection-list">
+						{#each connections as connection (connection.id)}
+							<a
+								href={connection.url}
+								target="_blank"
+								rel="noreferrer"
+								class="connection-row"
+							>
+								{#if BRAND_ICONS[connection.service]}
+									<BrandIcon service={connection.service} size={13} chip />
+								{:else}
+									<Globe size={13} strokeWidth={2} />
+								{/if}
+								<span class="connection-label">{connectionLabel(connection)}</span>
+								<ExternalLink size={12} strokeWidth={2} class="connection-arrow" />
 							</a>
-							<ExternalLink size={13} strokeWidth={2} />
-						</div>
-					{/each}
+						{/each}
+					</div>
 				</div>
 			{/if}
 
@@ -555,25 +560,40 @@
 		color: var(--ink);
 	}
 
+	.connection-list {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
 	.connection-row {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		padding: 6px 10px;
-		border-radius: 6px;
-		background: var(--panel);
-		border: 1px solid var(--hairline);
+		gap: 8px;
+		padding: 6px 8px;
+		border-radius: 7px;
 		color: var(--ink-dim);
+		transition: background-color 0.12s ease;
+	}
+
+	.connection-row:hover {
+		background: var(--hover);
 	}
 
 	.connection-label {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		font-size: 13px;
 		color: var(--ink);
 		font-weight: 600;
 	}
 
-	.connection-label:hover {
-		text-decoration: underline;
+	.connection-row :global(.connection-arrow) {
+		flex-shrink: 0;
+		color: var(--ink-faint);
 	}
 
 	.note {
