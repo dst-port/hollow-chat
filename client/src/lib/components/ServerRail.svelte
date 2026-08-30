@@ -188,17 +188,16 @@
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
+		isolation: isolate;
 		transition: border-radius 0.15s ease, background 0.15s ease, color 0.15s ease;
 	}
 
 	.server .icon-img {
-		position: absolute;
-		top: 0;
-		left: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 		display: block;
+		border-radius: inherit;
 	}
 
 	.server:hover {
