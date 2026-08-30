@@ -348,6 +348,10 @@ class CallStore {
 		this.roomId = roomId;
 		this.label = label;
 		this.status = "connecting";
+		// Start the ringback here, synchronously, while this call still has the
+		// click's user activation. Doing it after the getUserMedia await (which
+		// pops a permission prompt) means autoplay policy silently blocks it.
+		startCallRing();
 
 		try {
 			const servers = await fetchIceServers(token);
@@ -376,7 +380,9 @@ class CallStore {
 		this.applyMuted();
 		this.attachSpeakingAnalyser(SELF_KEY, this.localStream);
 		this.refreshNoiseSuppressionActive();
-		this.syncAlone(); // starts the ringback loop + the alone-timeout
+		// Ringback was already started at the top of join(); this arms the
+		// alone-timeout and stops the ring if a peer is somehow already here.
+		this.syncAlone();
 		this.notify();
 
 		const ws = new WebSocket(`${WS_BASE_URL}/calls/${roomId}?token=${encodeURIComponent(token)}`);
