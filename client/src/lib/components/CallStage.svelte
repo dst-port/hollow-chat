@@ -483,13 +483,13 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 28px;
+		gap: 56px;
 		padding: 24px;
 	}
 
 	.ring-avatar {
 		position: relative;
-		width: 76px;
+		width: 92px;
 		aspect-ratio: 1;
 		border-radius: 50%;
 		background-size: cover;
@@ -500,13 +500,23 @@
 		justify-content: center;
 		font-family: var(--font-mono);
 		font-weight: 700;
-		font-size: 18px;
+		font-size: 20px;
 		color: var(--accent-fill-ink);
 		flex-shrink: 0;
 	}
 
 	.ring-avatar.callee {
 		background: none;
+	}
+
+	/* steady ring hugging the callee so there's always an outline */
+	.ring-avatar.callee::after {
+		content: "";
+		position: absolute;
+		inset: -4px;
+		border-radius: 50%;
+		border: 2px solid rgba(255, 255, 255, 0.35);
+		pointer-events: none;
 	}
 
 	.ring-face {
@@ -524,28 +534,29 @@
 
 	.wave {
 		position: absolute;
-		inset: -2px;
+		inset: -4px;
 		border-radius: 50%;
-		border: 2px solid rgba(255, 255, 255, 0.28);
+		border: 2px solid rgba(255, 255, 255, 0.55);
 		opacity: 0;
-		animation: call-wave 2.2s ease-out infinite;
+		will-change: transform, opacity;
+		animation: call-wave 2s ease-out infinite;
 	}
 
 	.wave:nth-child(2) {
-		animation-delay: 0.73s;
+		animation-delay: 0.66s;
 	}
 
 	.wave:nth-child(3) {
-		animation-delay: 1.46s;
+		animation-delay: 1.33s;
 	}
 
 	@keyframes call-wave {
 		0% {
 			transform: scale(1);
-			opacity: 0.6;
+			opacity: 0.7;
 		}
 		100% {
-			transform: scale(1.9);
+			transform: scale(2.2);
 			opacity: 0;
 		}
 	}
