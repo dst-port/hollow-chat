@@ -2,7 +2,7 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
-## Unreleased
+## v0.2.9 — 2026-08-30
 
 ### Sync & notifications
 - **Real-time account sync across devices.** Joining or leaving a server,
@@ -21,15 +21,6 @@ All notable changes to HollowChat are listed here. Dates are in UTC+3.
 - **Installable web app.** HollowChat at /app can now be installed as a
   standalone app (its own window, dock/home-screen icon) from the browser.
 
-## v0.2.10 — 2026-08-30
-
-### Fixes
-- **Server icons now fill the whole circle.** The rail button kept a bit of
-  default padding, so an icon sat inset with a sliver of sidebar colour
-  showing around it instead of reaching the edge.
-
-## v0.2.9 — 2026-08-30
-
 ### Fixes
 - **Screen share in a DM call now fits the call panel** instead of stretching
   off the bottom of the screen and pushing the call controls out of view. It
@@ -39,6 +30,9 @@ All notable changes to HollowChat are listed here. Dates are in UTC+3.
   webview was blocking the sound that fires when a DM call starts — it's now
   unlocked on your first click in the app, with a retry if the first attempt
   is still blocked.
+- **Server icons now fill the whole circle.** The rail button kept a bit of
+  default padding, so an icon sat inset with a sliver of sidebar colour
+  showing around it instead of reaching the edge.
 
 ## v0.2.7 — 2026-08-30
 
