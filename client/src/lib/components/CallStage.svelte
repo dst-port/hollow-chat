@@ -212,7 +212,6 @@
 				<div class="ring-avatar callee">
 					<span class="wave"></span>
 					<span class="wave"></span>
-					<span class="wave"></span>
 					<div
 						class="ring-face"
 						style:background-image={calleeAvatarUrl ? `url(${calleeAvatarUrl})` : undefined}
@@ -526,29 +525,30 @@
 		position: absolute;
 		inset: -5px;
 		border-radius: 50%;
-		border: 2px solid rgba(255, 255, 255, 0.5);
+		border: 2px solid rgba(255, 255, 255, 0.55);
+		opacity: 0;
 		will-change: transform, opacity;
-		animation: call-wave 2.6s ease-in-out infinite;
+		animation: call-wave 2s ease-out infinite;
 	}
 
+	/* second ring is just the same ripple offset by half a cycle so one
+	   fades out as the next leaves the centre */
 	.wave:nth-child(2) {
-		animation-delay: 0.55s;
+		animation-delay: 1s;
 	}
 
-	.wave:nth-child(3) {
-		animation-delay: 1.1s;
-	}
-
-	/* smoothly breathe out and back in, forever */
+	/* one ripple: leave the centre, grow, fade out — then the next starts */
 	@keyframes call-wave {
-		0%,
-		100% {
+		0% {
 			transform: scale(1);
-			opacity: 0.15;
+			opacity: 0.6;
 		}
-		50% {
-			transform: scale(1.6);
-			opacity: 0.7;
+		80% {
+			opacity: 0.12;
+		}
+		100% {
+			transform: scale(2.4);
+			opacity: 0;
 		}
 	}
 
@@ -556,7 +556,7 @@
 	   reduce-motion (the global rule in app.css otherwise kills it) */
 	@media (prefers-reduced-motion: reduce) {
 		.wave {
-			animation-duration: 2.6s !important;
+			animation-duration: 2s !important;
 			animation-iteration-count: infinite !important;
 		}
 	}
