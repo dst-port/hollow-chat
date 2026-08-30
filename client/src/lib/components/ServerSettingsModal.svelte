@@ -970,7 +970,8 @@
 		border-radius: 16px;
 		background: var(--accent-fill);
 		background-position: center;
-		background-size: cover;
+		background-size: 100% 100%;
+		background-repeat: no-repeat;
 		color: var(--accent-fill-ink);
 		display: flex;
 		align-items: center;
