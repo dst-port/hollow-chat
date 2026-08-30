@@ -449,26 +449,29 @@
 	}
 
 	.spotlight-row {
-		/* Self-sized tiles (each has its own aspect-ratio + max width), so the
-		   row just needs a real floor - it must never collapse to a sliver
-		   the way a flex-grow-against-an-undersized-stage layout could. */
+		/* Explicit viewport-relative height, NOT flex-grow: the stage's
+		   ancestor chain doesn't always hand down a definite height, so a
+		   `flex: 3 1 0` row would collapse. vh always resolves. */
 		flex: 0 0 auto;
-		min-height: 240px;
-		max-height: min(68vh, 680px);
+		height: clamp(240px, 62vh, 720px);
 		display: flex;
 		gap: 10px;
 		padding: 16px 20px 0;
 		flex-wrap: wrap;
 		align-items: center;
 		justify-content: center;
-		overflow-y: auto;
+		overflow: hidden;
+	}
+
+	.stage.fullscreen .spotlight-row {
+		height: clamp(240px, 78vh, 1200px);
 	}
 
 	.spotlight-tile {
 		position: relative;
 		flex: 0 1 auto;
-		width: min(100%, 420px);
-		height: auto;
+		height: 100%;
+		max-width: 100%;
 		aspect-ratio: 16 / 9;
 		border-radius: 10px;
 		overflow: hidden;
@@ -492,8 +495,14 @@
 	   expand button on it goes to true OS fullscreen. */
 	.spotlight-tile.screen {
 		background: black;
-		flex: 1 1 480px;
-		width: min(100%, 900px);
+		/* Fill the row's full height and whatever width is left; the video's
+		   object-fit: contain letterboxes whatever ratio the source is. */
+		flex: 1 1 100%;
+		aspect-ratio: auto;
+		width: auto;
+		min-width: 0;
+		max-width: 100%;
+		height: 100%;
 	}
 
 	.spotlight-tile.screen video {
