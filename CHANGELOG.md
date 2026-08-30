@@ -5,9 +5,10 @@ All notable changes to HollowChat are listed here. Dates are in UTC+3.
 ## v0.2.8 — 2026-08-30
 
 ### Fixes
-- **Someone else's shared screen no longer shows up as a black rectangle.**
-  The remote screen-share video was being blocked by the browser's autoplay
-  rules; it now plays, with the shared audio on its own track.
+- **Screen share in a DM call now fits the call panel** instead of stretching
+  off the bottom of the screen and pushing the call controls out of view. It
+  scales to the available space and letterboxes any screen ratio; the shared
+  audio also plays on its own track now.
 - **Ringback tone now plays reliably in the desktop app.** The packaged
   webview was blocking the sound that fires when a DM call starts — it's now
   unlocked on your first click in the app, with a retry if the first attempt
