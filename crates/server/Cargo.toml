@@ -34,3 +34,4 @@ aes-gcm.workspace = true
 hkdf.workspace = true
 percent-encoding = "2"
 regex = "1"
+p256 = { version = "0.13", features = ["ecdsa", "ecdh", "pem"] }

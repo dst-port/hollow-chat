@@ -19,6 +19,7 @@ mod messages;
 mod password;
 mod permissions;
 mod profile;
+mod push;
 mod rate_limit;
 mod read_state;
 mod reports;
@@ -171,6 +172,7 @@ async fn main() {
         bundle_fetch_locks: Arc::new(DashMap::new()),
         link_preview_cache: Arc::new(DashMap::new()),
         gateway_sockets: Arc::new(DashMap::new()),
+        vapid: push::Vapid::from_env().map(Arc::new),
         game_covers: GameCoverConfig {
             steamgriddb_api_key: config.steamgriddb_api_key.map(|s| Arc::from(s.into_boxed_str())),
         },
@@ -198,6 +200,7 @@ async fn main() {
         .nest("/devicelink", devicelink::router(state.clone()))
         .nest("/link-preview", link_preview::router(state.clone()))
         .nest("/gateway", gateway::router(state.clone()))
+        .nest("/push", push::router(state.clone()))
         .merge(read_state::router(state.clone()))
         .nest("/reports", reports::router(state.clone()))
         .with_state(state)

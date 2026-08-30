@@ -36,6 +36,7 @@
 	import { themeStore, COLOR_GROUPS, COLOR_LABELS, THEME_PRESETS } from "$lib/stores/theme.svelte";
 	import { fontStore, FONT_STACKS, FONT_LABELS, PRESET_FONT_IDS, type FontId } from "$lib/stores/font.svelte";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
+	import { disablePush, enablePush, pushEnabledLocally, pushSupported } from "$lib/push/push";
 	import { pendingDm } from "$lib/stores/pendingDm.svelte";
 	import { t, i18n, LOCALES, type LocaleCode } from "$lib/i18n/index.svelte";
 	import Badges from "$lib/components/Badges.svelte";
@@ -290,6 +291,35 @@
 
 	let notifyMessages = $state(true);
 	let notifySounds = $state(true);
+
+	const pushIsSupported = pushSupported();
+	let pushBusy = $state(false);
+	let pushOn = $state(pushEnabledLocally());
+
+	async function togglePush(next: boolean) {
+		const token = session.token;
+		if (!token || pushBusy) return;
+		pushBusy = true;
+		try {
+			if (next) {
+				const result = await enablePush(token);
+				pushOn = result === "enabled";
+				if (result === "enabled") {
+					toast.push(t("toast.toggledOn", { label: t("settings.notifications.push") }));
+				} else if (result === "denied") {
+					toast.push(t("settings.notifications.pushDenied"));
+				} else {
+					toast.push(t("settings.notifications.pushFailed"));
+				}
+			} else {
+				await disablePush(token);
+				pushOn = false;
+				toast.push(t("toast.toggledOff", { label: t("settings.notifications.push") }));
+			}
+		} finally {
+			pushBusy = false;
+		}
+	}
 
 	let reducedMotion = $state(false);
 	let compactMode = $state(false);
@@ -1200,6 +1230,23 @@
 				<h2>{t("settings.nav.notifications")}</h2>
 
 				<div class="card">
+					{#if pushIsSupported}
+						<div class="switch-row">
+							<div>
+								<p class="row-label">{t("settings.notifications.push")}</p>
+								<p class="row-value muted">{t("settings.notifications.pushHint")}</p>
+							</div>
+							<label class="switch">
+								<input
+									type="checkbox"
+									checked={pushOn}
+									disabled={pushBusy}
+									onchange={(e) => togglePush((e.target as HTMLInputElement).checked)}
+								/>
+								<span class="track"><span class="thumb"></span></span>
+							</label>
+						</div>
+					{/if}
 					<div class="switch-row">
 						<div>
 							<p class="row-label">{t("settings.notifications.messages")}</p>

@@ -2,6 +2,21 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
+## Unreleased
+
+### Sync & notifications
+- **Real-time account sync across devices.** Joining or leaving a server,
+  friend requests and their replies, new DMs and group-DM changes now show up
+  on every device you're signed in on immediately, no reload.
+- **Live messages.** New, edited, and deleted messages arrive over the
+  gateway connection the moment they happen instead of on a few-second poll.
+- **Unread markers.** Servers, channels, and DMs now show an unread pill and a
+  count for messages you haven't seen, kept in sync across devices, with the
+  DM total mirrored in the browser tab title.
+- **Push notifications (web).** Opt in from Settings → Notifications to get an
+  OS notification for a DM or an @mention while HollowChat is closed. Content
+  stays end-to-end encrypted — the notification just says who and where.
+
 ## v0.2.10 — 2026-08-30
 
 ### Fixes

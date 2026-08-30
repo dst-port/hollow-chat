@@ -441,6 +441,11 @@ pub struct SendMessageRequest {
     pub attachment_id: Option<Uuid>,
     #[serde(default)]
     pub reply_to_id: Option<Uuid>,
+    /// Usernames the client resolved to user ids from the message's @mentions,
+    /// sent alongside the ciphertext so we can push-notify offline mentionees.
+    /// The server can't scan the (E2E-encrypted) content itself. Not stored.
+    #[serde(default)]
+    pub mentioned_user_ids: Vec<Uuid>,
 }
 
 async fn require_owned_attachment(
@@ -532,7 +537,68 @@ pub async fn send_message(
     let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
     let dto = messages.remove(0);
     broadcast_created(&state, channel_id, &dto).await;
+    push_mention_notifications(
+        &state,
+        channel_id,
+        session.user_id,
+        &session.username,
+        &payload.mentioned_user_ids,
+    )
+    .await;
     Ok(Json(dto))
+}
+
+/// Web-push the mentioned users who belong to the channel's server and have no
+/// gateway socket open. Mention ids come from the client (content is E2E).
+async fn push_mention_notifications(
+    state: &AppState,
+    channel_id: Uuid,
+    author_id: Uuid,
+    author_username: &str,
+    mentioned: &[Uuid],
+) {
+    if mentioned.is_empty() {
+        return;
+    }
+    let members = channel_member_ids(&state.pool, channel_id).await;
+    let recipients: Vec<Uuid> = mentioned
+        .iter()
+        .copied()
+        .filter(|u| *u != author_id && members.contains(u))
+        .collect();
+    if recipients.is_empty() {
+        return;
+    }
+    let meta: Option<(String, String)> = sqlx::query_as(
+        "SELECT channels.name, servers.name \
+         FROM channels JOIN servers ON servers.id = channels.server_id \
+         WHERE channels.id = $1",
+    )
+    .bind(channel_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+    let (title, body) = match meta {
+        Some((channel_name, server_name)) => (
+            format!("#{channel_name} · {server_name}"),
+            format!("{author_username} mentioned you"),
+        ),
+        None => (
+            "New mention".to_string(),
+            format!("{author_username} mentioned you"),
+        ),
+    };
+    crate::push::notify_offline(
+        state,
+        &recipients,
+        crate::push::PushPayload {
+            title,
+            body,
+            url: "/app/".to_string(),
+            tag: format!("mention-{channel_id}"),
+        },
+    );
 }
 
 #[derive(Debug, Deserialize)]

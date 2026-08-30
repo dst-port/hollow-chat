@@ -136,11 +136,26 @@
 		id: string,
 		content: string | null,
 		attachmentId?: string,
-		replyToId?: string
+		replyToId?: string,
+		mentionedUserIds?: string[]
 	) {
 		return isDm
 			? sendDmMessage(token, id, content, attachmentId, replyToId)
-			: sendMessage(token, id, content, attachmentId, replyToId);
+			: sendMessage(token, id, content, attachmentId, replyToId, mentionedUserIds);
+	}
+
+	// The server can't scan E2E content, so resolve @mentions to member ids
+	// here and send them alongside the ciphertext - lets offline mentionees
+	// get a push notification. Channels only; DMs always notify.
+	function resolveMentions(text: string): string[] {
+		if (isDm || !text) return [];
+		const everyone = /@(everyone|here)\b/i.test(text);
+		const ids = new Set<string>();
+		for (const [username, id] of Object.entries(memberIdByUsername)) {
+			const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			if (everyone || new RegExp(`@${escaped}\\b`, "i").test(text)) ids.add(id);
+		}
+		return [...ids];
 	}
 
 	const decryptedContentCache = new Map<string, Promise<string>>();
@@ -964,7 +979,14 @@
 					payload = await encryptOutgoing(myUsername, token, packed);
 				}
 
-				const apiMsg = await postMessage(token, channel.id, payload, attachmentId, i === 0 ? replyToId : undefined);
+				const apiMsg = await postMessage(
+					token,
+					channel.id,
+					payload,
+					attachmentId,
+					i === 0 ? replyToId : undefined,
+					i === 0 ? resolveMentions(textForThisMessage) : []
+				);
 				if (textForThisMessage || attachmentMeta) {
 					rememberDecrypted(apiMsg.id, packPayload(textForThisMessage, attachmentMeta));
 				}

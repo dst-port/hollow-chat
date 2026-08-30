@@ -965,7 +965,47 @@ pub async fn send_message(
     let mut messages = assemble_messages(&state.pool, vec![row], session.user_id).await?;
     let dto = messages.remove(0);
     broadcast_dm_created(&state, dm_id, &dto).await;
+    push_new_dm_notification(&state, dm_id, session.user_id, &session.username).await;
     Ok(Json(dto))
+}
+
+/// Web-push the other DM members who have no gateway socket open. Content is
+/// E2E-encrypted, so the body is generic ("sent you a message").
+async fn push_new_dm_notification(
+    state: &AppState,
+    dm_id: Uuid,
+    sender_id: Uuid,
+    sender_username: &str,
+) {
+    let meta: Option<(bool, Option<String>)> =
+        sqlx::query_as("SELECT is_group, name FROM dm_channels WHERE id = $1")
+            .bind(dm_id)
+            .fetch_optional(&state.pool)
+            .await
+            .ok()
+            .flatten();
+    let (title, body) = match meta {
+        Some((true, name)) => (
+            name.unwrap_or_else(|| "Group".to_string()),
+            format!("{sender_username}: new message"),
+        ),
+        _ => (sender_username.to_string(), "Sent you a message".to_string()),
+    };
+    let recipients: Vec<Uuid> = dm_member_ids(&state.pool, dm_id)
+        .await
+        .into_iter()
+        .filter(|u| *u != sender_id)
+        .collect();
+    crate::push::notify_offline(
+        state,
+        &recipients,
+        crate::push::PushPayload {
+            title,
+            body,
+            url: "/app/".to_string(),
+            tag: format!("dm-{dm_id}"),
+        },
+    );
 }
 
 #[derive(Debug, Deserialize)]

@@ -568,6 +568,31 @@ export function markRead(token: string, scope: MessageScope, id: string, message
 	});
 }
 
+// --- Web Push ---------------------------------------------------------------
+
+export function getVapidKey() {
+	return request<{ key: string | null }>("/push/vapid");
+}
+
+export function pushSubscribe(
+	token: string,
+	sub: { endpoint: string; keys: { p256dh: string; auth: string } }
+) {
+	return request<void>("/push/subscribe", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify(sub)
+	});
+}
+
+export function pushUnsubscribe(token: string, endpoint: string) {
+	return request<void>("/push/unsubscribe", {
+		method: "POST",
+		headers: { authorization: `Bearer ${token}` },
+		body: JSON.stringify({ endpoint })
+	});
+}
+
 /** Fetch one message (used to reconcile edits/reactions/pins pushed over the gateway). */
 export function getMessage(token: string, scope: MessageScope, id: string, messageId: string) {
 	return request<ApiMessage>(`${messagesBase(scope, id)}/messages/${messageId}`, {
@@ -1030,12 +1055,18 @@ export function sendMessage(
 	channelId: string,
 	content: string | null,
 	attachmentId?: string,
-	replyToId?: string
+	replyToId?: string,
+	mentionedUserIds?: string[]
 ) {
 	return request<ApiMessage>(`/channels/${channelId}/messages`, {
 		method: "POST",
 		headers: { authorization: `Bearer ${token}` },
-		body: JSON.stringify({ content, attachment_id: attachmentId, reply_to_id: replyToId })
+		body: JSON.stringify({
+			content,
+			attachment_id: attachmentId,
+			reply_to_id: replyToId,
+			mentioned_user_ids: mentionedUserIds ?? []
+		})
 	});
 }
 

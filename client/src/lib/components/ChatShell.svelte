@@ -17,6 +17,7 @@
 	import { initRichPresenceBridge } from "$lib/stores/richPresence.svelte";
 	import { initGatewayBridge, onSync } from "$lib/stores/gateway.svelte";
 	import { unreads } from "$lib/stores/unreads.svelte";
+	import { refreshPush } from "$lib/push/push";
 	import { colorForName } from "$lib/utils/color";
 	import { call } from "$lib/webrtc/call.svelte";
 	import { viewport } from "$lib/stores/viewport.svelte";
@@ -29,6 +30,7 @@
 		if (session.token) {
 			initGatewayBridge(session.token);
 			unreads.init(session.token);
+			void refreshPush(session.token);
 		}
 	});
 

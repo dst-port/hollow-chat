@@ -21,6 +21,11 @@ const config = {
     paths: {
       base,
     },
+    // Registered manually (only on web, only when the user opts into push) so
+    // the Tauri build - where service workers aren't available - never tries.
+    serviceWorker: {
+      register: false,
+    },
   },
 };
 
