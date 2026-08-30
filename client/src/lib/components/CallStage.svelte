@@ -423,37 +423,40 @@
 		min-height: 0;
 		display: grid;
 		gap: 14px;
-		padding: 20px;
+		padding: 24px;
 		overflow: hidden;
+		justify-content: center;
+		align-content: center;
 	}
 
 	.cell {
 		position: relative;
 		min-height: 0;
-		border-radius: 12px;
-		background: var(--sidebar);
+		width: 100%;
+		max-width: 360px;
+		max-height: 100%;
+		aspect-ratio: 4 / 3;
+		border-radius: 14px;
+		background:
+			radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--accent-fill) 12%, var(--sidebar)), var(--sidebar));
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
-		box-shadow: 0 0 0 2px transparent;
-		transition: box-shadow 0.12s ease;
+		box-shadow: inset 0 0 0 1px var(--hairline);
+		transition: box-shadow 0.15s ease;
 	}
 
 	.cell.speaking {
-		box-shadow: 0 0 0 2px var(--online);
-	}
-
-	.cell-video {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
+		box-shadow: inset 0 0 0 2px var(--online);
 	}
 
 	.cell-avatar {
-		width: 30%;
+		position: relative;
+		width: 42%;
 		aspect-ratio: 1;
-		max-width: 96px;
+		max-width: 128px;
+		min-width: 56px;
 		border-radius: 50%;
 		background-size: cover;
 		background-position: center;
@@ -462,20 +465,45 @@
 		justify-content: center;
 		font-family: var(--font-mono);
 		font-weight: 700;
-		font-size: 22px;
+		font-size: 24px;
 		color: var(--accent-fill-ink);
+		background-color: var(--accent-fill);
+	}
+
+	.cell.speaking .cell-avatar::after {
+		content: "";
+		position: absolute;
+		inset: -6px;
+		border-radius: 50%;
+		border: 3px solid var(--online);
+		animation: speak-pulse 1.4s ease-out infinite;
+	}
+
+	@keyframes speak-pulse {
+		0% {
+			transform: scale(0.96);
+			opacity: 0.9;
+		}
+		70% {
+			transform: scale(1.12);
+			opacity: 0;
+		}
+		100% {
+			opacity: 0;
+		}
 	}
 
 	.cell-tag {
 		position: absolute;
-		left: 10px;
-		bottom: 10px;
+		left: 50%;
+		bottom: 12px;
+		transform: translateX(-50%);
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		padding: 4px 9px;
-		border-radius: 6px;
-		background: rgba(0, 0, 0, 0.55);
+		padding: 4px 10px;
+		border-radius: 999px;
+		background: rgba(0, 0, 0, 0.6);
 		color: white;
 		font-size: 12px;
 		font-weight: 600;
@@ -494,8 +522,11 @@
 		align-items: center;
 		justify-content: center;
 		gap: 10px;
-		padding: 16px;
-		border-top: 1px solid var(--hairline);
+		margin: 0 auto 18px;
+		padding: 10px 14px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--sidebar) 92%, black);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 	}
 
 	.ctrl {
@@ -507,11 +538,12 @@
 		justify-content: center;
 		background: var(--active);
 		color: var(--ink);
-		transition: background-color 0.15s ease, color 0.15s ease;
+		transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 	}
 
 	.ctrl:hover {
 		background: var(--hover);
+		transform: translateY(-1px);
 	}
 
 	.ctrl.active {
