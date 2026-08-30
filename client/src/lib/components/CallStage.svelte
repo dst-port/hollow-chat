@@ -483,13 +483,13 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: clamp(40px, 12vw, 120px);
+		gap: 28px;
 		padding: 24px;
 	}
 
 	.ring-avatar {
 		position: relative;
-		width: clamp(80px, 12vw, 128px);
+		width: 76px;
 		aspect-ratio: 1;
 		border-radius: 50%;
 		background-size: cover;
@@ -500,7 +500,7 @@
 		justify-content: center;
 		font-family: var(--font-mono);
 		font-weight: 700;
-		font-size: 26px;
+		font-size: 18px;
 		color: var(--accent-fill-ink);
 		flex-shrink: 0;
 	}
@@ -524,39 +524,39 @@
 
 	.wave {
 		position: absolute;
-		inset: 0;
+		inset: -2px;
 		border-radius: 50%;
-		border: 2px solid var(--ink-faint);
+		border: 2px solid rgba(255, 255, 255, 0.28);
 		opacity: 0;
-		animation: call-wave 2.4s ease-out infinite;
+		animation: call-wave 2.2s ease-out infinite;
 	}
 
 	.wave:nth-child(2) {
-		animation-delay: 0.8s;
+		animation-delay: 0.73s;
 	}
 
 	.wave:nth-child(3) {
-		animation-delay: 1.6s;
+		animation-delay: 1.46s;
 	}
 
 	@keyframes call-wave {
 		0% {
 			transform: scale(1);
-			opacity: 0.55;
+			opacity: 0.6;
 		}
 		100% {
-			transform: scale(2.1);
+			transform: scale(1.9);
 			opacity: 0;
 		}
 	}
 
 	.ring-name {
 		position: absolute;
-		top: calc(100% + 12px);
+		top: calc(100% + 10px);
 		left: 50%;
 		transform: translateX(-50%);
 		white-space: nowrap;
-		font-size: 13px;
+		font-size: 12px;
 		font-weight: 600;
 		color: var(--ink-dim);
 	}
