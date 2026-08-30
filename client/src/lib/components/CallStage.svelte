@@ -145,7 +145,12 @@
 	</div>
 {:else}
 	{@const HeaderQualityIcon = qualityIcon(SELF_KEY)}
-	<div class="stage" class:fullscreen transition:fade={{ duration: 140 }}>
+	<div
+		class="stage"
+		class:fullscreen
+		class:screen-hero={call.screenSharing || sharingUserIds.size > 0}
+		transition:fade={{ duration: 140 }}
+	>
 		<div class="stage-header">
 			<Volume2 size={16} strokeWidth={2.25} />
 			<span>{server ? `${server.name} / ${channel.name}` : channel.name}</span>
@@ -466,6 +471,26 @@
 
 	.spotlight-tile.screen video {
 		object-fit: contain;
+	}
+
+	/* When someone's sharing their screen it's the point of the call - let it
+	   take the whole stage (minus a thin strip of faces) instead of being
+	   boxed to <46vh like the camera-grid layout. */
+	.stage.screen-hero .spotlight-row {
+		flex: 1 1 auto;
+		max-height: none;
+		flex-wrap: nowrap;
+	}
+
+	.stage.screen-hero .spotlight-tile.screen {
+		flex: 1 1 100%;
+		width: 100%;
+	}
+
+	.stage.screen-hero .grid {
+		flex: 0 0 auto;
+		max-height: 132px;
+		padding: 10px 24px;
 	}
 
 	.spotlight-tile .tile-name {
