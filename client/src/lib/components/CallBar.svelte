@@ -8,7 +8,7 @@
 	import ScreenShareOff from "@lucide/svelte/icons/screen-share-off";
 	import PhoneOff from "@lucide/svelte/icons/phone-off";
 	import Users from "@lucide/svelte/icons/users";
-	import { call, shareErrorKey, type ScreenShareOpts } from "$lib/webrtc/call.svelte";
+	import { call, shareErrorKey } from "$lib/webrtc/call.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import ScreenSharePicker from "$lib/components/ScreenSharePicker.svelte";
 	import {
@@ -55,11 +55,6 @@
 		} else {
 			sharePickerOpen = true;
 		}
-	}
-
-	function goLive(opts: ScreenShareOpts) {
-		sharePickerOpen = false;
-		call.toggleScreenShare(opts).catch((err) => toast.push(t(shareErrorKey(err, "toast.screenShareFailed"))));
 	}
 
 	function onCameraClick() {
@@ -186,7 +181,7 @@
 {/if}
 
 {#if sharePickerOpen}
-	<ScreenSharePicker onCancel={() => (sharePickerOpen = false)} onGoLive={goLive} />
+	<ScreenSharePicker onClose={() => (sharePickerOpen = false)} />
 {/if}
 
 <style>

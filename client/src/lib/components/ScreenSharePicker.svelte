@@ -1,23 +1,21 @@
 <script lang="ts">
 	import Modal from "$lib/components/Modal.svelte";
-	import Check from "@lucide/svelte/icons/check";
-	import Monitor from "@lucide/svelte/icons/monitor";
-	import AppWindow from "@lucide/svelte/icons/app-window";
-	import PanelTop from "@lucide/svelte/icons/panel-top";
-	import ChevronDown from "@lucide/svelte/icons/chevron-down";
+	import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+	import MonitorUp from "@lucide/svelte/icons/monitor-up";
 	import { t } from "$lib/i18n/index.svelte";
+	import { call } from "$lib/webrtc/call.svelte";
+	import { toast } from "$lib/stores/toast.svelte";
 	import type { ScreenShareOpts } from "$lib/webrtc/call.svelte";
 
-	let { onCancel, onGoLive }: {
-		onCancel: () => void;
-		onGoLive: (opts: ScreenShareOpts) => void;
-	} = $props();
+	let { onClose }: { onClose: () => void } = $props();
 
 	type Surface = "screen" | "window" | "tab";
-	const SOURCES: { id: Surface; label: string; hint: string; icon: typeof Monitor }[] = [
-		{ id: "screen", label: t("screenShare.sourceScreen"), hint: t("screenShare.sourceScreenHint"), icon: Monitor },
-		{ id: "window", label: t("screenShare.sourceWindow"), hint: t("screenShare.sourceWindowHint"), icon: AppWindow },
-		{ id: "tab", label: t("screenShare.sourceTab"), hint: t("screenShare.sourceTabHint"), icon: PanelTop }
+	type AudioMode = "none" | "system";
+
+	const SURFACES: { id: Surface; label: string }[] = [
+		{ id: "screen", label: t("screenShare.sourceScreen") },
+		{ id: "window", label: t("screenShare.sourceWindow") },
+		{ id: "tab", label: t("screenShare.sourceTab") }
 	];
 
 	const RES: { label: string; w: number; h: number }[] = [
@@ -33,97 +31,170 @@
 	let resIndex = $state(1); // 720
 	let fps = $state(30);
 	let contentHint = $state<"motion" | "detail">("motion");
-	let shareAudio = $state(false);
-	let advancedOpen = $state(false);
+	let audioMode = $state<AudioMode>("none");
 
-	function goLive() {
+	let preview = $state<MediaStream | null>(null);
+	let busy = $state(false);
+	let handedOff = false;
+
+	function currentOpts(): ScreenShareOpts {
 		const r = RES[resIndex];
-		onGoLive({
+		return {
 			surface,
 			width: r.w,
 			height: r.h,
 			frameRate: fps,
 			contentHint,
-			audio: shareAudio
+			audio: audioMode !== "none"
+		};
+	}
+
+	function attach(node: HTMLVideoElement) {
+		$effect(() => {
+			node.srcObject = preview;
+			if (preview) node.play().catch(() => {});
 		});
+	}
+
+	function stopPreview() {
+		preview?.getTracks().forEach((tr) => tr.stop());
+		preview = null;
+	}
+
+	async function pickSource() {
+		if (busy) return;
+		busy = true;
+		try {
+			stopPreview();
+			const stream = await call.acquireDisplayStream(currentOpts());
+			stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+				if (!handedOff) preview = null;
+			});
+			preview = stream;
+		} catch (err) {
+			if (!(err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError"))) {
+				toast.push(t("toast.screenShareFailed"));
+			}
+		} finally {
+			busy = false;
+		}
+	}
+
+	// Live tweaks that don't need a re-pick.
+	$effect(() => {
+		const track = preview?.getVideoTracks()[0];
+		if (!track) return;
+		const r = RES[resIndex];
+		track.applyConstraints({ width: { ideal: r.w }, height: { ideal: r.h }, frameRate: { ideal: fps } }).catch(() => {});
+	});
+	$effect(() => {
+		const track = preview?.getVideoTracks()[0];
+		if (track) track.contentHint = contentHint;
+	});
+
+	async function goLive() {
+		if (busy) return;
+		busy = true;
+		try {
+			let stream = preview;
+			if (!stream) stream = await call.acquireDisplayStream(currentOpts());
+			handedOff = true;
+			await call.startScreenShareWithStream(stream);
+			preview = null;
+			onClose();
+		} catch (err) {
+			handedOff = false;
+			if (!(err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError"))) {
+				toast.push(t("toast.screenShareFailed"));
+			}
+		} finally {
+			busy = false;
+		}
+	}
+
+	function cancel() {
+		if (!handedOff) stopPreview();
+		onClose();
 	}
 </script>
 
-<Modal title={t("screenShare.title")} onClose={onCancel} width={460}>
+<Modal title={t("screenShare.pickerTitle")} onClose={cancel} width={520}>
 	<div class="picker">
-		<div class="sources">
-			{#each SOURCES as s (s.id)}
-				{@const Icon = s.icon}
-				<button
-					type="button"
-					class="source"
-					class:active={surface === s.id}
-					onclick={() => (surface = s.id)}
-				>
-					<Icon size={22} strokeWidth={1.75} />
-					<span class="source-label">{s.label}</span>
-					<span class="source-hint">{s.hint}</span>
-				</button>
-			{/each}
+		<div class="field">
+			<span class="field-label">{t("screenShare.whatYoureStreaming")}</span>
+			<div class="preview" class:empty={!preview}>
+				{#if preview}
+					<video use:attach autoplay playsinline muted></video>
+				{:else}
+					<button type="button" class="pick" onclick={pickSource} disabled={busy}>
+						<MonitorUp size={20} strokeWidth={1.75} />
+						{busy ? t("common.loading") : t("screenShare.chooseSource")}
+					</button>
+				{/if}
+			</div>
+			<div class="source-row">
+				<select bind:value={surface} onchange={() => preview && pickSource()}>
+					{#each SURFACES as s (s.id)}
+						<option value={s.id}>{s.label}</option>
+					{/each}
+				</select>
+				{#if preview}
+					<button type="button" class="mini" onclick={pickSource} disabled={busy}>
+						<RefreshCw size={13} strokeWidth={2.25} />
+						{t("screenShare.rePick")}
+					</button>
+				{/if}
+			</div>
+			<p class="hint">{t("screenShare.browserAsks")}</p>
 		</div>
 
-		<label class="audio-row">
-			<input type="checkbox" bind:checked={shareAudio} />
-			<span class="box" aria-hidden="true">
-				{#if shareAudio}<Check size={12} strokeWidth={3} />{/if}
-			</span>
-			<span>{surface === "tab" ? t("screenShare.shareTabAudio") : t("screenShare.shareAudio")}</span>
-		</label>
-
-		<button type="button" class="advanced-toggle" onclick={() => (advancedOpen = !advancedOpen)}>
-			<ChevronDown size={14} strokeWidth={2.5} class={advancedOpen ? "chev open" : "chev"} />
-			{t("screenShare.advanced")}
-		</button>
-
-		{#if advancedOpen}
-			<div class="advanced">
-				<div class="field">
-					<span class="field-label">{t("screenShare.resolution")}</span>
+		<div class="field">
+			<span class="field-label">{t("screenShare.streamSettings")}</span>
+			<div class="grid2">
+				<div class="sub">
+					<span class="sub-label">{t("screenShare.resolution")}</span>
 					<div class="segments">
 						{#each RES as r, i (r.label)}
-							<button type="button" class="seg" class:active={resIndex === i} onclick={() => (resIndex = i)}>
-								{r.label}
-							</button>
+							<button type="button" class="seg" class:active={resIndex === i} onclick={() => (resIndex = i)}>{r.label}</button>
 						{/each}
 					</div>
 				</div>
-
-				<div class="field">
-					<span class="field-label">{t("screenShare.frameRate")}</span>
+				<div class="sub">
+					<span class="sub-label">{t("screenShare.frameRate")}</span>
 					<div class="segments">
 						{#each FPS as f (f)}
 							<button type="button" class="seg" class:active={fps === f} onclick={() => (fps = f)}>{f}</button>
 						{/each}
 					</div>
 				</div>
-
-				<div class="field">
-					<span class="field-label">{t("screenShare.contentType")}</span>
-					<div class="segments wide">
-						<button type="button" class="seg" class:active={contentHint === "motion"} onclick={() => (contentHint = "motion")}>
-							{t("screenShare.smoothness")}
-						</button>
-						<button type="button" class="seg" class:active={contentHint === "detail"} onclick={() => (contentHint = "detail")}>
-							{t("screenShare.clarity")}
-						</button>
-					</div>
-					<p class="hint">
-						{contentHint === "detail" ? t("screenShare.clarityHint") : t("screenShare.smoothnessHint")}
-					</p>
-				</div>
 			</div>
-		{/if}
+			<div class="sub">
+				<span class="sub-label">{t("screenShare.contentType")}</span>
+				<div class="segments wide">
+					<button type="button" class="seg" class:active={contentHint === "motion"} onclick={() => (contentHint = "motion")}>
+						{t("screenShare.smoothness")}
+					</button>
+					<button type="button" class="seg" class:active={contentHint === "detail"} onclick={() => (contentHint = "detail")}>
+						{t("screenShare.clarity")}
+					</button>
+				</div>
+				<p class="hint">
+					{contentHint === "detail" ? t("screenShare.clarityHint") : t("screenShare.smoothnessHint")}
+				</p>
+			</div>
+		</div>
 
-		<p class="browser-note">{t("screenShare.browserAsks")}</p>
+		<div class="field">
+			<span class="field-label">{t("screenShare.audioSources")}</span>
+			<select bind:value={audioMode} onchange={() => preview && pickSource()}>
+				<option value="none">{t("screenShare.audioNone")}</option>
+				<option value="system">{surface === "tab" ? t("screenShare.shareTabAudio") : t("screenShare.audioSystem")}</option>
+			</select>
+		</div>
 
 		<div class="actions">
-			<button type="button" class="ghost" onclick={onCancel}>{t("common.cancel")}</button>
-			<button type="button" class="primary" onclick={goLive}>{t("screenShare.goLive")}</button>
+			<button type="button" class="ghost" onclick={cancel}>{t("common.cancel")}</button>
+			<button type="button" class="primary" onclick={goLive} disabled={busy}>{t("screenShare.goLive")}</button>
 		</div>
 	</div>
 </Modal>
@@ -132,49 +203,7 @@
 	.picker {
 		display: flex;
 		flex-direction: column;
-		gap: 14px;
-	}
-
-	.sources {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 8px;
-	}
-
-	.source {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 4px;
-		padding: 14px 8px 12px;
-		border-radius: 10px;
-		background: var(--active);
-		color: var(--ink-dim);
-		border: 1.5px solid transparent;
-		text-align: center;
-		transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-	}
-
-	.source:hover {
-		background: var(--hover);
-		color: var(--ink);
-	}
-
-	.source.active {
-		border-color: var(--accent-fill);
-		background: color-mix(in srgb, var(--accent-fill) 14%, var(--active));
-		color: var(--ink);
-	}
-
-	.source-label {
-		font-size: 13px;
-		font-weight: 700;
-	}
-
-	.source-hint {
-		font-size: 11px;
-		color: var(--ink-faint);
-		line-height: 1.25;
+		gap: 16px;
 	}
 
 	.field {
@@ -189,6 +218,99 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--ink-faint);
+	}
+
+	.sub {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.sub-label {
+		font-size: 11px;
+		font-weight: 700;
+		color: var(--ink-faint);
+	}
+
+	.grid2 {
+		display: grid;
+		grid-template-columns: 1.6fr 1fr;
+		gap: 10px;
+	}
+
+	.preview {
+		position: relative;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		border-radius: 10px;
+		overflow: hidden;
+		background: #000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.preview.empty {
+		background: var(--active);
+	}
+
+	.preview video {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	.pick {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 16px;
+		border-radius: 8px;
+		background: var(--hover);
+		color: var(--ink);
+		font-size: 13px;
+		font-weight: 700;
+	}
+
+	.pick:hover:not(:disabled) {
+		background: var(--accent-fill);
+		color: var(--accent-fill-ink);
+	}
+
+	.pick:disabled {
+		opacity: 0.6;
+	}
+
+	.source-row {
+		display: flex;
+		gap: 8px;
+	}
+
+	select {
+		flex: 1;
+		padding: 9px 10px;
+		border-radius: 6px;
+		background: var(--active);
+		color: var(--ink);
+		font-size: 13px;
+		border: 1px solid var(--hairline, transparent);
+	}
+
+	.mini {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding: 0 12px;
+		border-radius: 6px;
+		background: var(--active);
+		color: var(--ink-dim);
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.mini:hover:not(:disabled) {
+		background: var(--hover);
+		color: var(--ink);
 	}
 
 	.segments {
@@ -223,86 +345,8 @@
 
 	.hint {
 		margin: 0;
-		font-size: 12px;
-		color: var(--ink-faint);
-	}
-
-	.advanced-toggle {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		align-self: flex-start;
-		padding: 4px 2px;
-		font-size: 12px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--ink-faint);
-	}
-
-	.advanced-toggle:hover {
-		color: var(--ink-dim);
-	}
-
-	.advanced-toggle :global(.chev) {
-		transition: transform 0.12s ease;
-	}
-
-	.advanced-toggle :global(.chev.open) {
-		transform: rotate(180deg);
-	}
-
-	.advanced {
-		display: flex;
-		flex-direction: column;
-		gap: 14px;
-	}
-
-	.browser-note {
-		margin: 0;
 		font-size: 11px;
 		color: var(--ink-faint);
-	}
-
-	.audio-row {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		font-size: 13px;
-		color: var(--ink-dim);
-		cursor: pointer;
-		user-select: none;
-	}
-
-	.audio-row input {
-		position: absolute;
-		opacity: 0;
-		width: 0;
-		height: 0;
-	}
-
-	.audio-row .box {
-		flex-shrink: 0;
-		width: 18px;
-		height: 18px;
-		border-radius: 5px;
-		border: 1.5px solid var(--hairline, var(--ink-faint));
-		background: var(--active);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--accent-fill-ink);
-		transition: background-color 0.12s ease, border-color 0.12s ease;
-	}
-
-	.audio-row input:checked + .box {
-		background: var(--accent-fill);
-		border-color: var(--accent-fill);
-	}
-
-	.audio-row input:focus-visible + .box {
-		outline: 2px solid var(--accent, #8ea1ff);
-		outline-offset: 2px;
 	}
 
 	.actions {
@@ -334,7 +378,11 @@
 		color: var(--void);
 	}
 
-	.primary:hover {
+	.primary:hover:not(:disabled) {
 		filter: brightness(1.08);
+	}
+
+	.primary:disabled {
+		opacity: 0.6;
 	}
 </style>

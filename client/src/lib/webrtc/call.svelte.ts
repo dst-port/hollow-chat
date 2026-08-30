@@ -663,46 +663,52 @@ class CallStore {
 	// Callers may now catch: a cancelled picker still resolves silently, but a
 	// real failure rethrows (after tearing down half-state) so the UI can toast —
 	// map it with shareErrorKey(err, "toast.screenShareFailed").
-	async toggleScreenShare(opts?: ScreenShareOpts): Promise<void> {
-		if (this.screenSharing) {
-			this.stopScreenShareInternal();
-			return;
+	/** Grab a display stream (shows the OS chooser once) shaped by our
+	 *  picker's choices. The picker calls this itself so it can show a live
+	 *  preview before you commit; `startScreenShareWithStream` then takes
+	 *  that same stream to the call. */
+	async acquireDisplayStream(opts?: ScreenShareOpts): Promise<MediaStream> {
+		const video: MediaTrackConstraints & { displaySurface?: string } = {};
+		if (opts?.width) video.width = { ideal: opts.width };
+		if (opts?.height) video.height = { ideal: opts.height };
+		if (opts?.frameRate) video.frameRate = { ideal: opts.frameRate };
+		if (opts?.surface === "tab") video.displaySurface = "browser";
+		else if (opts?.surface === "window") video.displaySurface = "window";
+		else if (opts?.surface === "screen") video.displaySurface = "monitor";
+
+		const displayOpts: DisplayMediaStreamOptions & Record<string, unknown> = {
+			video: Object.keys(video).length ? video : true,
+			audio: opts?.audio ?? false,
+			selfBrowserSurface: "exclude",
+			surfaceSwitching: "include",
+			monitorTypeSurfaces: "include"
+		};
+		if (opts?.audio && opts?.surface !== "tab") {
+			displayOpts.systemAudio = "include";
 		}
 
-		try {
-			const video: MediaTrackConstraints & { displaySurface?: string } = {};
-			if (opts?.width) video.width = { ideal: opts.width };
-			if (opts?.height) video.height = { ideal: opts.height };
-			if (opts?.frameRate) video.frameRate = { ideal: opts.frameRate };
-			if (opts?.surface === "tab") video.displaySurface = "browser";
-			else if (opts?.surface === "window") video.displaySurface = "window";
-			else if (opts?.surface === "screen") video.displaySurface = "monitor";
+		const stream = await navigator.mediaDevices.getDisplayMedia(displayOpts);
+		const track = stream.getVideoTracks()[0];
+		if (opts?.contentHint) track.contentHint = opts.contentHint;
+		if (opts && (opts.width || opts.frameRate)) {
+			track.applyConstraints(video).catch(() => {});
+		}
+		return stream;
+	}
 
-			// Everything the web lets us pre-shape about the native chooser:
-			// drop our own tab from the list, let the user hot-swap the
-			// source mid-share from the browser bar, and offer system audio
-			// for screen/window grabs.
-			const displayOpts: DisplayMediaStreamOptions & Record<string, unknown> = {
-				video: Object.keys(video).length ? video : true,
-				audio: opts?.audio ?? false,
-				selfBrowserSurface: "exclude",
-				surfaceSwitching: "include",
-				monitorTypeSurfaces: "include"
-			};
-			if (opts?.audio && opts?.surface !== "tab") {
-				displayOpts.systemAudio = "include";
-			}
-			const screenStream = await navigator.mediaDevices.getDisplayMedia(displayOpts);
-			const track = screenStream.getVideoTracks()[0];
-			if (opts?.contentHint) track.contentHint = opts.contentHint;
-			if (opts && (opts.width || opts.frameRate)) {
-				track.applyConstraints(video).catch(() => {});
-			}
-			this.localScreenStream = screenStream;
+	/** Take an already-acquired display stream to the call: publish it to
+	 *  every peer and flip `screenSharing`. */
+	async startScreenShareWithStream(stream: MediaStream): Promise<void> {
+		if (this.screenSharing) return;
+		const track = stream.getVideoTracks()[0];
+		if (!track) throw new DOMException("no video track", "NotFoundError");
+
+		try {
+			this.localScreenStream = stream;
 			track.onended = () => this.stopScreenShareInternal();
 
 			for (const [peerId, pc] of this.pcs.entries()) {
-				const sender = pc.addTrack(track, screenStream);
+				const sender = pc.addTrack(track, stream);
 				const neg = this.negotiation.get(peerId);
 				if (neg) neg.makingOffer = true;
 				try {
@@ -723,13 +729,7 @@ class CallStore {
 			this.screenSharing = true;
 			this.notify();
 		} catch (err) {
-			// User dismissed the "choose what to share" picker → stay silent.
-			if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) {
-				return;
-			}
-			// Threw mid-loop (addTrack/createOffer): the stream is already
-			// assigned and its track live. Tear the half-state down, then
-			// rethrow so the caller can toast.
+			// Threw mid-loop (addTrack/createOffer): tear the half-state down.
 			const partial = this.localScreenStream?.getVideoTracks()[0];
 			if (partial) {
 				for (const pc of this.pcs.values()) {
@@ -741,6 +741,23 @@ class CallStore {
 			this.localScreenStream = null;
 			this.screenSharing = false;
 			this.notify();
+			throw err;
+		}
+	}
+
+	async toggleScreenShare(opts?: ScreenShareOpts): Promise<void> {
+		if (this.screenSharing) {
+			this.stopScreenShareInternal();
+			return;
+		}
+		try {
+			const stream = await this.acquireDisplayStream(opts);
+			await this.startScreenShareWithStream(stream);
+		} catch (err) {
+			// User dismissed the "choose what to share" picker → stay silent.
+			if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) {
+				return;
+			}
 			throw err;
 		}
 	}
