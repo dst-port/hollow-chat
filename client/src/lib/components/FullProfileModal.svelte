@@ -45,6 +45,13 @@
 	const badges = $derived(badgeStore.forUser(username));
 	const isSelf = $derived(username === session.username);
 	const accent = $derived(profile?.accent_color || member?.roles?.[0]?.color || member?.color || "#5865f2");
+	// Discord-style profile theme: tint the left column with the two profile
+	// colors, kept low-opacity so text stays legible on any theme.
+	const themeStart = $derived(profile?.banner_color || accent);
+	const themeEnd = $derived(profile?.banner_gradient_end || accent);
+	const themeBg = $derived(
+		`linear-gradient(180deg, color-mix(in srgb, ${themeStart} 26%, var(--sidebar)), color-mix(in srgb, ${themeEnd} 26%, var(--sidebar)))`
+	);
 	const displayName = $derived(profile?.display_name || username);
 	const bioLines = $derived((profile?.bio ?? "").split("\n").filter((line) => line.trim().length > 0));
 	const memberSince = $derived(
@@ -161,7 +168,7 @@
 		<X size={20} strokeWidth={2} />
 	</button>
 
-	<div class="col-main">
+	<div class="col-main" style:background={themeBg}>
 		<div class="banner" style:background={api.bannerBackground(profile, session.token)}></div>
 		<div class="body">
 			<div class="top-row">

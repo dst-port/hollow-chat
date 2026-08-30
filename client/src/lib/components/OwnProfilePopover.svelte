@@ -31,6 +31,9 @@
 	});
 
 	const profile = $derived(profileStore.forUser(username));
+	const themeBg = $derived(
+		`linear-gradient(180deg, color-mix(in srgb, ${profile?.banner_color || profile?.accent_color || "#5865f2"} 22%, var(--panel)), color-mix(in srgb, ${profile?.banner_gradient_end || profile?.accent_color || "#5865f2"} 22%, var(--panel)))`
+	);
 
 	let statusModalOpen = $state(false);
 	let presenceMenuOpen = $state(false);
@@ -124,6 +127,7 @@
 	style:bottom={`${position.bottom}px`}
 	style:left={`${position.left}px`}
 	style:width={`${POPOVER_WIDTH}px`}
+	style:background={themeBg}
 	transition:fly={{ y: 6, duration: 140 }}
 >
 	<div

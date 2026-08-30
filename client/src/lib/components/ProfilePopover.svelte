@@ -38,6 +38,9 @@
 	const profile = $derived(profileStore.forUser(member.name));
 	const presence = $derived(profile?.presence ?? "online");
 	const accent = $derived(profile?.accent_color || member.roles?.[0]?.color || member.color);
+	const themeBg = $derived(
+		`linear-gradient(180deg, color-mix(in srgb, ${profile?.banner_color || accent || "#5865f2"} 22%, var(--panel)), color-mix(in srgb, ${profile?.banner_gradient_end || accent || "#5865f2"} 22%, var(--panel)))`
+	);
 	const displayName = $derived(profile?.display_name || member.name);
 	const isSelf = $derived(member.name === session.username);
 
@@ -101,6 +104,7 @@
 	style:top={`${position.top}px`}
 	style:left={`${position.left}px`}
 	style:width={`${POPOVER_WIDTH}px`}
+	style:background={themeBg}
 	transition:fly={{ x: 6, duration: 140 }}
 >
 	<div class="banner" style:background={api.bannerBackground(profile, session.token)}></div>
