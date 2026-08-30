@@ -40,6 +40,7 @@
 	import { notifyDesktop } from "$lib/utils/notify";
 	import { playNotificationSound } from "$lib/utils/sound";
 	import { session } from "$lib/stores/session.svelte";
+	import { sendTyping, typingStore } from "$lib/stores/gateway.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
 	import { nameFontStack } from "$lib/stores/font.svelte";
 	import { customEmojiStore } from "$lib/stores/customEmoji.svelte";
@@ -416,6 +417,15 @@
 	let fileInputEl = $state<HTMLInputElement | undefined>();
 	let composerInputEl = $state<HTMLInputElement | undefined>();
 	let replyingTo = $state<Message | null>(null);
+
+	const typingNames = $derived(typingStore.whoIsTyping(channel.id, session.username));
+	const typingText = $derived.by(() => {
+		const n = typingNames.map((u) => displayNameFor(u));
+		if (n.length === 0) return "";
+		if (n.length === 1) return t("chat.typingOne", { name: n[0] });
+		if (n.length === 2) return t("chat.typingTwo", { a: n[0], b: n[1] });
+		return t("chat.typingMany");
+	});
 	let mentionQuery = $state<string | null>(null);
 	let mentionStart = $state(0);
 	let mentionIndex = $state(0);
@@ -451,6 +461,7 @@
 	function onComposerInput() {
 		const el = composerInputEl;
 		if (!el) return;
+		if (draft.trim().length > 0) sendTyping(isDm ? "dm" : "channel", channel.id);
 		const pos = el.selectionStart ?? draft.length;
 		const before = draft.slice(0, pos);
 		const match = before.match(/(?:^|\s)@([a-zA-Z0-9_]{0,32})$/);
@@ -1526,6 +1537,13 @@
 			onClose={() => (lightbox = null)}
 			onDownload={() => triggerDownload(lightbox!.src, lightbox!.alt ?? "file")}
 		/>
+	{/if}
+
+	{#if typingText}
+		<div class="typing-line" transition:fly={{ y: 4, duration: 120 }}>
+			<span class="typing-dots"><i></i><i></i><i></i></span>
+			{typingText}
+		</div>
 	{/if}
 
 	<form class="composer" onsubmit={send}>
@@ -2628,6 +2646,51 @@
 		align-items: center;
 		gap: 8px;
 		padding: 0 16px 16px;
+	}
+
+	.typing-line {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		padding: 2px 20px 4px;
+		font-size: 12px;
+		color: var(--ink-dim);
+		font-style: italic;
+	}
+
+	.typing-dots {
+		display: inline-flex;
+		gap: 3px;
+	}
+
+	.typing-dots i {
+		width: 4px;
+		height: 4px;
+		border-radius: 50%;
+		background: var(--ink-faint);
+		animation: typing-bounce 1.2s infinite ease-in-out;
+	}
+
+	.typing-dots i:nth-child(2) {
+		animation-delay: 0.15s;
+	}
+
+	.typing-dots i:nth-child(3) {
+		animation-delay: 0.3s;
+	}
+
+	@keyframes typing-bounce {
+		0%,
+		60%,
+		100% {
+			transform: translateY(0);
+			opacity: 0.5;
+		}
+		30% {
+			transform: translateY(-3px);
+			opacity: 1;
+		}
 	}
 
 	.attach,
