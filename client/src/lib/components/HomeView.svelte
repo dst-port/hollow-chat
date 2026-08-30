@@ -37,7 +37,24 @@
 	let rawFriends = $state<api.ApiFriend[]>([]);
 	let requests = $state<api.ApiFriendRequest[]>([]);
 	let dmChannels = $state<api.ApiDmChannel[]>([]);
-	let activeDmId = $state<string | null>(null);
+	const LAST_DM_KEY = "hollowchat.lastDm";
+	let activeDmId = $state<string | null>(
+		(() => {
+			try {
+				return localStorage.getItem(LAST_DM_KEY);
+			} catch {
+				return null;
+			}
+		})()
+	);
+	$effect(() => {
+		try {
+			if (activeDmId) localStorage.setItem(LAST_DM_KEY, activeDmId);
+			else localStorage.removeItem(LAST_DM_KEY);
+		} catch {
+			/* storage unavailable */
+		}
+	});
 	let mobileDetailOpen = $state(false);
 	let groupModalOpen = $state(false);
 	let showDmProfile = $state(false);

@@ -552,6 +552,15 @@
 		}
 	}
 
+	/* the "calling…" pulse is functional feedback, keep it even with
+	   reduce-motion (the global rule in app.css otherwise kills it) */
+	@media (prefers-reduced-motion: reduce) {
+		.wave {
+			animation-duration: 2.6s !important;
+			animation-iteration-count: infinite !important;
+		}
+	}
+
 	.ring-name {
 		position: absolute;
 		top: calc(100% + 10px);

@@ -54,6 +54,26 @@
 		)?.id;
 	}
 
+	// Remember where the user last was so a reload doesn't dump them into
+	// the first server. { serverId, channelId } for a server, null for DMs/home.
+	const LAST_VIEW_KEY = "hollowchat.lastView";
+	function readLastView(): { serverId: string; channelId: string | null } | null {
+		try {
+			const raw = localStorage.getItem(LAST_VIEW_KEY);
+			return raw ? JSON.parse(raw) : null;
+		} catch {
+			return null;
+		}
+	}
+	function writeLastView(v: { serverId: string; channelId: string | null } | null) {
+		try {
+			if (v) localStorage.setItem(LAST_VIEW_KEY, JSON.stringify(v));
+			else localStorage.removeItem(LAST_VIEW_KEY);
+		} catch {
+			/* storage unavailable */
+		}
+	}
+
 	let serverList = $state<ServerEntry[]>([]);
 	let loaded = $state(false);
 	let activeServerId = $state<string | null>(null);
@@ -70,11 +90,20 @@
 			.listServers(token)
 			.then((servers) => {
 				serverList = servers.map(toServerEntry);
-				loaded = true;
-				if (serverList.length > 0) {
+				const last = readLastView();
+				const lastServer = last && serverList.find((s) => s.id === last.serverId);
+				if (lastServer) {
+					activeServerId = lastServer.id;
+					activeChannelId =
+						lastServer.channels.find((c) => c.id === last!.channelId)?.id ??
+						defaultChannelId(lastServer) ??
+						null;
+				} else if (last === null && serverList.length > 0) {
+					// no saved view at all → first server; a saved DM/home view leaves us here
 					activeServerId = serverList[0].id;
 					activeChannelId = defaultChannelId(serverList[0]) ?? null;
 				}
+				loaded = true;
 			})
 			.catch(() => {
 				loaded = true;
@@ -130,6 +159,11 @@
 
 	$effect(() => {
 		if (pendingDm.username && activeServerId !== null) activeServerId = null;
+	});
+
+	$effect(() => {
+		if (!loaded) return;
+		writeLastView(activeServerId ? { serverId: activeServerId, channelId: activeChannelId } : null);
 	});
 
 	function selectChannel(id: string) {
