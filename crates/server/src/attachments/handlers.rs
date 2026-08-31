@@ -1,10 +1,10 @@
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State};
-use axum::http::header;
+use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use uuid::Uuid;
 
 use crate::attachments::bunny;
@@ -135,9 +135,42 @@ struct AttachmentRow {
     on_cdn: bool,
 }
 
+/// Parse a single-range `Range: bytes=start-end` header against a known total.
+/// Returns the inclusive byte range, or None for "no/!bytes/multi-range" (serve
+/// whole), or Err for an unsatisfiable range.
+fn parse_range(headers: &HeaderMap, total: u64) -> Result<Option<(u64, u64)>, ()> {
+    let Some(raw) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) else {
+        return Ok(None);
+    };
+    let Some(spec) = raw.strip_prefix("bytes=") else {
+        return Ok(None);
+    };
+    if spec.contains(',') {
+        return Ok(None); // multi-range: not worth it, send the whole file
+    }
+    let (a, b) = spec.split_once('-').ok_or(())?;
+    let (start, end) = match (a.trim(), b.trim()) {
+        ("", "") => return Err(()),
+        ("", suffix) => {
+            let n: u64 = suffix.parse().map_err(|_| ())?;
+            (total.saturating_sub(n), total.saturating_sub(1))
+        }
+        (s, "") => (s.parse().map_err(|_| ())?, total.saturating_sub(1)),
+        (s, e) => (
+            s.parse().map_err(|_| ())?,
+            e.parse::<u64>().map_err(|_| ())?.min(total.saturating_sub(1)),
+        ),
+    };
+    if total == 0 || start > end || start >= total {
+        return Err(());
+    }
+    Ok(Some((start, end)))
+}
+
 pub async fn download(
     State(state): State<AppState>,
     session: AuthSession,
+    headers: HeaderMap,
     Path((id, _filename)): Path<(Uuid, String)>,
 ) -> Result<Response, AppError> {
     let attachment: Option<AttachmentRow> = sqlx::query_as(
@@ -186,13 +219,32 @@ pub async fn download(
     }
 
     let path = std::path::Path::new(state.attachments_dir.as_ref()).join(&attachment.storage_key);
-    let file = tokio::fs::File::open(&path)
+    let mut file = tokio::fs::File::open(&path)
         .await
         .map_err(|_| AppError::AttachmentNotFound)?;
-    let stream = tokio_util::io::ReaderStream::new(file);
-    let body = Body::from_stream(stream);
+    let total = file
+        .metadata()
+        .await
+        .map_err(|_| AppError::AttachmentNotFound)?
+        .len();
 
-    let disposition_kind = if attachment.mime_type.starts_with("image/") {
+    // Media elements (<video>/<audio>) issue Range requests and refetch the
+    // whole file when the server ignores them - honour a single byte range.
+    let range = parse_range(&headers, total);
+    if range == Err(()) {
+        return Ok(Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header(header::CONTENT_RANGE, format!("bytes */{total}"))
+            .body(Body::empty())
+            .unwrap());
+    }
+
+    // Inline-render anything the browser can display in place; only real
+    // downloads (docs, archives) get "attachment".
+    let disposition_kind = if attachment.mime_type.starts_with("image/")
+        || attachment.mime_type.starts_with("video/")
+        || attachment.mime_type.starts_with("audio/")
+    {
         "inline"
     } else {
         "attachment"
@@ -202,10 +254,34 @@ pub async fn download(
         attachment.filename.replace('"', "")
     );
 
-    Ok(Response::builder()
+    let mut builder = Response::builder()
         .header(header::CONTENT_TYPE, attachment.mime_type)
         .header(header::CONTENT_DISPOSITION, disposition)
         .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
-        .body(body)
-        .unwrap())
+        .header(header::ACCEPT_RANGES, "bytes");
+
+    let (status, body) = match range {
+        Ok(Some((start, end))) => {
+            let len = end - start + 1;
+            file.seek(std::io::SeekFrom::Start(start))
+                .await
+                .map_err(|_| AppError::AttachmentNotFound)?;
+            builder = builder
+                .header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{total}"))
+                .header(header::CONTENT_LENGTH, len);
+            (
+                StatusCode::PARTIAL_CONTENT,
+                Body::from_stream(tokio_util::io::ReaderStream::new(file.take(len))),
+            )
+        }
+        _ => {
+            builder = builder.header(header::CONTENT_LENGTH, total);
+            (
+                StatusCode::OK,
+                Body::from_stream(tokio_util::io::ReaderStream::new(file)),
+            )
+        }
+    };
+
+    Ok(builder.status(status).body(body).unwrap())
 }

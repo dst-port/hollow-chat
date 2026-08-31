@@ -32,6 +32,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { deviceLink } from "$lib/devicelink/link.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { isVideoMedia } from "$lib/utils/media";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { themeStore, COLOR_GROUPS, COLOR_LABELS, THEME_PRESETS } from "$lib/stores/theme.svelte";
 	import { fontStore, FONT_STACKS, FONT_LABELS, PRESET_FONT_IDS, type FontId } from "$lib/stores/font.svelte";
@@ -812,25 +813,32 @@
 		<div class="content">
 			{#if section === "profile"}
 				{@const ownBadges = badgeStore.forUser(username)}
+				{@const ownProf = profileStore.forUser(username)}
+				{@const pAvatarSrc = ownProf?.avatar_url ? api.resolveUrl(ownProf.avatar_url, session.token) : ""}
+				{@const pBannerSrc = ownProf?.banner_url ? api.resolveUrl(ownProf.banner_url, session.token) : ""}
+				{@const pAvatarVideo = isVideoMedia(ownProf?.avatar_url)}
+				{@const pBannerVideo = isVideoMedia(ownProf?.banner_url)}
 				<h2>{t("settings.nav.profile")}</h2>
 
 				<div class="card no-pad" in:fade={{ duration: 140 }}>
 					<div
 						class="preview-banner"
-						style:background={profileStore.forUser(username)?.banner_url
-							? `url(${api.resolveUrl(profileStore.forUser(username)!.banner_url!, session.token)}) center/cover`
-							: bannerColorDraft}
-					></div>
+						style:background={pBannerVideo ? "#000" : pBannerSrc ? `url(${pBannerSrc}) center/cover` : bannerColorDraft}
+					>
+						{#if pBannerVideo}<video class="banner-media" src={pBannerSrc} autoplay loop muted playsinline></video>{/if}
+					</div>
 					<div class="preview-body">
 						<div class="preview-avatar-row">
 							<div
 								class="preview-avatar"
-								style:background-image={profileStore.forUser(username)?.avatar_url ? `url(${api.resolveUrl(profileStore.forUser(username)!.avatar_url!, session.token)})` : undefined}
+								style:background-image={pAvatarSrc && !pAvatarVideo ? `url(${pAvatarSrc})` : undefined}
 							>
-								{#if !profileStore.forUser(username)?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+								{#if pAvatarSrc && pAvatarVideo}
+									<video class="avatar-media" src={pAvatarSrc} autoplay loop muted playsinline></video>
+								{:else if !pAvatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 							</div>
 							<div class="preview-image-actions">
-								<input bind:this={avatarInput} type="file" accept="image/*" hidden onchange={onAvatarChosen} />
+								<input bind:this={avatarInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onAvatarChosen} />
 								<button class="ghost small" onclick={() => avatarInput?.click()} disabled={avatarUploading}>
 									<ImagePlus size={13} strokeWidth={2} />
 									{avatarUploading ? "Uploading…" : "Change Avatar"}
@@ -850,7 +858,7 @@
 						{#if statusTextDraft}<p class="preview-status">{statusTextDraft}</p>{/if}
 
 						<div class="preview-image-actions" style="margin-top: 10px;">
-							<input bind:this={bannerInput} type="file" accept="image/*" hidden onchange={onBannerChosen} />
+							<input bind:this={bannerInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onBannerChosen} />
 							<button class="ghost small" onclick={() => bannerInput?.click()} disabled={bannerUploading}>
 								<ImagePlus size={13} strokeWidth={2} />
 								{bannerUploading ? "Uploading…" : "Change Banner"}
@@ -2813,6 +2821,8 @@
 	}
 
 	.preview-banner {
+		position: relative;
+		overflow: hidden;
 		height: 80px;
 		background: var(--accent-soft);
 	}
@@ -2829,6 +2839,8 @@
 	}
 
 	.preview-avatar {
+		position: relative;
+		overflow: hidden;
 		width: 68px;
 		height: 68px;
 		border-radius: 50%;

@@ -10,6 +10,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { isVideoMedia } from "$lib/utils/media";
 	import Badges from "$lib/components/Badges.svelte";
 	import ActivityCard from "$lib/components/ActivityCard.svelte";
 	import StatusModal from "$lib/components/StatusModal.svelte";
@@ -32,6 +33,10 @@
 	});
 
 	const profile = $derived(profileStore.forUser(username));
+	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
+	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));
+	const avatarSrc = $derived(profile?.avatar_url ? api.resolveUrl(profile.avatar_url, session.token) : "");
+	const bannerSrc = $derived(profile?.banner_url ? api.resolveUrl(profile.banner_url, session.token) : "");
 	const themeBg = $derived(
 		`linear-gradient(180deg, color-mix(in srgb, ${profile?.banner_color || profile?.accent_color || "#5865f2"} 22%, var(--panel)), color-mix(in srgb, ${profile?.banner_gradient_end || profile?.accent_color || "#5865f2"} 22%, var(--panel)))`
 	);
@@ -133,14 +138,20 @@
 >
 	<div
 		class="banner"
-		style:background={api.bannerBackground(profile, session.token)}
-	></div>
+		style:background={bannerIsVideo ? "#000" : api.bannerBackground(profile, session.token)}
+	>
+		{#if bannerIsVideo}
+			<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+		{/if}
+	</div>
 	<div class="avatar-row status-avatar">
 		<div
 			class="avatar {profile?.presence ?? 'online'}"
-			style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+			style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 		>
-			{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+			{#if avatarSrc && avatarIsVideo}
+				<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+			{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 		</div>
 		{#if profile?.status_text}
 			<div class="status-bubble" transition:fly={{ y: 4, duration: 140 }}>
@@ -270,6 +281,8 @@
 	}
 
 	.banner {
+		position: relative;
+		overflow: hidden;
 		height: 100px;
 		background: var(--active);
 	}
@@ -326,6 +339,8 @@
 	}
 
 	.avatar {
+		position: relative;
+		overflow: hidden;
 		width: 80px;
 		height: 80px;
 		border: 3px solid var(--ink-faint);

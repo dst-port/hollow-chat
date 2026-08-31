@@ -7,6 +7,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { isVideoMedia } from "$lib/utils/media";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
@@ -17,6 +18,10 @@
 	} = $props();
 
 	const profile = $derived(profileStore.forUser(username));
+	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
+	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));
+	const avatarSrc = $derived(profile?.avatar_url ? api.resolveUrl(profile.avatar_url, session.token) : "");
+	const bannerSrc = $derived(profile?.banner_url ? api.resolveUrl(profile.banner_url, session.token) : "");
 
 	const CLEAR_OPTIONS = $derived([
 		{ label: t("status.clear.never"), minutes: 0 },
@@ -69,10 +74,14 @@
 
 <Modal title={t("status.title")} {onClose} width={520}>
 	<div class="preview">
-		<div class="preview-banner" style:background={api.bannerBackground(profile, session.token)}></div>
+		<div class="preview-banner" style:background={bannerIsVideo ? "#000" : api.bannerBackground(profile, session.token)}>
+			{#if bannerIsVideo}<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>{/if}
+		</div>
 		<div class="preview-avatar-row">
-			<div class="preview-avatar" style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}>
-				{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+			<div class="preview-avatar" style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}>
+				{#if avatarSrc && avatarIsVideo}
+					<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+				{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 			</div>
 			{#if statusDraft.trim()}
 				<div class="preview-bubble">{statusDraft}</div>
@@ -136,6 +145,8 @@
 	}
 
 	.preview-banner {
+		position: relative;
+		overflow: hidden;
 		height: 80px;
 		background: var(--active);
 	}
@@ -147,6 +158,8 @@
 	}
 
 	.preview-avatar {
+		position: relative;
+		overflow: hidden;
 		width: 64px;
 		height: 64px;
 		border-radius: 50%;
