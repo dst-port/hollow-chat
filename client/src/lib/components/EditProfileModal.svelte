@@ -3,7 +3,6 @@
 	import X from "@lucide/svelte/icons/x";
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import Plus from "@lucide/svelte/icons/plus";
-	import Settings2 from "@lucide/svelte/icons/settings-2";
 	import MessageSquare from "@lucide/svelte/icons/message-square";
 	import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 	import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
@@ -52,8 +51,6 @@
 	let bannerInput: HTMLInputElement | undefined;
 	let avatarUploading = $state(false);
 	let bannerUploading = $state(false);
-	let styleOpen = $state(false);
-	let colorWayOpen = $state(false);
 	let accentDraft = $state("#5b96c9");
 	let bannerColorDraft = $state("#5865f2");
 	let bannerGradientEndDraft = $state("#1c1815");
@@ -469,6 +466,20 @@
 		</section>
 
 		<section class="section">
+			<p class="section-label">{t("profile.edit.displayNameColor")}</p>
+			<div class="color-field">
+				<div
+					class="nameplate-preview-text"
+					style:color={accentDraft}
+					style:font-family={nameFontStack(nameFontDraft)}
+				>
+					{profile?.display_name || username}
+				</div>
+				<ColorPicker bind:value={accentDraft} />
+			</div>
+		</section>
+
+		<section class="section">
 			<p class="section-label">{t("profile.edit.avatarBanner")}</p>
 			<div class="slot-row">
 				<button class="slot" onclick={() => avatarInput?.click()} disabled={avatarUploading} title={t("profile.edit.changeAvatar")}>
@@ -482,45 +493,6 @@
 					</div>
 				</button>
 				<input bind:this={avatarInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onAvatarChosen} />
-			</div>
-		</section>
-
-		<section class="section">
-			<div class="section-header-row">
-				<p class="section-label">{t("profile.edit.displayNameColor")}</p>
-				<button class="icon-btn" onclick={() => (styleOpen = !styleOpen)} title={t("profile.edit.nameColor")}>
-					<Settings2 size={13} strokeWidth={2} />
-				</button>
-			</div>
-			<div class="nameplate-preview-text" style:color={accentDraft}>
-				{profile?.display_name || username}
-			</div>
-			{#if styleOpen}
-				<div class="style-popover">
-					<ColorPicker bind:value={accentDraft} />
-				</div>
-			{/if}
-		</section>
-
-		<section class="section">
-			<div class="section-header-row">
-				<p class="section-label">{t("profile.edit.profileColors")}</p>
-				<button class="icon-btn" onclick={() => (colorWayOpen = !colorWayOpen)} title={t("profile.edit.colorWay")}>
-					<Settings2 size={13} strokeWidth={2} />
-				</button>
-			</div>
-			<div class="slot-row big">
-				<button
-					class="slot theme-slot active"
-					onclick={() => (colorWayOpen = !colorWayOpen)}
-					title={t("profile.edit.colorWay")}
-					style:background={`linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
-				>
-					<span class="theme-swatches">
-						<span class="theme-swatch" style:background={bannerColorDraft}></span>
-						<span class="theme-swatch" style:background={bannerGradientEndDraft}></span>
-					</span>
-				</button>
 				<button
 					class="slot"
 					onclick={() => bannerInput?.click()}
@@ -533,19 +505,25 @@
 					{#if bannerSrc && bannerIsVideo}
 						<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 					{:else if !bannerSrc}
-						<Plus size={18} strokeWidth={2.5} />
+						<Plus size={16} strokeWidth={2.5} />
 					{/if}
 				</button>
 				<input bind:this={bannerInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onBannerChosen} />
 			</div>
-			{#if colorWayOpen}
-				<div class="style-popover">
-					<p class="color-way-label">{t("profile.edit.colorWayStart")}</p>
+		</section>
+
+		<section class="section">
+			<p class="section-label">{t("profile.edit.profileColors")}</p>
+			<div class="color-field">
+				<div
+					class="theme-preview"
+					style:background={`linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+				></div>
+				<div class="theme-pickers">
 					<ColorPicker bind:value={bannerColorDraft} />
-					<p class="color-way-label">{t("profile.edit.colorWayEnd")}</p>
 					<ColorPicker bind:value={bannerGradientEndDraft} />
 				</div>
-			{/if}
+			</div>
 		</section>
 	</div>
 
@@ -921,29 +899,11 @@
 		gap: var(--gap-tight);
 	}
 
-	.section-header-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-
 	.section-label {
 		margin: 0;
 		font-size: 13px;
 		font-weight: 700;
 		color: var(--ink-faint);
-	}
-
-	.icon-btn {
-		padding: 3px;
-		border-radius: var(--radius-sm);
-		color: var(--ink-faint);
-		transition: background-color 0.15s ease, color 0.15s ease;
-	}
-
-	.icon-btn:hover {
-		background: var(--hover);
-		color: var(--ink);
 	}
 
 	.slot-row {
@@ -955,40 +915,25 @@
 		margin-top: 8px;
 	}
 
-	.slot-row.big {
-		gap: 8px;
-	}
-
-	.slot-row.big .slot {
-		flex: 1;
-		width: auto;
-		height: 96px;
-	}
-
-	.theme-swatches {
+	.color-field {
 		display: flex;
-		gap: 6px;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		margin-top: 8px;
 	}
 
-	.theme-swatch {
-		width: 22px;
-		height: 22px;
-		border-radius: 6px;
-		border: 2px solid var(--ink);
-		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+	.theme-preview {
+		flex: 1;
+		height: 32px;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--hairline);
 	}
 
-	.color-way-label {
-		margin: 0 0 4px;
-		font-size: 11px;
-		font-weight: 700;
-		color: var(--ink-faint);
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-	}
-
-	.color-way-label:not(:first-child) {
-		margin-top: 10px;
+	.theme-pickers {
+		display: flex;
+		gap: 8px;
+		flex-shrink: 0;
 	}
 
 	.slot {
@@ -1033,22 +978,10 @@
 		font-size: 14px;
 	}
 
-	.theme-slot {
-		border: 2px solid transparent;
-	}
-
-	.theme-slot.active {
-		border-color: var(--ink);
-	}
-
 	.nameplate-preview-text {
 		font-family: var(--font-mono);
 		font-weight: 700;
 		font-size: 16px;
-	}
-
-	.style-popover {
-		margin-top: 4px;
 	}
 
 	.col-center {
