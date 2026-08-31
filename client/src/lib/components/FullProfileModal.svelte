@@ -364,7 +364,7 @@
 
 <style>
 	.overlay {
-		position: absolute;
+		position: fixed;
 		inset: 0;
 		z-index: 300;
 		display: flex;
