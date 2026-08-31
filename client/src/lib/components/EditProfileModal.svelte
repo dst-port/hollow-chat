@@ -61,6 +61,12 @@
 	let nameFontDraft = $state("default");
 	let initialized = false;
 
+	// The two "Profile Colors" tint the whole preview card (like Discord),
+	// independent of the banner strip - track the drafts so it updates live.
+	const previewThemeBg = $derived(
+		`linear-gradient(180deg, color-mix(in srgb, ${bannerColorDraft || accentDraft} 26%, var(--sidebar)), color-mix(in srgb, ${bannerGradientEndDraft || accentDraft} 26%, var(--sidebar)))`
+	);
+
 	$effect(() => {
 		const p = profile;
 		if (!p || initialized) return;
@@ -534,7 +540,7 @@
 		</section>
 	</div>
 
-	<div class="col-center">
+	<div class="col-center" style:background={previewThemeBg}>
 		<div
 			class="preview-banner"
 			style:background={bannerSrc && !bannerIsVideo
@@ -686,7 +692,7 @@
 		</div>
 	</div>
 
-	<div class="col-right">
+	<div class="col-right" style:background={previewThemeBg}>
 		<div class="tabs">
 			<button class="tab" class:active={boardTab === "board"} onclick={() => (boardTab = "board")}>{t("profile.full.tabBoard")}</button>
 			<button class="tab" class:active={boardTab === "activity"} onclick={() => (boardTab = "activity")}>{t("profile.full.tabActivity")}</button>

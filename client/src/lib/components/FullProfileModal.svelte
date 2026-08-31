@@ -305,7 +305,7 @@
 		</div>
 	</div>
 
-	<div class="col-right">
+	<div class="col-right" style:background={themeBg}>
 		<div class="tabs">
 			<button class="tab" class:active={boardTab === "board"} onclick={() => (boardTab = "board")}>{t("profile.full.tabBoard")}</button>
 			<button class="tab" class:active={boardTab === "activity"} onclick={() => (boardTab = "activity")}>{t("profile.full.tabActivity")}</button>

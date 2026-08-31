@@ -26,6 +26,11 @@
 	const badges = $derived(badgeStore.forUser(username));
 	const presence = $derived(profile?.presence ?? "online");
 	const accent = $derived(profile?.accent_color || "#5865f2");
+	// Discord-style: the two profile colors tint the whole panel, separate
+	// from whatever the banner strip shows.
+	const themeBg = $derived(
+		`linear-gradient(180deg, color-mix(in srgb, ${profile?.banner_color || accent} 22%, var(--panel)), color-mix(in srgb, ${profile?.banner_gradient_end || accent} 22%, var(--panel)))`
+	);
 	const displayName = $derived(profile?.display_name || username);
 	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
 	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));
@@ -48,7 +53,7 @@
 	});
 </script>
 
-<aside class="panel">
+<aside class="panel" style:background={themeBg}>
 	<div class="banner" style:background={api.bannerBackground(profile, session.token)}>
 		{#if bannerIsVideo}
 			<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
