@@ -548,7 +548,11 @@
 					{/if}
 				</div>
 
-				<p class="preview-name" style:color={accentDraft}>
+				<p
+					class="preview-name"
+					style:color={accentDraft}
+					style:font-family={nameFontStack(nameFontDraft)}
+				>
 					{profile?.display_name || username}
 				</p>
 				<p class="preview-handle">
