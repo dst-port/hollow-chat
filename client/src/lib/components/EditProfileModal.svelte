@@ -835,9 +835,9 @@
 	.editor {
 		--radius: 10px;
 		--radius-sm: 6px;
-		--gap-section: 26px;
-		--gap-tight: 10px;
-		--sidebar-w: 208px;
+		--gap-section: 34px;
+		--gap-tight: 12px;
+		--sidebar-w: 248px;
 
 		position: relative;
 		width: min(1060px, 100%);
@@ -872,7 +872,7 @@
 		min-width: 0;
 		background: var(--rail);
 		border-right: 1px solid var(--hairline);
-		padding: 28px 20px;
+		padding: 34px 24px;
 		overflow-y: auto;
 		display: flex;
 		flex-direction: column;
@@ -898,9 +898,11 @@
 	}
 
 	.section-label {
-		margin: 0;
-		font-size: 13px;
+		margin: 0 0 2px;
+		font-size: 12px;
 		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
 		color: var(--ink-faint);
 	}
 
@@ -923,13 +925,19 @@
 
 	.theme-pickers {
 		display: flex;
-		gap: 8px;
+		gap: 10px;
 		margin-top: 8px;
 	}
 
-	.slot {
+	.color-field :global(.picker .swatch),
+	.theme-pickers :global(.picker .swatch) {
 		width: 56px;
-		height: 56px;
+		height: 40px;
+	}
+
+	.slot {
+		width: 76px;
+		height: 76px;
 		border-radius: var(--radius);
 		background: var(--panel);
 		border: 1px solid var(--hairline);
@@ -972,7 +980,8 @@
 	.nameplate-preview-text {
 		font-family: var(--font-mono);
 		font-weight: 700;
-		font-size: 16px;
+		font-size: 20px;
+		padding: 4px 0;
 	}
 
 	.col-center {
