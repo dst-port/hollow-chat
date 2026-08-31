@@ -11,6 +11,7 @@
 	import { clickOutside } from "$lib/actions/clickOutside";
 	import { session } from "$lib/stores/session.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
+	import { isVideoMedia } from "$lib/utils/media";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import * as api from "$lib/api/client";
 	import { t } from "$lib/i18n/index.svelte";
@@ -44,6 +45,10 @@
 	);
 	const displayName = $derived(profile?.display_name || member.name);
 	const isSelf = $derived(member.name === session.username);
+	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
+	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));
+	const avatarSrc = $derived(profile?.avatar_url ? api.resolveUrl(profile.avatar_url, session.token) : "");
+	const bannerSrc = $derived(profile?.banner_url ? api.resolveUrl(profile.banner_url, session.token) : "");
 
 	function computePosition() {
 		const frame = document.querySelector(".window-frame");
@@ -108,15 +113,21 @@
 	style:background={themeBg}
 	transition:fly={{ x: 6, duration: 140 }}
 >
-	<div class="banner" style:background={api.bannerBackground(profile, session.token)}></div>
+	<div class="banner" style:background={bannerIsVideo ? "#000" : api.bannerBackground(profile, session.token)}>
+		{#if bannerIsVideo}
+			<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+		{/if}
+	</div>
 	<div class="header-row">
 		<div class="status-avatar">
 			<div
 				class="avatar avatar-ring on-panel {presence}"
-				style:background={profile?.avatar_url ? undefined : member.color}
-				style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+				style:background={avatarSrc && !avatarIsVideo ? undefined : member.color}
+				style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 			>
-				{#if !profile?.avatar_url}{member.name.slice(0, 2).toUpperCase()}{/if}
+				{#if avatarSrc && avatarIsVideo}
+					<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+				{:else if !avatarSrc}{member.name.slice(0, 2).toUpperCase()}{/if}
 			</div>
 		</div>
 		<div class="header-actions">
@@ -250,6 +261,8 @@
 	}
 
 	.banner {
+		position: relative;
+		overflow: hidden;
 		height: 90px;
 	}
 
@@ -262,6 +275,8 @@
 	}
 
 	.avatar {
+		position: relative;
+		overflow: hidden;
 		width: 80px;
 		height: 80px;
 		border-radius: 50%;

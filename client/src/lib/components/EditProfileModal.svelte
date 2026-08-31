@@ -33,6 +33,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import * as api from "$lib/api/client";
+	import { isVideoMedia } from "$lib/utils/media";
 	import { GAME_CATALOG, coverUrl, type CatalogGame } from "$lib/data/gameCatalog";
 	import { t } from "$lib/i18n/index.svelte";
 
@@ -43,6 +44,10 @@
 
 	const profile = $derived(profileStore.forUser(username));
 	const badges = $derived(badgeStore.forUser(username));
+	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
+	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));
+	const avatarSrc = $derived(profile?.avatar_url ? api.resolveUrl(profile.avatar_url, session.token) : "");
+	const bannerSrc = $derived(profile?.banner_url ? api.resolveUrl(profile.banner_url, session.token) : "");
 
 	let avatarInput: HTMLInputElement | undefined;
 	let bannerInput: HTMLInputElement | undefined;
@@ -464,24 +469,31 @@
 				<button class="slot" onclick={() => avatarInput?.click()} disabled={avatarUploading} title={t("profile.edit.changeAvatar")}>
 					<div
 						class="slot-avatar"
-						style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+						style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 					>
-						{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+						{#if avatarSrc && avatarIsVideo}
+							<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+						{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 					</div>
 				</button>
-				<input bind:this={avatarInput} type="file" accept="image/*" hidden onchange={onAvatarChosen} />
+				<input bind:this={avatarInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onAvatarChosen} />
 				<button
 					class="slot theme-slot active"
 					onclick={() => bannerInput?.click()}
 					disabled={bannerUploading}
 					title={t("profile.edit.changeBanner")}
-					style:background={profile?.banner_url
-						? `url(${api.resolveUrl(profile.banner_url, session.token)}) center/cover`
-						: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+					style:background={bannerSrc && !bannerIsVideo
+						? `url(${bannerSrc}) center/cover`
+						: bannerSrc && bannerIsVideo
+							? "#000"
+							: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
 				>
+					{#if bannerSrc && bannerIsVideo}
+						<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+					{/if}
 					<span class="theme-check"><Check size={11} strokeWidth={3} /></span>
 				</button>
-				<input bind:this={bannerInput} type="file" accept="image/*" hidden onchange={onBannerChosen} />
+				<input bind:this={bannerInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onBannerChosen} />
 			</div>
 		</section>
 
@@ -527,18 +539,26 @@
 	<div class="col-center">
 		<div
 			class="preview-banner"
-			style:background={profile?.banner_url
-				? `url(${api.resolveUrl(profile.banner_url, session.token)}) center/cover`
-				: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
-		></div>
+			style:background={bannerSrc && !bannerIsVideo
+				? `url(${bannerSrc}) center/cover`
+				: bannerSrc && bannerIsVideo
+					? "#000"
+					: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+		>
+			{#if bannerSrc && bannerIsVideo}
+				<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+			{/if}
+		</div>
 		<div class="preview-body">
 			<div class="preview-identity">
 				<div class="preview-top-row">
 					<div
 						class="preview-avatar avatar-ring on-panel {profile?.presence ?? 'online'}"
-						style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+						style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 					>
-						{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+						{#if avatarSrc && avatarIsVideo}
+							<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+						{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 					</div>
 					{#if profile?.status_text}
 						<div class="status-bubble">{profile.status_text}</div>
@@ -977,6 +997,8 @@
 	}
 
 	.slot-avatar {
+		position: relative;
+		overflow: hidden;
 		width: 100%;
 		height: 100%;
 		border-radius: inherit;
@@ -1029,6 +1051,8 @@
 	}
 
 	.preview-banner {
+		position: relative;
+		overflow: hidden;
 		height: 100px;
 		background: var(--panel);
 	}
@@ -1060,6 +1084,8 @@
 	}
 
 	.preview-avatar {
+		position: relative;
+		overflow: hidden;
 		width: 72px;
 		height: 72px;
 		border-radius: 50%;

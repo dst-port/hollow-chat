@@ -79,6 +79,7 @@
 		type LinkPreview
 	} from "$lib/api/client";
 	import { colorForName } from "$lib/utils/color";
+	import { isVideoMedia } from "$lib/utils/media";
 	import { textMentionsUser } from "$lib/utils/mentions";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
@@ -1405,16 +1406,19 @@
 				<div class="message" class:grouped={isGrouped(index)} class:mentioned={message.mentionsMe} in:fly={{ y: 6, duration: 180, delay: index * 20 }}>
 					{#if !isGrouped(index)}
 						{@const authorAvatarUrl = profileStore.forUser(message.author)?.avatar_url}
+						{@const authorAvatarVideo = isVideoMedia(authorAvatarUrl)}
 						<div
 							class="avatar clickable"
-							style:background={authorAvatarUrl ? undefined : colorFor(message.author)}
-							style:background-image={authorAvatarUrl ? `url(${resolveUrl(authorAvatarUrl, session.token)})` : undefined}
+							style:background={authorAvatarUrl && !authorAvatarVideo ? undefined : colorFor(message.author)}
+							style:background-image={authorAvatarUrl && !authorAvatarVideo ? `url(${resolveUrl(authorAvatarUrl, session.token)})` : undefined}
 							onclick={() => openAuthorProfile(message.author)}
 							role="button"
 							tabindex="0"
 							onkeydown={(e) => e.key === "Enter" && openAuthorProfile(message.author)}
 						>
-							{#if !authorAvatarUrl}{message.author.slice(0, 2).toUpperCase()}{/if}
+							{#if authorAvatarUrl && authorAvatarVideo}
+								<video class="avatar-media" src={resolveUrl(authorAvatarUrl, session.token)} autoplay loop muted playsinline></video>
+							{:else if !authorAvatarUrl}{message.author.slice(0, 2).toUpperCase()}{/if}
 						</div>
 					{:else}
 						<div class="avatar-spacer">
@@ -2155,6 +2159,8 @@
 	}
 
 	.avatar {
+		position: relative;
+		overflow: hidden;
 		width: 36px;
 		height: 36px;
 		border-radius: 50%;

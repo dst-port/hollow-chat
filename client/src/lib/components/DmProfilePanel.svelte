@@ -8,6 +8,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { t, tp } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
+	import { isVideoMedia } from "$lib/utils/media";
 
 	let { username, onViewFullProfile }: {
 		username: string;
@@ -26,6 +27,10 @@
 	const presence = $derived(profile?.presence ?? "online");
 	const accent = $derived(profile?.accent_color || "#5865f2");
 	const displayName = $derived(profile?.display_name || username);
+	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
+	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));
+	const avatarSrc = $derived(profile?.avatar_url ? api.resolveUrl(profile.avatar_url, session.token) : "");
+	const bannerSrc = $derived(profile?.banner_url ? api.resolveUrl(profile.banner_url, session.token) : "");
 	const memberSince = $derived(
 		profile?.member_since
 			? new Date(profile.member_since).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
@@ -44,14 +49,20 @@
 </script>
 
 <aside class="panel">
-	<div class="banner" style:background={api.bannerBackground(profile, session.token)}></div>
+	<div class="banner" style:background={bannerIsVideo ? "#000" : api.bannerBackground(profile, session.token)}>
+		{#if bannerIsVideo}
+			<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+		{/if}
+	</div>
 	<div class="body">
 		<div
 			class="avatar avatar-ring on-panel {presence}"
-			style:background={profile?.avatar_url ? undefined : accent}
-			style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+			style:background={avatarSrc && !avatarIsVideo ? undefined : accent}
+			style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 		>
-			{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+			{#if avatarSrc && avatarIsVideo}
+				<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+			{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 		</div>
 
 		<p class="name" style:color={accent}>{displayName}</p>
@@ -122,6 +133,8 @@
 	}
 
 	.banner {
+		position: relative;
+		overflow: hidden;
 		height: 60px;
 		flex-shrink: 0;
 		background: var(--panel);
@@ -136,6 +149,8 @@
 	}
 
 	.avatar {
+		position: relative;
+		overflow: hidden;
 		width: 56px;
 		height: 56px;
 		border-radius: 50%;

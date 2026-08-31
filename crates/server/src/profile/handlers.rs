@@ -604,7 +604,13 @@ async fn owned_image_attachment(
             .await?;
 
     match row {
-        Some((mime,)) if mime.starts_with("image/") => Ok(()),
+        // Animated avatars/banners: an image, or a short mp4/webm the client
+        // renders as an autoplaying loop.
+        Some((mime,))
+            if mime.starts_with("image/") || mime == "video/mp4" || mime == "video/webm" =>
+        {
+            Ok(())
+        }
         _ => Err(AppError::InvalidAttachment),
     }
 }

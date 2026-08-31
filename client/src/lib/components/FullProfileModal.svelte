@@ -21,6 +21,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import * as api from "$lib/api/client";
+	import { isVideoMedia } from "$lib/utils/media";
 	import { t, tp } from "$lib/i18n/index.svelte";
 	import { nameFontStack } from "$lib/stores/font.svelte";
 	import type { Member } from "$lib/data/mock";
@@ -54,6 +55,10 @@
 		`linear-gradient(180deg, color-mix(in srgb, ${themeStart} 26%, var(--sidebar)), color-mix(in srgb, ${themeEnd} 26%, var(--sidebar)))`
 	);
 	const displayName = $derived(profile?.display_name || username);
+	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
+	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));
+	const avatarSrc = $derived(profile?.avatar_url ? api.resolveUrl(profile.avatar_url, session.token) : "");
+	const bannerSrc = $derived(profile?.banner_url ? api.resolveUrl(profile.banner_url, session.token) : "");
 	const bioLines = $derived((profile?.bio ?? "").split("\n").filter((line) => line.trim().length > 0));
 	const memberSince = $derived(
 		profile?.member_since
@@ -170,15 +175,21 @@
 	</button>
 
 	<div class="col-main" style:background={themeBg}>
-		<div class="banner" style:background={api.bannerBackground(profile, session.token)}></div>
+		<div class="banner" style:background={bannerIsVideo ? "#000" : api.bannerBackground(profile, session.token)}>
+			{#if bannerIsVideo}
+				<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+			{/if}
+		</div>
 		<div class="body">
 			<div class="top-row">
 				<div
 					class="avatar avatar-ring on-panel {profile?.presence ?? 'online'}"
-					style:background={profile?.avatar_url ? undefined : member?.color}
-					style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+					style:background={avatarSrc && !avatarIsVideo ? undefined : member?.color}
+					style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 				>
-					{#if !profile?.avatar_url}{username.slice(0, 2).toUpperCase()}{/if}
+					{#if avatarSrc && avatarIsVideo}
+						<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+					{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 				</div>
 
 				{#if !isSelf}
@@ -407,6 +418,8 @@
 	}
 
 	.banner {
+		position: relative;
+		overflow: hidden;
 		height: 90px;
 		background: var(--panel);
 	}
@@ -427,6 +440,8 @@
 	}
 
 	.avatar {
+		position: relative;
+		overflow: hidden;
 		width: 64px;
 		height: 64px;
 		border-radius: 50%;

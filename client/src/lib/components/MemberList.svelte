@@ -6,6 +6,7 @@
 	import { t } from "$lib/i18n/index.svelte";
 	import { nameFontStack } from "$lib/stores/font.svelte";
 	import * as api from "$lib/api/client";
+	import { isVideoMedia } from "$lib/utils/media";
 	import type { Member } from "$lib/data/mock";
 
 	let { members, serverName, onMessage }: {
@@ -55,15 +56,18 @@
 		{#each group.members as member (member.id)}
 			{@const profile = profileStore.forUser(member.name)}
 			{@const presence = presenceOf(member)}
+			{@const avatarVideo = isVideoMedia(profile?.avatar_url)}
 			<div class="anchor">
 				<button class="member" class:offline={presence === "invisible"} onclick={(e) => toggle(member.id, e)}>
 					<div class="status-avatar">
 						<div
 							class="avatar avatar-ring on-panel {presence}"
-							style:background={profile?.avatar_url ? undefined : member.color}
-							style:background-image={profile?.avatar_url ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
+							style:background={profile?.avatar_url && !avatarVideo ? undefined : member.color}
+							style:background-image={profile?.avatar_url && !avatarVideo ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
 						>
-							{#if !profile?.avatar_url}{member.name.slice(0, 2).toUpperCase()}{/if}
+							{#if profile?.avatar_url && avatarVideo}
+								<video class="avatar-media" src={api.resolveUrl(profile.avatar_url, session.token)} autoplay loop muted playsinline></video>
+							{:else if !profile?.avatar_url}{member.name.slice(0, 2).toUpperCase()}{/if}
 						</div>
 					</div>
 					<div class="identity">
@@ -151,6 +155,8 @@
 	}
 
 	.avatar {
+		position: relative;
+		overflow: hidden;
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;

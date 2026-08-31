@@ -110,6 +110,20 @@ body {
 	box-shadow: 0 0 0 1px var(--ring-gap), 0 0 0 3px var(--ink-faint);
 }
 
+/* Animated avatar/banner: an autoplaying muted loop that fills its (round or
+   rectangular) container. The container needs position:relative + overflow:
+   hidden - added alongside each use. */
+.avatar-media,
+.banner-media {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
 .avatar-ring.online {
 	box-shadow: 0 0 0 1px var(--ring-gap), 0 0 0 3px var(--online);
 }
