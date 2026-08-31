@@ -84,6 +84,22 @@ export function bannerBackground(
 	return `linear-gradient(135deg, ${start}, ${end})`;
 }
 
+// Discord-style profile theme: the two "Profile Colors" tint the whole card,
+// as a layer distinct from the banner. Kept over --panel (not blended toward
+// black) with a soft top sheen, so even an all-black pick reads as a dark
+// themed panel with depth rather than a flat void darker than the app chrome.
+export function profileTheme(
+	start: string | null | undefined,
+	end: string | null | undefined
+): string {
+	const a = start || "#5865f2";
+	const b = end || start || "#5865f2";
+	return (
+		"linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.012) 42%, rgba(255,255,255,0) 68%)," +
+		`linear-gradient(180deg, color-mix(in srgb, ${a} 24%, var(--panel)), color-mix(in srgb, ${b} 24%, var(--panel)))`
+	);
+}
+
 export async function uploadFile(token: string, file: File): Promise<ApiAttachment> {
 	const form = new FormData();
 	form.append("file", file, file.name);

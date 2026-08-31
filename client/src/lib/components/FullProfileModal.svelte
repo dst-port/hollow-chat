@@ -47,13 +47,9 @@
 	const badges = $derived(badgeStore.forUser(username));
 	const isSelf = $derived(username === session.username);
 	const accent = $derived(profile?.accent_color || member?.roles?.[0]?.color || member?.color || "#5865f2");
-	// Discord-style profile theme: tint the left column with the two profile
-	// colors, kept low-opacity so text stays legible on any theme.
-	const themeStart = $derived(profile?.banner_color || accent);
-	const themeEnd = $derived(profile?.banner_gradient_end || accent);
-	const themeBg = $derived(
-		`linear-gradient(180deg, color-mix(in srgb, ${themeStart} 26%, var(--sidebar)), color-mix(in srgb, ${themeEnd} 26%, var(--sidebar)))`
-	);
+	// Discord-style profile theme: the two profile colors tint the whole card,
+	// separate from the banner. Legible on any theme, never a black void.
+	const themeBg = $derived(api.profileTheme(profile?.banner_color || accent, profile?.banner_gradient_end || accent));
 	const displayName = $derived(profile?.display_name || username);
 	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
 	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));

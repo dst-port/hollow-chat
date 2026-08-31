@@ -40,9 +40,7 @@
 	const profile = $derived(profileStore.forUser(member.name));
 	const presence = $derived(profile?.presence ?? "online");
 	const accent = $derived(profile?.accent_color || member.roles?.[0]?.color || member.color);
-	const themeBg = $derived(
-		`linear-gradient(180deg, color-mix(in srgb, ${profile?.banner_color || accent || "#5865f2"} 22%, var(--panel)), color-mix(in srgb, ${profile?.banner_gradient_end || accent || "#5865f2"} 22%, var(--panel)))`
-	);
+	const themeBg = $derived(api.profileTheme(profile?.banner_color || accent, profile?.banner_gradient_end || accent));
 	const displayName = $derived(profile?.display_name || member.name);
 	const isSelf = $derived(member.name === session.username);
 	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));

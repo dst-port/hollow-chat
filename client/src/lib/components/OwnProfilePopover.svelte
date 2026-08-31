@@ -38,7 +38,10 @@
 	const avatarSrc = $derived(profile?.avatar_url ? api.resolveUrl(profile.avatar_url, session.token) : "");
 	const bannerSrc = $derived(profile?.banner_url ? api.resolveUrl(profile.banner_url, session.token) : "");
 	const themeBg = $derived(
-		`linear-gradient(180deg, color-mix(in srgb, ${profile?.banner_color || profile?.accent_color || "#5865f2"} 22%, var(--panel)), color-mix(in srgb, ${profile?.banner_gradient_end || profile?.accent_color || "#5865f2"} 22%, var(--panel)))`
+		api.profileTheme(
+			profile?.banner_color || profile?.accent_color,
+			profile?.banner_gradient_end || profile?.accent_color
+		)
 	);
 
 	let statusModalOpen = $state(false);

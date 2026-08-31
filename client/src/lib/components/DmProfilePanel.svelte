@@ -28,9 +28,7 @@
 	const accent = $derived(profile?.accent_color || "#5865f2");
 	// Discord-style: the two profile colors tint the whole panel, separate
 	// from whatever the banner strip shows.
-	const themeBg = $derived(
-		`linear-gradient(180deg, color-mix(in srgb, ${profile?.banner_color || accent} 22%, var(--panel)), color-mix(in srgb, ${profile?.banner_gradient_end || accent} 22%, var(--panel)))`
-	);
+	const themeBg = $derived(api.profileTheme(profile?.banner_color || accent, profile?.banner_gradient_end || accent));
 	const displayName = $derived(profile?.display_name || username);
 	const avatarIsVideo = $derived(isVideoMedia(profile?.avatar_url));
 	const bannerIsVideo = $derived(isVideoMedia(profile?.banner_url));

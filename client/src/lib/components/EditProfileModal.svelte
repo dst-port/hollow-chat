@@ -64,7 +64,7 @@
 	// The two "Profile Colors" tint the whole preview card (like Discord),
 	// independent of the banner strip - track the drafts so it updates live.
 	const previewThemeBg = $derived(
-		`linear-gradient(180deg, color-mix(in srgb, ${bannerColorDraft || accentDraft} 26%, var(--sidebar)), color-mix(in srgb, ${bannerGradientEndDraft || accentDraft} 26%, var(--sidebar)))`
+		api.profileTheme(bannerColorDraft || accentDraft, bannerGradientEndDraft || accentDraft)
 	);
 
 	$effect(() => {
