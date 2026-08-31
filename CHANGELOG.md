@@ -2,6 +2,26 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
+## v1.0.1 — 2026-09-01
+
+### Profiles
+- **Profile theme colours paint the whole card**, as a layer separate from
+  the banner — every profile surface (popovers, the DM panel, the full
+  modal, the editor preview) now shares one gradient. Whatever colours you
+  pick are used verbatim: an all-black theme gives an all-black card.
+- **Animated banners** render behind an accent-gradient fallback instead of
+  a black box while the video loads or if it can't play.
+- **Redesigned profile editor sidebar** — Discord-style sections (Display
+  Name Font, Display Name Color, Avatar / Banner, Profile Colors), a roomier
+  248px column with larger slots and previews, click-a-swatch colour pickers
+  instead of a settings dropdown, and the chosen name font in the preview.
+- The full-profile modal now centres on the viewport.
+
+### Media
+- `/files` honours HTTP range requests, so `<video>`/`<audio>` stream and
+  seek instead of refetching the whole file, and images/media are served
+  inline with a long immutable cache.
+
 ## v0.2.10 — 2026-08-31
 
 ### Profiles
