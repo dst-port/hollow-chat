@@ -3,7 +3,6 @@
 	import X from "@lucide/svelte/icons/x";
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import Plus from "@lucide/svelte/icons/plus";
-	import Check from "@lucide/svelte/icons/check";
 	import Settings2 from "@lucide/svelte/icons/settings-2";
 	import MessageSquare from "@lucide/svelte/icons/message-square";
 	import LayoutGrid from "@lucide/svelte/icons/layout-grid";
@@ -483,21 +482,6 @@
 					</div>
 				</button>
 				<input bind:this={avatarInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onAvatarChosen} />
-				<button
-					class="slot theme-slot active"
-					onclick={() => bannerInput?.click()}
-					disabled={bannerUploading}
-					title={t("profile.edit.changeBanner")}
-					style:background={bannerSrc && !bannerIsVideo
-						? `url(${bannerSrc}) center/cover`
-						: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
-				>
-					{#if bannerSrc && bannerIsVideo}
-						<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
-					{/if}
-					<span class="theme-check"><Check size={11} strokeWidth={3} /></span>
-				</button>
-				<input bind:this={bannerInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onBannerChosen} />
 			</div>
 		</section>
 
@@ -525,9 +509,34 @@
 					<Settings2 size={13} strokeWidth={2} />
 				</button>
 			</div>
-			<div class="color-way-row">
-				<div class="color-way-swatch" style:background={bannerColorDraft}></div>
-				<div class="color-way-swatch" style:background={bannerGradientEndDraft}></div>
+			<div class="slot-row big">
+				<button
+					class="slot theme-slot active"
+					onclick={() => (colorWayOpen = !colorWayOpen)}
+					title={t("profile.edit.colorWay")}
+					style:background={`linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+				>
+					<span class="theme-swatches">
+						<span class="theme-swatch" style:background={bannerColorDraft}></span>
+						<span class="theme-swatch" style:background={bannerGradientEndDraft}></span>
+					</span>
+				</button>
+				<button
+					class="slot"
+					onclick={() => bannerInput?.click()}
+					disabled={bannerUploading}
+					title={t("profile.edit.changeBanner")}
+					style:background={bannerSrc && !bannerIsVideo
+						? `url(${bannerSrc}) center/cover`
+						: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+				>
+					{#if bannerSrc && bannerIsVideo}
+						<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
+					{:else if !bannerSrc}
+						<Plus size={18} strokeWidth={2.5} />
+					{/if}
+				</button>
+				<input bind:this={bannerInput} type="file" accept="image/*,video/mp4,video/webm" hidden onchange={onBannerChosen} />
 			</div>
 			{#if colorWayOpen}
 				<div class="style-popover">
@@ -946,16 +955,27 @@
 		margin-top: 8px;
 	}
 
-	.color-way-row {
-		display: flex;
+	.slot-row.big {
 		gap: 8px;
 	}
 
-	.color-way-swatch {
+	.slot-row.big .slot {
 		flex: 1;
-		height: 32px;
-		border-radius: var(--radius-sm);
-		border: 1px solid var(--hairline);
+		width: auto;
+		height: 96px;
+	}
+
+	.theme-swatches {
+		display: flex;
+		gap: 6px;
+	}
+
+	.theme-swatch {
+		width: 22px;
+		height: 22px;
+		border-radius: 6px;
+		border: 2px solid var(--ink);
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 	}
 
 	.color-way-label {
@@ -1019,20 +1039,6 @@
 
 	.theme-slot.active {
 		border-color: var(--ink);
-	}
-
-	.theme-check {
-		position: absolute;
-		bottom: 4px;
-		right: 4px;
-		width: 16px;
-		height: 16px;
-		border-radius: 50%;
-		background: var(--ink);
-		color: var(--void);
-		display: flex;
-		align-items: center;
-		justify-content: center;
 	}
 
 	.nameplate-preview-text {
