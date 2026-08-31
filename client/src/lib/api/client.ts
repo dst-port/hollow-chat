@@ -1,3 +1,5 @@
+import { isVideoMedia } from "$lib/utils/media";
+
 const BASE_URL = "https://hollowchat.org";
 export const WS_BASE_URL = BASE_URL.replace(/^http/, "ws");
 
@@ -71,7 +73,12 @@ export function bannerBackground(
 		| undefined,
 	token?: string | null
 ): string {
-	if (profile?.banner_url) return `url(${resolveUrl(profile.banner_url, token)}) center/cover`;
+	// An animated banner is painted by a <video> overlay, not as a CSS
+	// background - fall through to the gradient so it shows behind/while the
+	// video loads (or fails) instead of a black box.
+	if (profile?.banner_url && !isVideoMedia(profile.banner_url)) {
+		return `url(${resolveUrl(profile.banner_url, token)}) center/cover`;
+	}
 	const start = profile?.banner_color || profile?.accent_color || "#5865f2";
 	const end = profile?.banner_gradient_end || `color-mix(in srgb, ${start} 45%, black)`;
 	return `linear-gradient(135deg, ${start}, ${end})`;

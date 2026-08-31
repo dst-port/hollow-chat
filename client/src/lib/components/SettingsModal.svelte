@@ -32,7 +32,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { deviceLink } from "$lib/devicelink/link.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
-	import { isVideoMedia } from "$lib/utils/media";
+	import { isVideoMedia, playInline } from "$lib/utils/media";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { themeStore, COLOR_GROUPS, COLOR_LABELS, THEME_PRESETS } from "$lib/stores/theme.svelte";
 	import { fontStore, FONT_STACKS, FONT_LABELS, PRESET_FONT_IDS, type FontId } from "$lib/stores/font.svelte";
@@ -823,9 +823,9 @@
 				<div class="card no-pad" in:fade={{ duration: 140 }}>
 					<div
 						class="preview-banner"
-						style:background={pBannerVideo ? "#000" : pBannerSrc ? `url(${pBannerSrc}) center/cover` : bannerColorDraft}
+						style:background={pBannerSrc && !pBannerVideo ? `url(${pBannerSrc}) center/cover` : bannerColorDraft}
 					>
-						{#if pBannerVideo}<video class="banner-media" src={pBannerSrc} autoplay loop muted playsinline></video>{/if}
+						{#if pBannerVideo}<video class="banner-media" src={pBannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>{/if}
 					</div>
 					<div class="preview-body">
 						<div class="preview-avatar-row">
@@ -834,7 +834,7 @@
 								style:background-image={pAvatarSrc && !pAvatarVideo ? `url(${pAvatarSrc})` : undefined}
 							>
 								{#if pAvatarSrc && pAvatarVideo}
-									<video class="avatar-media" src={pAvatarSrc} autoplay loop muted playsinline></video>
+									<video class="avatar-media" src={pAvatarSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 								{:else if !pAvatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 							</div>
 							<div class="preview-image-actions">

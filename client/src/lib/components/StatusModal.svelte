@@ -7,7 +7,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
-	import { isVideoMedia } from "$lib/utils/media";
+	import { isVideoMedia, playInline } from "$lib/utils/media";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { t } from "$lib/i18n/index.svelte";
 	import * as api from "$lib/api/client";
@@ -74,13 +74,13 @@
 
 <Modal title={t("status.title")} {onClose} width={520}>
 	<div class="preview">
-		<div class="preview-banner" style:background={bannerIsVideo ? "#000" : api.bannerBackground(profile, session.token)}>
-			{#if bannerIsVideo}<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>{/if}
+		<div class="preview-banner" style:background={api.bannerBackground(profile, session.token)}>
+			{#if bannerIsVideo}<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>{/if}
 		</div>
 		<div class="preview-avatar-row">
 			<div class="preview-avatar" style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}>
 				{#if avatarSrc && avatarIsVideo}
-					<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+					<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 				{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 			</div>
 			{#if statusDraft.trim()}

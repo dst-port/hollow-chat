@@ -6,7 +6,7 @@
 	import { t } from "$lib/i18n/index.svelte";
 	import { nameFontStack } from "$lib/stores/font.svelte";
 	import * as api from "$lib/api/client";
-	import { isVideoMedia } from "$lib/utils/media";
+	import { isVideoMedia, playInline } from "$lib/utils/media";
 	import type { Member } from "$lib/data/mock";
 
 	let { members, serverName, onMessage }: {
@@ -66,7 +66,7 @@
 							style:background-image={profile?.avatar_url && !avatarVideo ? `url(${api.resolveUrl(profile.avatar_url, session.token)})` : undefined}
 						>
 							{#if profile?.avatar_url && avatarVideo}
-								<video class="avatar-media" src={api.resolveUrl(profile.avatar_url, session.token)} autoplay loop muted playsinline></video>
+								<video class="avatar-media" src={api.resolveUrl(profile.avatar_url, session.token)} autoplay loop muted playsinline preload="auto" use:playInline></video>
 							{:else if !profile?.avatar_url}{member.name.slice(0, 2).toUpperCase()}{/if}
 						</div>
 					</div>

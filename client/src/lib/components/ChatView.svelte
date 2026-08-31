@@ -79,7 +79,7 @@
 		type LinkPreview
 	} from "$lib/api/client";
 	import { colorForName } from "$lib/utils/color";
-	import { isVideoMedia } from "$lib/utils/media";
+	import { isVideoMedia, playInline } from "$lib/utils/media";
 	import { textMentionsUser } from "$lib/utils/mentions";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
@@ -1417,7 +1417,7 @@
 							onkeydown={(e) => e.key === "Enter" && openAuthorProfile(message.author)}
 						>
 							{#if authorAvatarUrl && authorAvatarVideo}
-								<video class="avatar-media" src={resolveUrl(authorAvatarUrl, session.token)} autoplay loop muted playsinline></video>
+								<video class="avatar-media" src={resolveUrl(authorAvatarUrl, session.token)} autoplay loop muted playsinline preload="auto" use:playInline></video>
 							{:else if !authorAvatarUrl}{message.author.slice(0, 2).toUpperCase()}{/if}
 						</div>
 					{:else}

@@ -10,7 +10,7 @@
 	import { session } from "$lib/stores/session.svelte";
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { profileStore } from "$lib/stores/profile.svelte";
-	import { isVideoMedia } from "$lib/utils/media";
+	import { isVideoMedia, playInline } from "$lib/utils/media";
 	import Badges from "$lib/components/Badges.svelte";
 	import ActivityCard from "$lib/components/ActivityCard.svelte";
 	import StatusModal from "$lib/components/StatusModal.svelte";
@@ -138,10 +138,10 @@
 >
 	<div
 		class="banner"
-		style:background={bannerIsVideo ? "#000" : api.bannerBackground(profile, session.token)}
+		style:background={api.bannerBackground(profile, session.token)}
 	>
 		{#if bannerIsVideo}
-			<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+			<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 		{/if}
 	</div>
 	<div class="avatar-row status-avatar">
@@ -150,7 +150,7 @@
 			style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 		>
 			{#if avatarSrc && avatarIsVideo}
-				<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+				<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 			{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 		</div>
 		{#if profile?.status_text}

@@ -33,7 +33,7 @@
 	import { badgeStore } from "$lib/stores/badges.svelte";
 	import { toast } from "$lib/stores/toast.svelte";
 	import * as api from "$lib/api/client";
-	import { isVideoMedia } from "$lib/utils/media";
+	import { isVideoMedia, playInline } from "$lib/utils/media";
 	import { GAME_CATALOG, coverUrl, type CatalogGame } from "$lib/data/gameCatalog";
 	import { t } from "$lib/i18n/index.svelte";
 
@@ -472,7 +472,7 @@
 						style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 					>
 						{#if avatarSrc && avatarIsVideo}
-							<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+							<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 						{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 					</div>
 				</button>
@@ -484,12 +484,10 @@
 					title={t("profile.edit.changeBanner")}
 					style:background={bannerSrc && !bannerIsVideo
 						? `url(${bannerSrc}) center/cover`
-						: bannerSrc && bannerIsVideo
-							? "#000"
-							: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+						: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
 				>
 					{#if bannerSrc && bannerIsVideo}
-						<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+						<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 					{/if}
 					<span class="theme-check"><Check size={11} strokeWidth={3} /></span>
 				</button>
@@ -541,12 +539,10 @@
 			class="preview-banner"
 			style:background={bannerSrc && !bannerIsVideo
 				? `url(${bannerSrc}) center/cover`
-				: bannerSrc && bannerIsVideo
-					? "#000"
-					: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
+				: `linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
 		>
 			{#if bannerSrc && bannerIsVideo}
-				<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline></video>
+				<video class="banner-media" src={bannerSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 			{/if}
 		</div>
 		<div class="preview-body">
@@ -557,7 +553,7 @@
 						style:background-image={avatarSrc && !avatarIsVideo ? `url(${avatarSrc})` : undefined}
 					>
 						{#if avatarSrc && avatarIsVideo}
-							<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline></video>
+							<video class="avatar-media" src={avatarSrc} autoplay loop muted playsinline preload="auto" use:playInline></video>
 						{:else if !avatarSrc}{username.slice(0, 2).toUpperCase()}{/if}
 					</div>
 					{#if profile?.status_text}
