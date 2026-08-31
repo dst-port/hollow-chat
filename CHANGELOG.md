@@ -2,6 +2,28 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
+## v0.2.10 — 2026-08-31
+
+### Profiles
+- **Animated avatars and banners.** Upload a short MP4 or WebM (GIF already
+  worked) and it plays as a muted loop on your profile, in the member list,
+  and next to your messages.
+
+### Calls
+- **Screen-share picker.** Before you go live you now pick the source
+  (whole screen / window / tab) and see a live preview, tune resolution,
+  frame rate and smoothness-vs-clarity on the running capture, and choose
+  whether to include audio — then "Go Live" hands that exact stream to the
+  call. The browser still asks which surface to grab; everything around it
+  is ours now.
+- **The shared screen is its own block** in the call, sized to the picture
+  with no dead letterbox space; people are compact cards beside it, and a
+  screen tile has an expand button for true fullscreen.
+- **Desktop call audio fixed.** On Linux the packaged app couldn't reach
+  PipeWire from its sandbox, so remote voice never played; it now routes
+  through the PulseAudio-compat path. The ring/notification sounds work
+  again there too.
+
 ## v0.2.9 — 2026-08-30
 
 ### Sync & notifications
