@@ -514,15 +514,9 @@
 
 		<section class="section">
 			<p class="section-label">{t("profile.edit.profileColors")}</p>
-			<div class="color-field">
-				<div
-					class="theme-preview"
-					style:background={`linear-gradient(135deg, ${bannerColorDraft}, ${bannerGradientEndDraft})`}
-				></div>
-				<div class="theme-pickers">
-					<ColorPicker bind:value={bannerColorDraft} />
-					<ColorPicker bind:value={bannerGradientEndDraft} />
-				</div>
+			<div class="theme-pickers">
+				<ColorPicker bind:value={bannerColorDraft} />
+				<ColorPicker bind:value={bannerGradientEndDraft} />
 			</div>
 		</section>
 	</div>
@@ -923,17 +917,10 @@
 		margin-top: 8px;
 	}
 
-	.theme-preview {
-		flex: 1;
-		height: 32px;
-		border-radius: var(--radius-sm);
-		border: 1px solid var(--hairline);
-	}
-
 	.theme-pickers {
 		display: flex;
 		gap: 8px;
-		flex-shrink: 0;
+		margin-top: 8px;
 	}
 
 	.slot {
