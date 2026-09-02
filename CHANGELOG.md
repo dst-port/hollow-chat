@@ -2,6 +2,16 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
+## v1.0.2 — 2026-09-02
+
+### Calls
+- **Voice channels work in the desktop app.** On Windows the WebView never
+  granted microphone access, so joining a voice channel always failed with
+  "check your microphone permissions"; on macOS the missing usage strings
+  meant the app was killed the moment a call tried to open the mic. Both
+  are fixed — the app now grants mic/camera the same way it already did on
+  Linux.
+
 ## v1.0.1 — 2026-09-01
 
 ### Profiles
