@@ -56,6 +56,45 @@ pub fn run() {
                 let _ = handle.emit("media-presence", update);
             });
 
+            // WebView2 (Windows) leaves getUserMedia to its own permission
+            // prompt, which in a frameless/transparent window often never
+            // shows and the request just fails - "join voice" then dies with
+            // "check your microphone permissions". Force-allow mic + camera,
+            // mirroring the WebKitGTK handler below. (wry only registers a
+            // clipboard-read handler, so mic/camera stay unhandled.)
+            #[cfg(target_os = "windows")]
+            {
+                use tauri::Manager;
+
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.with_webview(|webview| {
+                        use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
+
+                        unsafe {
+                            let core = match webview.controller().CoreWebView2() {
+                                Ok(core) => core,
+                                Err(_) => return,
+                            };
+                            let mut token = 0_i64;
+                            let handler = PermissionRequestedEventHandler::create(Box::new(
+                                |_sender, args| {
+                                    let Some(args) = args else { return Ok(()) };
+                                    let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                                    args.PermissionKind(&mut kind)?;
+                                    if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE
+                                        || kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA
+                                    {
+                                        args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                                    }
+                                    Ok(())
+                                },
+                            ));
+                            let _ = core.add_PermissionRequested(&handler, &mut token);
+                        }
+                    });
+                }
+            }
+
             #[cfg(target_os = "linux")]
             {
                 use tauri::Manager;

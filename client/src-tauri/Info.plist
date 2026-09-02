@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  macOS/iOS kill the process on the first getUserMedia call if these
+	  usage strings are missing, so voice channels crashed the app. Tauri
+	  merges this file into the bundled Info.plist.
+	-->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>HollowChat uses your microphone for voice channels and calls.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>HollowChat uses your camera for video in calls.</string>
+</dict>
+</plist>
