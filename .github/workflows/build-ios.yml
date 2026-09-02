@@ -1,8 +1,7 @@
 name: Build iOS
 
+# Paused - iOS isn't being distributed yet. Run manually if needed.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
