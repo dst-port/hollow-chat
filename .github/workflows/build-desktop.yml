@@ -78,14 +78,12 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
 
-      # Ad-hoc signature so macOS doesn't reject the app as "damaged"
-      # (Gatekeeper still warns, but with an "Open anyway" button). The
-      # signingIdentity: "-" in tauri.conf.json signs the bundle during
-      # build; this is a belt-and-suspenders sweep of anything left over.
-      - name: Ad-hoc sign (macOS)
-        if: matrix.platform == 'macos-latest'
-        run: |
-          find . -name "*.app" -exec codesign --force --deep --sign - {} \;
+      # macOS ad-hoc signing is done by the bundler itself via
+      # `bundle.macOS.signingIdentity: "-"` in tauri.conf.json, which is what
+      # keeps Gatekeeper from calling the app "damaged". A post-hoc `codesign`
+      # sweep here would only touch the staged .app after tauri-action has
+      # already packaged and uploaded the .dmg/.app.tar.gz, so it changed
+      # nothing that ships - removed.
 
       # --no-bundle: just compile, skip bundling entirely - bundling is
       # where createUpdaterArtifacts kicks in and demands a signing key,
