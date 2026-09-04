@@ -836,5 +836,16 @@
 	"serverSettings.overview.channelsTotal.few": "{count} total",
 	"serverSettings.overview.channelsTotal.many": "{count} total",
 	"thread.replyCount.few": "{count} відповіді",
-	"thread.replyCount.many": "{count} відповіді"
+	"thread.replyCount.many": "{count} відповіді",
+	"safety.title": "Перевірка шифрування",
+	"safety.compareBody": "Продиктуйте це число {name} у дзвінку або особисто. Якщо в обох воно збіглося — між вами нікого немає.",
+	"safety.pinnedTitle": "Ключі з {name} не змінювалися",
+	"safety.unpinnedTitle": "Ще не перевірено",
+	"safety.changedTitle": "Ключ {name} змінився",
+	"safety.changedBody": "Зазвичай це означає, що {name} перевстановив застосунок або додав новий пристрій. Але так само виглядає й підміна. Звірте нове число з людиною, перш ніж приймати.",
+	"safety.previouslyVerified": "Було довірено раніше",
+	"safety.offeredNow": "Пропонується зараз",
+	"safety.acceptNewKey": "Прийняти новий ключ",
+	"safety.accepted": "Новий ключ прийнято. Старі повідомлення в цій розмові залишаться нечитаними.",
+	"safety.loadFailed": "Не вдалося завантажити ключі цієї людини."
 }

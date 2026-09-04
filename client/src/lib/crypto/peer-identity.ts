@@ -11,7 +11,34 @@
 // matches, and the client refuses rather than silently starting a new session
 // with a stranger. See `IdentityChangedError` for what the UI should do.
 
+import { kdf } from "./primitives";
+import { fromBase64, concatBytes } from "./encoding";
+
 export type PinScope = { myUsername: string; peerUsername: string };
+
+/**
+ * A number two people can read to each other to confirm they hold the same
+ * keys. Pinning alone can't tell a legitimate first contact from a server that
+ * substituted its own key at that moment - only comparing the value out of
+ * band can, so this is what makes the guarantee complete.
+ *
+ * Both sides must arrive at the same string, so the two keys are sorted before
+ * hashing rather than ordered by who is asking.
+ */
+export function safetyNumber(myIdentityKey: string, theirIdentityKey: string): string {
+	const [first, second] = [myIdentityKey, theirIdentityKey].sort();
+	const material = concatBytes(fromBase64(first), fromBase64(second));
+	// 60 bytes -> twelve 5-byte chunks -> twelve 5-digit groups, 60 digits.
+	const digest = kdf(material, new Uint8Array(32), "HollowChatSafetyNumber", 60);
+
+	const groups: string[] = [];
+	for (let i = 0; i < digest.length; i += 5) {
+		let value = 0;
+		for (let j = 0; j < 5; j++) value = value * 256 + digest[i + j];
+		groups.push((value % 100000).toString().padStart(5, "0"));
+	}
+	return groups.join(" ");
+}
 
 export const PEER_ID_PREFIX = "hollowchat_peerid_";
 

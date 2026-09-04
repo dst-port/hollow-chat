@@ -824,5 +824,16 @@
 	"members.count.one": "{count} lid",
 	"members.count.other": "{count} leden",
 	"online.count.one": "{count} online",
-	"online.count.other": "{count} online"
+	"online.count.other": "{count} online",
+	"safety.title": "Verify encryption",
+	"safety.compareBody": "Read this number out to {name} over a call or in person. If you both see the same number, nobody is sitting between you.",
+	"safety.pinnedTitle": "Keys with {name} haven't changed",
+	"safety.unpinnedTitle": "Not verified yet",
+	"safety.changedTitle": "The key for {name} has changed",
+	"safety.changedBody": "This usually means {name} reinstalled or set up a new device. It can also mean someone is impersonating them. Check the new number with them before accepting it.",
+	"safety.previouslyVerified": "Previously trusted",
+	"safety.offeredNow": "Offered now",
+	"safety.acceptNewKey": "Accept new key",
+	"safety.accepted": "New key accepted. Older messages in this conversation stay unreadable.",
+	"safety.loadFailed": "Couldn't load this person's keys."
 }

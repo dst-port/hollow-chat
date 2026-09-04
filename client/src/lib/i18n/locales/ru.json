@@ -836,5 +836,16 @@
 	"serverSettings.overview.channelsTotal.few": "{count} total",
 	"serverSettings.overview.channelsTotal.many": "{count} total",
 	"thread.replyCount.few": "{count} ответа",
-	"thread.replyCount.many": "{count} ответа"
+	"thread.replyCount.many": "{count} ответа",
+	"safety.title": "Проверка шифрования",
+	"safety.compareBody": "Продиктуйте это число {name} по звонку или лично. Если у вас обоих оно совпало — между вами никого нет.",
+	"safety.pinnedTitle": "Ключи с {name} не менялись",
+	"safety.unpinnedTitle": "Ещё не проверено",
+	"safety.changedTitle": "Ключ {name} изменился",
+	"safety.changedBody": "Обычно это значит, что {name} переустановил приложение или завёл новое устройство. Но так же выглядит и подмена. Сверьте новое число с человеком, прежде чем принимать.",
+	"safety.previouslyVerified": "Было доверено раньше",
+	"safety.offeredNow": "Предлагается сейчас",
+	"safety.acceptNewKey": "Принять новый ключ",
+	"safety.accepted": "Новый ключ принят. Старые сообщения в этой переписке останутся нечитаемыми.",
+	"safety.loadFailed": "Не удалось загрузить ключи этого человека."
 }

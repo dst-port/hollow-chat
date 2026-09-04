@@ -824,5 +824,16 @@
 	"members.count.one": "{count} miembro",
 	"members.count.other": "{count} miembros",
 	"online.count.one": "{count} en línea",
-	"online.count.other": "{count} en línea"
+	"online.count.other": "{count} en línea",
+	"safety.title": "Verificar el cifrado",
+	"safety.compareBody": "Léele este número a {name} en una llamada o en persona. Si ambos ven el mismo número, nadie está en medio.",
+	"safety.pinnedTitle": "Las claves con {name} no han cambiado",
+	"safety.unpinnedTitle": "Aún sin verificar",
+	"safety.changedTitle": "La clave de {name} ha cambiado",
+	"safety.changedBody": "Normalmente significa que {name} reinstaló la app o configuró un dispositivo nuevo. También es como se ve una suplantación. Verifica el número nuevo con esa persona antes de aceptarlo.",
+	"safety.previouslyVerified": "Antes de confianza",
+	"safety.offeredNow": "Ofrecido ahora",
+	"safety.acceptNewKey": "Aceptar la clave nueva",
+	"safety.accepted": "Clave nueva aceptada. Los mensajes anteriores de esta conversación seguirán ilegibles.",
+	"safety.loadFailed": "No se pudieron cargar las claves de esta persona."
 }

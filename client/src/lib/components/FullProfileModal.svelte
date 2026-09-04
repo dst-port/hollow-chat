@@ -4,6 +4,7 @@
 	import MessageSquare from "@lucide/svelte/icons/message-square";
 	import UserPlus from "@lucide/svelte/icons/user-plus";
 	import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
+	import ShieldCheck from "@lucide/svelte/icons/shield-check";
 	import CalendarDays from "@lucide/svelte/icons/calendar-days";
 	import Users from "@lucide/svelte/icons/users";
 	import Globe from "@lucide/svelte/icons/globe";
@@ -14,6 +15,7 @@
 	import ActivityCard from "$lib/components/ActivityCard.svelte";
 	import BrandIcon from "$lib/components/BrandIcon.svelte";
 	import ProfileActionsMenu from "$lib/components/ProfileActionsMenu.svelte";
+	import SafetyNumberModal from "$lib/components/SafetyNumberModal.svelte";
 	import { BRAND_ICONS } from "$lib/data/brandIcons";
 	import { extractConnectionHandle } from "$lib/utils/connectionHandle";
 	import { session } from "$lib/stores/session.svelte";
@@ -147,6 +149,7 @@
 
 	let moreButtonEl: HTMLElement | undefined;
 	let moreOpen = $state(false);
+	let safetyOpen = $state(false);
 	let morePosition = $state({ top: 0, left: 0 });
 
 	function toggleMore() {
@@ -197,6 +200,9 @@
 						<button class="action" onclick={message} title={t("profile.full.message")}>
 							<MessageSquare size={14} strokeWidth={2} />
 							{t("profile.full.message")}
+						</button>
+						<button class="action icon-only" onclick={() => (safetyOpen = true)} title={t("safety.title")}>
+							<ShieldCheck size={14} strokeWidth={2} />
 						</button>
 						<button bind:this={moreButtonEl} class="action icon-only" onclick={toggleMore} title={t("profile.full.more")}>
 							<MoreHorizontal size={14} strokeWidth={2} />
@@ -360,6 +366,10 @@
 		onClose={() => (moreOpen = false)}
 		onViewFullProfile={() => {}}
 	/>
+{/if}
+
+{#if safetyOpen}
+	<SafetyNumberModal peerUsername={username} onClose={() => (safetyOpen = false)} />
 {/if}
 
 <style>
