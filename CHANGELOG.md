@@ -2,6 +2,30 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
+## v1.0.4 — 2026-09-04
+
+### Security
+Finishes what v1.0.3 started — that release closed the holes, this one adds
+the parts that make the fixes complete.
+
+- **You can now check who you're actually talking to.** Open someone's profile
+  and there's a "verify encryption" panel with a 60-digit number. Read it to
+  them on a call or in person; if you both see the same number, nobody is
+  sitting in the middle. This is what turns "your client remembers their key"
+  into a guarantee you can confirm yourself.
+- **A contact who reinstalls is no longer a dead end.** Before, a legitimately
+  changed key left the conversation stuck. Now the same panel shows the old and
+  new numbers and lets you accept the new one deliberately, after checking it.
+- **Sign-in rate limits now work per person.** Behind our reverse proxy every
+  request looked like it came from the same place, so the limit on login and
+  two-factor attempts was one shared budget for everybody at once — which both
+  failed to slow an attacker down and could turn away real people trying to
+  sign in. Each client now gets its own, and the header that makes this
+  possible is only believed from our own servers, so it can't be faked.
+- **The web app ships a content security policy**, so even if something
+  untrusted did get onto a page, the browser refuses to run it. This is the
+  layer that would have contained the file-upload issue in v1.0.3 by itself.
+
 ## v1.0.3 — 2026-09-04
 
 ### Security
