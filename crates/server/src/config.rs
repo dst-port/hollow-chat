@@ -15,6 +15,11 @@ pub struct Config {
     pub ice_turn_credential: Option<String>,
     pub steamgriddb_api_key: Option<String>,
     pub cors_allowed_origins: Vec<String>,
+    /// Hops whose `X-Forwarded-For` we believe when working out who a request
+    /// came from. Empty means "nothing in front of us" - the socket peer is
+    /// used, which is safe but collapses every client into one rate-limit
+    /// bucket the moment a reverse proxy is involved.
+    pub trusted_proxies: Vec<crate::rate_limit::TrustedProxy>,
     pub telegram_bot_token: Option<String>,
     pub telegram_chat_id: Option<String>,
     pub attachment_retention_days: Option<u32>,
@@ -69,6 +74,26 @@ impl Config {
                     .collect()
             })
             .unwrap_or_else(|| vec![app_base_url.clone()]);
+        // Anything in front of us that terminates the client connection -
+        // typically the reverse proxy, plus the container bridge it arrives
+        // through. Entries may be plain addresses or CIDR blocks. Left unset
+        // we trust nothing, which is the right default for a server exposed
+        // directly but wrong the moment there's a proxy: see rate_limit.
+        let trusted_proxies = std::env::var("TRUSTED_PROXIES")
+            .ok()
+            .map(|raw| {
+                raw.split(',')
+                    .filter(|s| !s.trim().is_empty())
+                    .filter_map(|s| match crate::rate_limit::TrustedProxy::parse(s) {
+                        Some(proxy) => Some(proxy),
+                        None => {
+                            tracing::warn!("ignoring unparseable TRUSTED_PROXIES entry: {s:?}");
+                            None
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let telegram_bot_token = std::env::var("TELEGRAM_BOT_TOKEN").ok();
         let telegram_chat_id = std::env::var("TELEGRAM_CHAT_ID").ok();
         // Unset means "keep forever" - purging people's chat history by
@@ -107,6 +132,7 @@ impl Config {
             ice_turn_credential,
             steamgriddb_api_key,
             cors_allowed_origins,
+            trusted_proxies,
             telegram_bot_token,
             telegram_chat_id,
             attachment_retention_days,

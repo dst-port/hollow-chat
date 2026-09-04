@@ -33,11 +33,34 @@ The server speaks plain HTTP and needs a proxy in front of it for TLS and to for
 
 ```caddyfile
 your-domain.example {
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Content-Security-Policy "frame-ancestors 'none'"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
     reverse_proxy 127.0.0.1:8080
 }
 ```
 
-Caddy proxies WebSocket upgrades by default, no extra config needed. For nginx, the upgrade headers must be forwarded explicitly:
+Caddy proxies WebSocket upgrades by default, no extra config needed.
+
+Two things to get right alongside this:
+
+- **`TRUSTED_PROXIES` must list this proxy** (and, under Docker, the bridge it
+  arrives through). Every request reaches the server from the proxy's address,
+  so without it the login and 2FA rate limits become a single bucket shared by
+  every client on the internet rather than one per client. Set it to too *wide*
+  a range and the opposite happens: anyone can spoof `X-Forwarded-For` and mint
+  a fresh identity per request. List only hops you actually run.
+- The web client ships its own full `Content-Security-Policy` in the page, with
+  a hash for its inline bootstrap script, so the proxy only needs to add
+  `frame-ancestors` (which browsers ignore in a `<meta>` tag). Don't set a
+  second, broader `Content-Security-Policy` header for `/app` - the two would
+  intersect and the stricter parts of the page's own policy would still apply,
+  but a mistake here breaks the app rather than loosening it. For nginx, the upgrade headers must be forwarded explicitly:
 
 ```nginx
 server {

@@ -142,9 +142,21 @@ async fn main() {
         tracing::info!("attachment retention sweep enabled: {days} days");
     }
 
+    let trusted_proxies: Arc<[_]> = Arc::from(config.trusted_proxies.into_boxed_slice());
+    if trusted_proxies.is_empty() {
+        tracing::warn!(
+            "TRUSTED_PROXIES is unset - rate limits will key on the connecting socket. \
+             Behind a reverse proxy that is a single address for every client, putting \
+             everyone in one bucket; set it to the proxy/bridge address or CIDR."
+        );
+    } else {
+        tracing::info!("trusting X-Forwarded-For from {} hop(s)", trusted_proxies.len());
+    }
+
     let state = AppState {
         pool,
         pepper: Arc::from(config.pepper.into_boxed_slice()),
+        trusted_proxies: trusted_proxies.clone(),
         message_limiter: UserRateLimiter::new(MESSAGE_LIMIT_PER_WINDOW, MESSAGE_LIMIT_WINDOW),
         attachments_dir: Arc::from(config.attachments_dir.into_boxed_str()),
         bunny,

@@ -58,6 +58,7 @@ pub struct AppState {
     pub gateway_sockets: Arc<DashMap<Uuid, Vec<UnboundedSender<Message>>>>,
     /// Web Push (VAPID) config; None when no VAPID key is configured.
     pub vapid: Option<Arc<crate::push::Vapid>>,
+    pub trusted_proxies: Arc<[crate::rate_limit::TrustedProxy]>,
     pub game_covers: GameCoverConfig,
     pub game_cover_cache: Arc<DashMap<String, (Instant, Option<String>)>>,
 }

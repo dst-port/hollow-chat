@@ -12,7 +12,7 @@ use crate::rate_limit::{self, RateLimiter};
 use crate::state::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
-    let limiter = RateLimiter::new(5, Duration::from_secs(60));
+    let limiter = RateLimiter::new(5, Duration::from_secs(60), state.trusted_proxies.clone());
 
     Router::new()
         .route("/register", post(handlers::register))
