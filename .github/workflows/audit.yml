@@ -1,0 +1,49 @@
+name: Audit
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # New advisories land against code that hasn't changed, so a push-only
+    # audit goes stale. Weekly, Monday morning UTC.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+jobs:
+  cargo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      # RUSTSEC-2023-0071 (Marvin attack on `rsa`) has no fixed release. It
+      # reaches us only through sqlx-mysql, which nothing here uses - the
+      # server talks to Postgres. Revisit whenever a fix ships.
+      - name: Audit Rust dependencies
+        run: cargo audit --ignore RUSTSEC-2023-0071
+
+  pnpm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+
+      - name: Audit npm dependencies
+        working-directory: client
+        run: pnpm audit --audit-level high

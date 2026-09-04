@@ -10,7 +10,44 @@ permissions:
   contents: write
 
 jobs:
+  # GitHub does not bind a *draft* release to its tag, so it will happily hold
+  # several drafts sharing one tag name. Letting all three matrix jobs reach
+  # tauri-action at once therefore doesn't converge on one release - they race,
+  # some create their own, and a platform's artifacts end up on a draft nobody
+  # publishes. (v1.0.4 shipped with no Linux builds this way.) Create the
+  # release once here and hand every job its id.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.create.outputs.result }}
+    steps:
+      - uses: actions/github-script@v7
+        id: create
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { owner, repo } = context.repo;
+            const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo });
+            const existing = releases.find((r) => r.tag_name === tag);
+            if (existing) return existing.id;
+            const created = await github.rest.repos.createRelease({
+              owner,
+              repo,
+              tag_name: tag,
+              name: `HollowChat ${tag}`,
+              draft: true,
+              prerelease: false,
+            });
+            return created.data.id;
+          result-encoding: string
+
   build:
+    needs: [release]
+    # `needs` on a job that is itself skipped for non-tag pushes would skip this
+    # one too, so allow the skipped case through: a push to main still compiles
+    # every platform, it just doesn't publish.
+    if: always() && (needs.release.result == 'success' || needs.release.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -72,10 +109,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: client
-          tagName: ${{ github.ref_name }}
-          releaseName: HollowChat ${{ github.ref_name }}
-          releaseDraft: true
-          prerelease: false
+          # Every platform uploads into this one release, so latest.json is
+          # merged across them instead of each job writing its own.
+          releaseId: ${{ needs.release.outputs.id }}
           includeUpdaterJson: true
 
       # macOS ad-hoc signing is done by the bundler itself via
