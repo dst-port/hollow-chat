@@ -36,6 +36,12 @@ class DeviceLinkStore {
 	private sharedKey: Uint8Array | null = null;
 	private token: string | null = null;
 	private username: string | null = null;
+	// The receiving side has to agree the codes match too. Whoever we did the
+	// handshake with can push a state blob the moment it completes, so without
+	// this the user comparing codes on the other device has already lost by the
+	// time they look - the keys are in.
+	private receiverConfirmed = false;
+	private pendingState: { nonce: string; ciphertext: string } | null = null;
 
 	start(token: string, username: string) {
 		this.reset();
@@ -123,11 +129,29 @@ class DeviceLinkStore {
 		}
 	}
 
-	private async onEncryptedState(nonceB64: string, ciphertextB64: string) {
+	/// Called when the person at this device says the two codes match.
+	confirmReceive() {
+		if (this.phase !== "confirm") return;
+		this.receiverConfirmed = true;
+		void this.importPendingState();
+	}
+
+	private onEncryptedState(nonceB64: string, ciphertextB64: string) {
+		this.pendingState = { nonce: nonceB64, ciphertext: ciphertextB64 };
+		void this.importPendingState();
+	}
+
+	private async importPendingState() {
+		// Held until both the codes are confirmed here and the blob has
+		// arrived - either can happen first.
+		if (!this.receiverConfirmed || !this.pendingState) return;
 		if (!this.sharedKey || !this.username) return;
+
+		const { nonce, ciphertext } = this.pendingState;
+		this.pendingState = null;
 		this.phase = "receiving";
 		try {
-			const plaintext = await decrypt(this.sharedKey, fromBase64(nonceB64), fromBase64(ciphertextB64), new Uint8Array(0));
+			const plaintext = await decrypt(this.sharedKey, fromBase64(nonce), fromBase64(ciphertext), new Uint8Array(0));
 			importLocalCryptoState(utf8Decode(plaintext));
 			persistSyncKey(this.username, this.sharedKey);
 			if (this.token) deviceSync.connect(this.token, this.username);
@@ -155,6 +179,8 @@ class DeviceLinkStore {
 		this.sharedKey = null;
 		this.token = null;
 		this.username = null;
+		this.receiverConfirmed = false;
+		this.pendingState = null;
 		this.phase = "idle";
 		this.fingerprint = null;
 		this.error = null;

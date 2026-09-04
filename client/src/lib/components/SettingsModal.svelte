@@ -27,6 +27,7 @@
 	import QRCode from "qrcode";
 	import { renameLocalIdentity } from "$lib/crypto/identity";
 	import { renameAllSessions } from "$lib/crypto/session-store";
+	import { renameAllPeerIdentities } from "$lib/crypto/peer-identity";
 	import { renameAllGroupKeys } from "$lib/crypto/group-key-store";
 	import { toast } from "$lib/stores/toast.svelte";
 	import { session } from "$lib/stores/session.svelte";
@@ -633,6 +634,7 @@
 			await api.changeUsername(token, newUsername);
 			renameLocalIdentity(username, newUsername);
 			renameAllSessions(username, newUsername);
+			renameAllPeerIdentities(username, newUsername);
 			renameAllGroupKeys(username, newUsername);
 			session.set(token, newUsername);
 			editingUsername = false;

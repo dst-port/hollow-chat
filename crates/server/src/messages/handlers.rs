@@ -827,6 +827,11 @@ pub async fn set_thread_archived(
     Json(payload): Json<SetThreadArchivedRequest>,
 ) -> Result<Json<ThreadDto>, AppError> {
     require_channel_member(&state.pool, channel_id, session.user_id).await?;
+    // Without this the UPDATE below no-ops for a thread in someone else's
+    // channel, but the refetch still hands back that thread's row - so being a
+    // member of any channel was enough to read another server's thread
+    // metadata. Every sibling thread handler already checks this.
+    require_same_channel_thread(&state.pool, channel_id, thread_id).await?;
 
     sqlx::query("UPDATE threads SET archived = $1 WHERE id = $2 AND channel_id = $3")
         .bind(payload.archived)

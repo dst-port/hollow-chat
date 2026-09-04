@@ -71,16 +71,19 @@ fn hotp(secret: &[u8], counter: u64) -> u32 {
     code % 10u32.pow(DIGITS)
 }
 
-pub fn verify_code(secret_base32: &str, code: &str) -> bool {
+/// Which time step a submitted code matches, if any.
+///
+/// Callers need the step, not just a yes/no: a TOTP code is valid for a ~90
+/// second window, so without recording the step that was used, the same code
+/// can be redeemed over and over inside that window (RFC 6238 §5.2). Compare
+/// the returned step against the last one accepted for that user and reject
+/// anything that isn't newer.
+pub fn matching_counter(secret_base32: &str, code: &str) -> Option<u64> {
     if code.len() != DIGITS as usize || !code.chars().all(|c| c.is_ascii_digit()) {
-        return false;
+        return None;
     }
-    let Some(secret) = base32_decode(secret_base32) else {
-        return false;
-    };
-    let Ok(submitted) = code.parse::<u32>() else {
-        return false;
-    };
+    let secret = base32_decode(secret_base32)?;
+    let submitted = code.parse::<u32>().ok()?;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -91,11 +94,11 @@ pub fn verify_code(secret_base32: &str, code: &str) -> bool {
     for drift in [-1i64, 0, 1] {
         let step = (counter as i64 + drift).max(0) as u64;
         if hotp(&secret, step) == submitted {
-            return true;
+            return Some(step);
         }
     }
 
-    false
+    None
 }
 
 pub fn otpauth_url(secret_base32: &str, username: &str, issuer: &str) -> String {

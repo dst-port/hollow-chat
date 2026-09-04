@@ -1,6 +1,7 @@
 import { WS_BASE_URL } from "$lib/api/client";
 import { encrypt, decrypt } from "$lib/crypto/aead";
 import { toBase64, fromBase64, utf8Encode, utf8Decode } from "$lib/crypto/encoding";
+import { isImportableKey } from "$lib/crypto/devicestate";
 
 function syncKeyStorageKey(username: string): string {
 	return `hollowchat_devicesync_${username}`;
@@ -121,7 +122,9 @@ class DeviceSyncStore {
 		}
 
 		if (wire.kind === "delta") {
-			if (typeof wire.key === "string" && typeof wire.value === "string") {
+			// Same allowlist as a device-link import: a sync peer syncs crypto
+			// state, it doesn't get to write arbitrary localStorage keys.
+			if (typeof wire.key === "string" && typeof wire.value === "string" && isImportableKey(wire.key)) {
 				localStorage.setItem(wire.key, wire.value);
 				this.deltaWaiters.get(wire.key)?.();
 			}

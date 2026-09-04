@@ -3,6 +3,7 @@ import * as x3dh from "./x3dh";
 import * as ratchet from "./ratchet";
 import { getIdentityX25519, getSignedPrekey, takeOneTimePrekey } from "./identity";
 import { loadSession, saveSession, sessionStorageKey } from "./session-store";
+import { IdentityChangedError, loadPeerIdentity, pinOrVerifyPeerIdentity } from "./peer-identity";
 import { toBase64, fromBase64, utf8Encode, utf8Decode } from "./encoding";
 import { deviceSync } from "$lib/devicelink/sync";
 
@@ -75,6 +76,11 @@ export async function encryptForPeer(
 	if (!session) {
 		const bundle = await fetchBundleAfterCoordination(token, myUsername, peerUsername);
 		if (bundle) {
+			// The bundle comes from the server, so it can't authenticate the
+			// peer by itself - but it must still agree with the key we pinned,
+			// or we'd be encrypting to a substituted one.
+			pinOrVerifyPeerIdentity(myUsername, peerUsername, toBase64(bundle.identityX25519Public));
+
 			const myIdentityX = getIdentityX25519(myUsername);
 			const result = x3dh.initiate(myIdentityX, bundle);
 			session = ratchet.initAsSender(result.sharedSecret, bundle.signedPrekeyPublic);
@@ -110,6 +116,21 @@ export async function decryptFromPeer(
 	let session = loadSession(myUsername, peerUsername);
 
 	if (envelope.x3dh) {
+		// A handshake header names its own identity key, so on its own it
+		// proves nothing about who sent the message - anyone able to place a
+		// message in this conversation could name a key they control and have
+		// us derive a session with them instead of the peer. Only accept a key
+		// we've already pinned for this peer (or pin it on first contact).
+		//
+		// An established session is never torn down by an unpinned handshake:
+		// for conversations that predate pinning there is nothing to compare
+		// against, and silently resetting the ratchet is exactly the move an
+		// impersonator needs.
+		if (session && loadPeerIdentity(myUsername, peerUsername) === null) {
+			throw new IdentityChangedError(peerUsername);
+		}
+		pinOrVerifyPeerIdentity(myUsername, peerUsername, envelope.x3dh.ik);
+
 		const myIdentityX = getIdentityX25519(myUsername);
 		const { id: spkId, keyPair: signedPrekey } = getSignedPrekey(myUsername);
 		if (spkId !== envelope.x3dh.spkId) {

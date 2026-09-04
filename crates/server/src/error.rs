@@ -73,6 +73,8 @@ pub enum AppError {
     InvalidTotpCode,
     #[error("two-factor authentication is not set up yet")]
     TotpNotConfigured,
+    #[error("two-factor authentication is already enabled - disable it first")]
+    TotpAlreadyEnabled,
     #[error("unauthorized")]
     Unauthorized,
     #[error("invalid report")]
@@ -124,6 +126,7 @@ impl IntoResponse for AppError {
             AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
             AppError::InvalidTotpCode => StatusCode::BAD_REQUEST,
             AppError::TotpNotConfigured => StatusCode::BAD_REQUEST,
+            AppError::TotpAlreadyEnabled => StatusCode::CONFLICT,
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::InvalidReport => StatusCode::BAD_REQUEST,
             AppError::NotFound => StatusCode::NOT_FOUND,

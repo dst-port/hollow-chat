@@ -253,6 +253,15 @@ pub async fn regenerate_password(
         .execute(&state.pool)
         .await?;
 
+    // Rotating the password is what someone does when they think their account
+    // is compromised, so it has to actually evict whoever else is signed in -
+    // otherwise the intruder's token stays good for the rest of its 30 days.
+    sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND id <> $2")
+        .bind(session.user_id)
+        .bind(session.session_id)
+        .execute(&state.pool)
+        .await?;
+
     Ok(Json(RegeneratePasswordResponse { password }))
 }
 
@@ -300,6 +309,25 @@ fn generate_backup_code() -> String {
     format!("{}-{}", part(&mut rng), part(&mut rng))
 }
 
+/// Accept a TOTP step only if it's newer than the last one this user spent,
+/// then record it. Returns false when the code has already been redeemed.
+async fn consume_totp_counter(
+    state: &AppState,
+    user_id: Uuid,
+    counter: u64,
+) -> Result<bool, AppError> {
+    let updated = sqlx::query(
+        "UPDATE users SET totp_last_counter = $1 \
+         WHERE id = $2 AND (totp_last_counter IS NULL OR totp_last_counter < $1)",
+    )
+    .bind(counter as i64)
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+
+    Ok(updated.rows_affected() > 0)
+}
+
 async fn verify_totp_or_backup(state: &AppState, user_id: Uuid, code: &str) -> Result<(), AppError> {
     let secret: Option<(Option<String>,)> =
         sqlx::query_as("SELECT totp_secret FROM users WHERE id = $1")
@@ -312,8 +340,14 @@ async fn verify_totp_or_backup(state: &AppState, user_id: Uuid, code: &str) -> R
     };
     let secret = secret_box::open(&state.pepper, &sealed)?;
 
-    if totp::verify_code(&secret, code) {
-        return Ok(());
+    if let Some(counter) = totp::matching_counter(&secret, code) {
+        // A correct code that has already been spent is treated as wrong -
+        // otherwise anyone who glimpses one code has a ~90 second window to
+        // replay it as many times as they like.
+        if consume_totp_counter(state, user_id, counter).await? {
+            return Ok(());
+        }
+        return Err(AppError::InvalidTotpCode);
     }
 
     let backup_codes: Vec<(Uuid, String)> = sqlx::query_as(
@@ -390,11 +424,23 @@ pub async fn totp_setup(
     let secret = totp::generate_secret();
     let sealed = secret_box::seal(&state.pepper, &secret);
 
-    sqlx::query("UPDATE users SET totp_secret = $1, totp_enabled = false WHERE id = $2")
-        .bind(&sealed)
-        .bind(session.user_id)
-        .execute(&state.pool)
-        .await?;
+    // Enrolling a fresh secret also clears `totp_enabled`, which would let
+    // anyone holding a session strip 2FA off an account without ever proving
+    // they hold the second factor - the very thing `/2fa/disable` demands a
+    // code for. Only ever enroll into an account that has 2FA off; turning it
+    // off is the disable endpoint's job, and that one asks for a code.
+    let updated = sqlx::query(
+        "UPDATE users SET totp_secret = $1, totp_enabled = false \
+         WHERE id = $2 AND totp_enabled = false",
+    )
+    .bind(&sealed)
+    .bind(session.user_id)
+    .execute(&state.pool)
+    .await?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::TotpAlreadyEnabled);
+    }
 
     let otpauth_url = totp::otpauth_url(&secret, &session.username, "HollowChat");
 
@@ -424,7 +470,10 @@ pub async fn totp_verify(
     let sealed = secret.0.ok_or(AppError::TotpNotConfigured)?;
     let secret = secret_box::open(&state.pepper, &sealed)?;
 
-    if !totp::verify_code(&secret, &payload.code) {
+    let Some(counter) = totp::matching_counter(&secret, &payload.code) else {
+        return Err(AppError::InvalidTotpCode);
+    };
+    if !consume_totp_counter(&state, session.user_id, counter).await? {
         return Err(AppError::InvalidTotpCode);
     }
 

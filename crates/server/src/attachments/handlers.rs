@@ -15,6 +15,64 @@ use crate::state::AppState;
 const FREE_LIMIT: u64 = 50 * 1024 * 1024;
 const PREMIUM_LIMIT: u64 = 2 * 1024 * 1024 * 1024;
 
+/// The uploader sets the multipart `Content-Type` header itself, so it is
+/// never safe to echo back verbatim. `image/svg+xml` in particular passes any
+/// `image/` prefix test but executes script when opened as a top-level
+/// document - and `/files` is the same origin as the app, so such a document
+/// can read another user's session token straight out of localStorage.
+///
+/// Only these types are ever reflected in a response or stored for a prefix
+/// test elsewhere (avatars, banners, emoji, server icons). Anything else is
+/// recorded as `application/octet-stream` and served as an opaque download.
+const INLINE_MIME: &[&str] = &[
+    "image/png",
+    "image/apng",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+    "image/bmp",
+    "video/mp4",
+    "video/webm",
+    "video/ogg",
+    "video/quicktime",
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+    "audio/aac",
+    "audio/flac",
+];
+
+/// Canonical safe form of a client-supplied MIME type, or None if it isn't one
+/// we're willing to render in place.
+fn safe_mime(raw: &str) -> Option<&'static str> {
+    let base = raw
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    INLINE_MIME.iter().copied().find(|m| *m == base)
+}
+
+/// Filenames land in a `Content-Disposition` header. `HeaderValue` rejects
+/// control characters, which would turn an upload named "a\nb" into a panic on
+/// download, so strip anything that isn't safe to put in a quoted string.
+fn header_safe_filename(raw: &str) -> String {
+    let cleaned: String = raw
+        .chars()
+        .filter(|c| !c.is_control() && *c != '"' && *c != '\\' && c.is_ascii())
+        .take(200)
+        .collect();
+    if cleaned.trim().is_empty() {
+        "file".to_string()
+    } else {
+        cleaned
+    }
+}
+
 async fn tier_limit(pool: &sqlx::PgPool, user_id: Uuid) -> Result<u64, AppError> {
     let row: Option<(String,)> = sqlx::query_as("SELECT tier FROM users WHERE id = $1")
         .bind(user_id)
@@ -48,6 +106,7 @@ pub async fn upload(
     let filename = field.file_name().unwrap_or("file").to_string();
     let mime_type = field
         .content_type()
+        .and_then(safe_mime)
         .unwrap_or("application/octet-stream")
         .to_string();
 
@@ -239,26 +298,37 @@ pub async fn download(
             .unwrap());
     }
 
-    // Inline-render anything the browser can display in place; only real
-    // downloads (docs, archives) get "attachment".
-    let disposition_kind = if attachment.mime_type.starts_with("image/")
-        || attachment.mime_type.starts_with("video/")
-        || attachment.mime_type.starts_with("audio/")
-    {
+    // Re-check the stored type rather than trusting it: rows written before
+    // the upload allowlist existed can still hold an attacker-chosen value.
+    // Only known-good media renders in place; everything else downloads as an
+    // opaque blob so it can never execute against our origin.
+    let served_mime = safe_mime(&attachment.mime_type);
+    let disposition_kind = if served_mime.is_some() {
         "inline"
     } else {
         "attachment"
     };
     let disposition = format!(
         "{disposition_kind}; filename=\"{}\"",
-        attachment.filename.replace('"', "")
+        header_safe_filename(&attachment.filename)
     );
 
     let mut builder = Response::builder()
-        .header(header::CONTENT_TYPE, attachment.mime_type)
+        .header(
+            header::CONTENT_TYPE,
+            served_mime.unwrap_or("application/octet-stream"),
+        )
         .header(header::CONTENT_DISPOSITION, disposition)
         .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
-        .header(header::ACCEPT_RANGES, "bytes");
+        .header(header::ACCEPT_RANGES, "bytes")
+        // Belt and braces around the allowlist above: never let a browser
+        // sniff its way to a different type, and give the response no
+        // privileges even if it somehow renders as a document.
+        .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .header(
+            header::CONTENT_SECURITY_POLICY,
+            "default-src 'none'; sandbox; frame-ancestors 'none'",
+        );
 
     let (status, body) = match range {
         Ok(Some((start, end))) => {

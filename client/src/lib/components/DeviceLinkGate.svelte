@@ -11,6 +11,7 @@
 	type Step = "choice" | "linking" | "fresh";
 	let step = $state<Step>("choice");
 	let freshBusy = $state(false);
+	let confirmed = $state(false);
 
 	function startLinking() {
 		const token = session.token;
@@ -40,7 +41,15 @@
 
 	function backToChoice() {
 		deviceLink.reset();
+		confirmed = false;
 		step = "choice";
+	}
+
+	// The keys only land once the person here has said the codes match too -
+	// comparing them on the other device alone is too late to refuse.
+	function confirmReceive() {
+		confirmed = true;
+		deviceLink.confirmReceive();
 	}
 
 	$effect(() => {
@@ -85,7 +94,13 @@
 						<h1>{t("deviceLink.confirmTitle")}</h1>
 						<p class="subtitle">{t("deviceLink.confirmBody")}</p>
 						<p class="fingerprint">{deviceLink.fingerprint}</p>
-						<p class="subtitle">{t("deviceLink.confirmWaiting")}</p>
+						{#if confirmed}
+							<p class="subtitle">{t("deviceLink.confirmWaiting")}</p>
+						{:else}
+							<button type="button" class="primary" onclick={confirmReceive}>
+								{t("deviceLink.codesMatch")}
+							</button>
+						{/if}
 						<button type="button" class="link" onclick={backToChoice}>{t("common.cancel")}</button>
 					{:else if deviceLink.phase === "receiving"}
 						<h1>{t("deviceLink.receivingTitle")}</h1>

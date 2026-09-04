@@ -83,6 +83,7 @@
 	import { textMentionsUser } from "$lib/utils/mentions";
 	import { notificationSettings } from "$lib/stores/notifications.svelte";
 	import { encryptForPeer, decryptFromPeer } from "$lib/crypto/dm";
+	import { IdentityChangedError } from "$lib/crypto/peer-identity";
 	import {
 		encryptForChannel,
 		decryptFromChannel,
@@ -179,7 +180,13 @@
 				: await decryptFromChannel(myUsername, channel.id, authorUsername, blob);
 			rememberDecrypted(messageId, content);
 			return content;
-		} catch {
+		} catch (err) {
+			// A changed identity key is not a decryption hiccup to retry past -
+			// it means this message wasn't sealed by the peer we trust, so say
+			// so instead of quietly showing "unable to decrypt".
+			if (err instanceof IdentityChangedError) {
+				return t("chat.identityChanged");
+			}
 			const token = session.token;
 			let absorbed = false;
 			if (isGroupDm && token) {
@@ -995,7 +1002,9 @@
 				lastId = apiMsg.id;
 			}
 		} catch (err) {
-			if (err instanceof ApiError && err.status === 413) {
+			if (err instanceof IdentityChangedError) {
+				toast.push(t("toast.identityChanged"));
+			} else if (err instanceof ApiError && err.status === 413) {
 				toast.push(t("toast.fileTooLarge"));
 			} else if (err instanceof ApiError && err.status === 429) {
 				toast.push(err.message || t("toast.sendingTooFast"));

@@ -6,8 +6,28 @@ use uuid::Uuid;
 
 use crate::auth::AuthSession;
 use crate::error::AppError;
-use crate::permissions::{require_permission, ALL_PERMISSIONS, MANAGE_ROLES};
+use crate::permissions::{effective_permissions, require_permission, ALL_PERMISSIONS, MANAGE_ROLES};
 use crate::state::AppState;
+
+/// Nobody may hand out a power they don't hold themselves.
+///
+/// MANAGE_ROLES is the bit that decides who gets which bits, so without a
+/// ceiling it is a back door to every other permission in the server: mint a
+/// role carrying all of them, assign it to yourself, and a moderator is now an
+/// admin. The server owner short-circuits to ALL_PERMISSIONS, so this never
+/// constrains them.
+async fn require_permission_ceiling(
+    pool: &sqlx::PgPool,
+    server_id: Uuid,
+    actor_id: Uuid,
+    permissions: i64,
+) -> Result<(), AppError> {
+    let mine = effective_permissions(pool, server_id, actor_id).await?;
+    if permissions & !mine != 0 {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(())
+}
 
 fn validate_role_name(name: &str) -> Result<String, AppError> {
     let trimmed = name.trim();
@@ -130,6 +150,7 @@ pub async fn create_role(
 
     let name = validate_role_name(&payload.name)?;
     let permissions = payload.permissions & ALL_PERMISSIONS;
+    require_permission_ceiling(&state.pool, server_id, session.user_id, permissions).await?;
 
     let position: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM server_roles WHERE server_id = $1")
         .bind(server_id)
@@ -161,17 +182,20 @@ pub struct UpdateRoleRequest {
     pub position: Option<i32>,
 }
 
+/// Checks the role belongs to this server and returns the powers it currently
+/// carries, so callers can hold it against their own ceiling.
 async fn require_same_server_role(
     pool: &sqlx::PgPool,
     server_id: Uuid,
     role_id: Uuid,
-) -> Result<(), AppError> {
-    let row: Option<(Uuid,)> = sqlx::query_as("SELECT server_id FROM server_roles WHERE id = $1")
-        .bind(role_id)
-        .fetch_optional(pool)
-        .await?;
+) -> Result<i64, AppError> {
+    let row: Option<(Uuid, i64)> =
+        sqlx::query_as("SELECT server_id, permissions FROM server_roles WHERE id = $1")
+            .bind(role_id)
+            .fetch_optional(pool)
+            .await?;
     match row {
-        Some((sid,)) if sid == server_id => Ok(()),
+        Some((sid, permissions)) if sid == server_id => Ok(permissions),
         Some(_) => Err(AppError::NotFound),
         None => Err(AppError::NotFound),
     }
@@ -184,13 +208,20 @@ pub async fn update_role(
     Json(payload): Json<UpdateRoleRequest>,
 ) -> Result<Json<RoleDto>, AppError> {
     require_permission(&state.pool, server_id, session.user_id, MANAGE_ROLES).await?;
-    require_same_server_role(&state.pool, server_id, role_id).await?;
+    let current = require_same_server_role(&state.pool, server_id, role_id).await?;
+    // Editing a role you couldn't have created is the same escalation by
+    // another route - so you must already hold everything it currently grants,
+    // as well as everything you're asking it to grant.
+    require_permission_ceiling(&state.pool, server_id, session.user_id, current).await?;
 
     let name = match payload.name {
         Some(n) => Some(validate_role_name(&n)?),
         None => None,
     };
     let permissions = payload.permissions.map(|p| p & ALL_PERMISSIONS);
+    if let Some(permissions) = permissions {
+        require_permission_ceiling(&state.pool, server_id, session.user_id, permissions).await?;
+    }
 
     let role: RoleDto = sqlx::query_as(
         "UPDATE server_roles SET \
@@ -218,7 +249,8 @@ pub async fn delete_role(
     Path((server_id, role_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(), AppError> {
     require_permission(&state.pool, server_id, session.user_id, MANAGE_ROLES).await?;
-    require_same_server_role(&state.pool, server_id, role_id).await?;
+    let current = require_same_server_role(&state.pool, server_id, role_id).await?;
+    require_permission_ceiling(&state.pool, server_id, session.user_id, current).await?;
 
     sqlx::query("DELETE FROM server_roles WHERE id = $1")
         .bind(role_id)
@@ -234,7 +266,10 @@ pub async fn assign_role(
     Path((server_id, user_id, role_id)): Path<(Uuid, Uuid, Uuid)>,
 ) -> Result<(), AppError> {
     require_permission(&state.pool, server_id, session.user_id, MANAGE_ROLES).await?;
-    require_same_server_role(&state.pool, server_id, role_id).await?;
+    let granted = require_same_server_role(&state.pool, server_id, role_id).await?;
+    // Handing an existing powerful role to yourself is the shortest path of
+    // all, so the ceiling applies here too.
+    require_permission_ceiling(&state.pool, server_id, session.user_id, granted).await?;
     require_member(&state.pool, server_id, user_id).await?;
 
     sqlx::query(
@@ -256,6 +291,10 @@ pub async fn unassign_role(
     Path((server_id, user_id, role_id)): Path<(Uuid, Uuid, Uuid)>,
 ) -> Result<(), AppError> {
     require_permission(&state.pool, server_id, session.user_id, MANAGE_ROLES).await?;
+    // Stripping a role you couldn't grant would let a moderator demote an
+    // admin, so the same ceiling applies in reverse.
+    let held = require_same_server_role(&state.pool, server_id, role_id).await?;
+    require_permission_ceiling(&state.pool, server_id, session.user_id, held).await?;
 
     sqlx::query(
         "DELETE FROM server_member_roles WHERE server_id = $1 AND user_id = $2 AND role_id = $3",
