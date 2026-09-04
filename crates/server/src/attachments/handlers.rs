@@ -32,6 +32,9 @@ const INLINE_MIME: &[&str] = &[
     "image/webp",
     "image/avif",
     "image/bmp",
+    // Safari reports these for photos straight off an iPhone.
+    "image/heic",
+    "image/heif",
     "video/mp4",
     "video/webm",
     "video/ogg",
