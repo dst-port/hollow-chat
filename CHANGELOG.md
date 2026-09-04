@@ -2,6 +2,46 @@
 
 All notable changes to HollowChat are listed here. Dates are in UTC+3.
 
+## v1.0.3 — 2026-09-04
+
+### Security
+This release is a security pass over the whole project. Nothing here is known
+to have been exploited; the issues were found by auditing our own code.
+
+- **Encrypted DMs now pin who they're talking to.** A handshake used to be
+  trusted purely on the identity key written inside it, which meant the server
+  relaying your messages could have named a key of its own, taken over an
+  existing conversation, and read everything sent afterwards — the one thing
+  end-to-end encryption is supposed to make impossible. Your client now
+  remembers a contact's key the first time it sees it and refuses anything that
+  doesn't match, telling you plainly instead of quietly starting a new
+  conversation with a stranger. Group chats inherit this, since their keys are
+  handed out over the same channel.
+- **Uploads can no longer masquerade as something they aren't.** The file type
+  came from whoever uploaded the file, so an SVG could be served as an image
+  and run as a page on our own domain — enough, if you opened the link, to read
+  your session out of the browser. Types are now checked against a fixed list,
+  anything else downloads as a plain file, and every attachment response says
+  so twice over.
+- **Linking a new device asks both devices.** Only the sending side used to act
+  on the six-digit code; the receiving side imported keys the moment they
+  arrived. Now both sides confirm, and a transfer can only write the keys it's
+  meant to.
+- **The desktop app's media bridge ignores web pages.** Any site you happened
+  to visit could reach the local port the browser extension uses and set your
+  broadcast status to text of its choosing. It now only listens to the
+  extension.
+- **Two-factor authentication can't be silently removed.** Enrolling a new
+  secret used to switch 2FA off on the way past, without ever asking for a
+  code. Codes also can't be replayed within their validity window any more.
+- **Changing your password signs out your other sessions**, so rotating it
+  after a scare actually removes whoever else was signed in.
+- **Roles can't be used to promote yourself.** "Manage roles" let a moderator
+  mint a role with every permission and hand it to themselves. Nobody can now
+  grant, edit, or take away a power they don't already hold.
+- Fixed a thread endpoint that returned a thread's details to people outside
+  the server it belonged to.
+
 ## v1.0.2 — 2026-09-02
 
 ### Calls
